@@ -43,6 +43,8 @@ authentik/mail-logo.png
 
 # Python bytecode (lib/, ansible/lookup_plugins/)
 __pycache__/
+# npm packages for the tests that drive a browser (CI: npm install --no-save playwright)
+node_modules/
 # The setup app's build output (setup-app/)
 /setup-app/src-tauri/target/
 /setup-app/src-tauri/gen/
