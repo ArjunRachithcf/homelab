@@ -1,0 +1,4 @@
+# Task names say what the box should look like; lowercase unit/package names and paths in names are fine.
+skip_list:
+  - name[casing]
+  - name[template]

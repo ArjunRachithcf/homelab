@@ -1,0 +1,39 @@
+title = "Push notifications (ntfy)"
+description = "Your own push server for phone notifications, mesh only, admins only; n8n's workflows send through it."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["ntfy"]
+public_names = []
+peer_names = ["ntfy"]
+blueprints = []
+jobs = []
+ansible = ""
+stages = ["files:ntfy"]
+
+
+[[tiles]]
+order = 190
+id = "ntfy"
+name = "Notifications"
+desc = "Push messages to your phone"
+url = "https://ntfy.%s/"
+icon = "/apps/ntfy.svg"
+status = "ntfy"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.NTFY_TAG]
+help = "ntfy version"
+type = "tag"
+default = "v2.34.0"
+advanced = true
+[options.NTFY_N8N_TOKEN]
+help = "ntfy access token of the user n8n (written by the wizard)"
+type = "secret"
+set_by = "files:ntfy"

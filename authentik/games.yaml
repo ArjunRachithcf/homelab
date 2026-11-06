@@ -1,0 +1,55 @@
+# ~/homelab/authentik/games.yaml
+# Games (games.<domain>, component games, RUNBOOK.md step 7f). Applied by
+# `authentik/setup-ssh.sh family-apps` when games is chosen (also part of `hardening`). Only its own
+# Authentik login, no forward-auth: a confidential client (client_id romm, secret
+# ROMM_OIDC_CLIENT_SECRET from .env), family and kids.
+#
+# Needs the secret in the worker's environment (setup-ssh.sh passes it from .env) and the
+# mapping "email (verified)" from family.yaml.
+version: 1
+metadata:
+  name: homelab - Games
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # ── Games (games.<domain>) ── RomM: roles from groups (authentik Admins → admin, family → viewer)
+  - model: authentik_providers_oauth2.oauth2provider
+    id: romm-provider
+    identifiers:
+      name: Provider for Games
+    attrs:
+      client_type: confidential
+      grant_types: [authorization_code, refresh_token]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [name, email (verified)]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+      client_id: romm
+      client_secret: !Env ROMM_OIDC_CLIENT_SECRET
+      redirect_uris:
+        - matching_mode: strict
+          url: https://games.__DOMAIN__:__PUBLIC_PORT__/api/oauth/openid
+        - matching_mode: strict
+          url: https://games.__DOMAIN__:__PUBLIC_PORT__/
+          redirect_uri_type: logout
+  - model: authentik_core.application
+    id: romm-app
+    identifiers:
+      slug: romm
+    attrs:
+      name: Games
+      provider: !KeyOf romm-provider
+      meta_launch_url: https://games.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf romm-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0

@@ -1,0 +1,8 @@
+# ~/homelab/setup/presets/family.toml: a family's homelab with every app.
+title = "Family: every app"
+description = "Every app, public access through NetBird's proxy, SSH with your sign-in, off-site copies to Proton Drive, the outside heartbeat."
+components = ["core", "mesh", "public-access", "paperless", "local-ai", "media-library", "jellyfin", "plex", "music",
+              "photos", "second-disk", "backups", "offsite", "heartbeat", "audiobooks", "budget", "bookmarks", "pdf",
+              "reading", "files", "share", "ssh-sso", "terminal", "home-assistant", "adblock",
+              "chores", "things", "family-tree", "notes", "wiki", "news", "games", "places",
+              "ntfy", "n8n"]

@@ -1,0 +1,1397 @@
+# ~/homelab/docker-compose.yml
+# Caddy listens only on the Fedora box's NetBird IP: :443 for NetBird peers, :8444 for the
+# NetBird reverse proxy (TLS passthrough, PROXY v2), which is the only public way in.
+# Everything public is behind Authentik + MFA. See RUNBOOK.md "Public access".
+# Plex runs natively on the host (port 32400) and is not in this file.
+# Immich (photos.<domain>) keeps its library on the second NVMe (IMMICH_UPLOAD_DIR); RUNBOOK.md 7c.
+# Home Assistant, AdGuard Home, Navidrome, Audiobookshelf, Actual, Karakeep, BentoPDF: RUNBOOK.md 7d.
+# Kavita, OpenCloud, Sharry: RUNBOOK.md 7e.
+# Donetick, Homebox, Gramps Web, Memos, Outline, FreshRSS, RomM, Dawarich: RUNBOOK.md 7f.
+# New variables all have defaults, so an old .env keeps working (hourly backup.sh runs compose).
+# Every app belongs to a component (setup/components/*.toml) and has its compose profile: only the
+# components in COMPOSE_PROFILES (.env, written by ./homelab setup or ./homelab configure) run. Their
+# variables have defaults here (compose reads every service, on or off); ./homelab doctor and
+# ./homelab setup --plan check the options the chosen components need.
+
+name: homelab
+
+networks:
+  internal:
+    # Pinned so the SSH LDAP outpost keeps a fixed address the host can reach (ssh/sssd.conf).
+    # Docker hands out dynamic addresses from the first /24 only; 172.21.1.x is for static ones.
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+          ip_range: 172.21.0.0/24
+  # Karakeep's crawler browser only: it opens any URL a family member saves, so it can't reach
+  # Authentik, Ollama or the others on `internal`. Not internal: it needs the internet. (On Docker
+  # Desktop, host.docker.internal still reaches the Mac's own 127.0.0.1, native Ollama included.)
+  karakeep: {}
+  # Paperless and its converters (Tika, Gotenberg) only: no internet, no other container
+  paperless-convert:
+    internal: true
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}
+  authentik-db: {}
+  authentik-media: {}
+  paperless-data: {}
+  paperless-media: {}
+  paperless-redis: {}
+  jellyfin-config: {}
+  jellyfin-cache: {}
+  navidrome-data: {}
+  immich-db: {}
+  immich-model-cache: {}
+  ollama-models: {}
+  homeassistant-config: {}
+  matter-data: {}
+  adguard-work: {}
+  adguard-conf: {}
+  abs-config: {}
+  abs-metadata: {}
+  abs-podcasts: {}
+  actual-data: {}
+  karakeep-data: {}
+  karakeep-meili: {}
+  kavita-config: {}
+  opencloud-config: {}
+  sharry-db: {}
+  termix-data: {}
+  ntfy-data: {}
+  n8n-data: {}
+  sharry-files: {}
+  donetick-data: {}
+  homebox-data: {}
+  gramps-users: {}
+  gramps-index: {}
+  gramps-thumbs: {}
+  gramps-cache: {}
+  gramps-tree: {}
+  gramps-media: {}
+  memos-data: {}
+  outline-data: {}
+  outline-db: {}
+  freshrss-data: {}
+  romm-resources: {}
+  romm-assets: {}
+  romm-config: {}
+  romm-redis: {}
+  romm-db: {}
+  dawarich-public: {}
+  dawarich-storage: {}
+  dawarich-watched: {}
+  dawarich-db: {}
+
+# Every container: a process can never gain privileges (setuid binaries, file capabilities).
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+
+x-authentik-env: &authentik-env
+  AUTHENTIK_SECRET_KEY: ${AK_SECRET_KEY:?set AK_SECRET_KEY in .env}
+  AUTHENTIK_POSTGRESQL__HOST: authentik-db
+  AUTHENTIK_POSTGRESQL__USER: authentik
+  AUTHENTIK_POSTGRESQL__NAME: authentik
+  AUTHENTIK_POSTGRESQL__PASSWORD: ${AK_PG_PASS:?set AK_PG_PASS in .env}
+  AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+  # Mail (sign-up verification, password recovery, sign-up and security alerts) via Proton SMTP
+  AUTHENTIK_EMAIL__HOST: ${AUTHENTIK_EMAIL__HOST:-smtp.protonmail.ch}
+  AUTHENTIK_EMAIL__PORT: ${AUTHENTIK_EMAIL__PORT:-587}
+  AUTHENTIK_EMAIL__USE_TLS: ${AUTHENTIK_EMAIL__USE_TLS:-true}
+  AUTHENTIK_EMAIL__USE_SSL: ${AUTHENTIK_EMAIL__USE_SSL:-false}
+  AUTHENTIK_EMAIL__USERNAME: ${AUTHENTIK_EMAIL__USERNAME:-}
+  AUTHENTIK_EMAIL__PASSWORD: ${AUTHENTIK_EMAIL__PASSWORD:-}
+  AUTHENTIK_EMAIL__FROM: ${AUTHENTIK_EMAIL__FROM:-}
+
+services:
+  # --- Entry point: HTTPS, bound to the NetBird IP only ---
+  caddy:
+    <<: *hardening
+    # caddy:2.11.7 + caddy-dns/infomaniak, built from ./caddy/Dockerfile
+    build: ./caddy
+    image: homelab-caddy:2.11.7-infomaniak
+    restart: unless-stopped
+    # Root in the container, but with only the capability to bind 80/443
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    ports:
+      - "${NETBIRD_IP:?set NETBIRD_IP in .env}:80:80"
+      - "${NETBIRD_IP:?set NETBIRD_IP in .env}:443:443"
+      # Public listener: only the NetBird reverse proxy may reach it (NetBird policy)
+      - "${NETBIRD_IP:?set NETBIRD_IP in .env}:8444:8444"
+      # The public URLs carry NetBird's listen port (https://home.<domain>:9443; the shared
+      # cloud cluster won't open 443 or 8443 for TLS services). Same sites as :443, so those
+      # URLs also work for NetBird peers.
+      - "${NETBIRD_IP:?set NETBIRD_IP in .env}:${NETBIRD_PROXY_PORT:-9443}:${NETBIRD_PROXY_PORT:-9443}"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      DOMAIN_ALIAS: ${DOMAIN_ALIAS:?set DOMAIN_ALIAS in .env}
+      INFOMANIAK_API_TOKEN: ${INFOMANIAK_API_TOKEN:?set INFOMANIAK_API_TOKEN in .env}
+      PUBLIC_PORT: ${NETBIRD_PROXY_PORT:-9443}
+      # The home page's wording (site/index.html), Authentik's font path (brand CSS, hardening.yaml)
+      BRAND: ${BRAND:-Home}
+      BRAND_SLUG: ${BRAND_SLUG:-home}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      # The chosen components' sites, status checks and Authentik additions (./homelab configure)
+      - ./caddy/enabled:/etc/caddy/enabled:ro,Z
+      - ./site:/srv/site:ro,Z
+      - caddy-data:/data
+      - caddy-config:/config
+    # Landing-page status dot for native Plex
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    networks:
+      internal:
+        # Paperless fetches Authentik's OIDC discovery from https://auth.<domain>:<port>, so
+        # the issuer and login URLs carry the public port. On the compose network that name is Caddy.
+        aliases: ["auth.${DOMAIN}"]
+        # Fixed: Navidrome (login header) and Home Assistant (trusted proxy) trust exactly this address
+        ipv4_address: 172.21.1.11
+    # Optional apps (compose profiles, COMPOSE_PROFILES in .env): waited for only when they're on
+    depends_on:
+      authentik-server:
+        condition: service_started
+      ops:
+        condition: service_started
+      paperless:
+        condition: service_started
+        required: false
+      jellyfin:
+        condition: service_started
+        required: false
+      immich-server:
+        condition: service_started
+        required: false
+      navidrome:
+        condition: service_started
+        required: false
+      kavita:
+        condition: service_started
+        required: false
+      opencloud:
+        condition: service_started
+        required: false
+      sharry:
+        condition: service_started
+        required: false
+      termix:
+        condition: service_started
+        required: false
+      donetick:
+        condition: service_started
+        required: false
+      gramps:
+        condition: service_started
+        required: false
+      memos:
+        condition: service_started
+        required: false
+      outline:
+        condition: service_started
+        required: false
+      freshrss:
+        condition: service_started
+        required: false
+      romm:
+        condition: service_started
+        required: false
+      dawarich:
+        condition: service_started
+        required: false
+      ntfy:
+        condition: service_started
+        required: false
+      n8n:
+        condition: service_started
+        required: false
+
+  # --- Authentik (current releases need no Redis: db + server + worker) ---
+  authentik-db:
+    <<: *hardening
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${AK_PG_PASS}
+    volumes:
+      - authentik-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  authentik-server:
+    <<: *hardening
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
+    restart: unless-stopped
+    command: server
+    environment: *authentik-env
+    volumes:
+      - authentik-media:/media
+      # Mail templates (authentik/family.yaml), rendered by ./homelab configure. z, not Z: server and worker both read them.
+      - ./authentik/templates:/templates:ro,z
+    depends_on:
+      authentik-db:
+        condition: service_healthy
+    networks: [internal]
+
+  authentik-worker:
+    <<: *hardening
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
+    restart: unless-stopped
+    command: worker
+    environment: *authentik-env
+    volumes:
+      - authentik-media:/media
+      # Mail templates (authentik/family.yaml), rendered by ./homelab configure. z, not Z: server and worker both read them.
+      - ./authentik/templates:/templates:ro,z
+      # Mails embed this file as the inline image "cid:logo" (Authentik's own logo otherwise);
+      # an inline image shows even where remote images are blocked. Worker only: it sends the mails.
+      - ./authentik/mail-logo.png:/web/dist/assets/icons/icon_left_brand.png:ro,z
+    depends_on:
+      authentik-db:
+        condition: service_healthy
+    networks: [internal]
+
+  # Authentik LDAP outpost: Jellyfin (Swiftfin, TV apps) signs in against Authentik.
+  # Compose network only (ldap://authentik-ldap:3389); never published to the host.
+  # Configured by authentik/jellyfin-ldap.yaml.
+  authentik-ldap:
+    profiles: [jellyfin]
+    <<: *hardening
+    image: ghcr.io/goauthentik/ldap:${AUTHENTIK_TAG:-2026.8.3}
+    restart: unless-stopped
+    environment:
+      AUTHENTIK_HOST: http://authentik-server:9000
+      AUTHENTIK_INSECURE: "false"
+      AUTHENTIK_TOKEN: ${AK_LDAP_OUTPOST_TOKEN:-}
+    depends_on: [authentik-server]
+    networks: [internal]
+
+  # Second LDAP outpost, for SSH only (authentik/ssh-ldap.yaml): SSSD on the host checks
+  # keys and "password;TOTP" against it over LDAPS 6636. No ports: the host reaches the
+  # fixed bridge address directly (/etc/hosts: ldap.homelab.internal); Docker drops traffic
+  # from other machines to unpublished ports. The token comes from authentik/setup-ssh.sh;
+  # until then this container just restarts.
+  authentik-ldap-ssh:
+    profiles: [ssh-sso]
+    <<: *hardening
+    image: ghcr.io/goauthentik/ldap:${AUTHENTIK_TAG:-2026.8.3}
+    restart: unless-stopped
+    environment:
+      AUTHENTIK_HOST: http://authentik-server:9000
+      AUTHENTIK_INSECURE: "false"
+      AUTHENTIK_TOKEN: ${AK_LDAP_SSH_OUTPOST_TOKEN:-}
+    depends_on: [authentik-server]
+    networks:
+      internal:
+        ipv4_address: 172.21.1.10
+
+  # --- Paperless-ngx (SQLite is fine for a household) ---
+  paperless-redis:
+    profiles: [paperless]
+    <<: *hardening
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - paperless-redis:/data
+    networks: [internal]
+
+  paperless:
+    profiles: [paperless]
+    <<: *hardening
+    image: ghcr.io/paperless-ngx/paperless-ngx:${PAPERLESS_TAG:-3.3.0}
+    restart: unless-stopped
+    depends_on: [paperless-redis, paperless-gotenberg, paperless-tika]
+    environment:
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:-}
+      PAPERLESS_URL: https://paperless.${DOMAIN}
+      # Also accept form POSTs (login, CSRF) on the alias domain
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://paperless.${DOMAIN},https://paperless.${DOMAIN_ALIAS},https://paperless.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443},https://paperless.${DOMAIN_ALIAS}:${NETBIRD_PROXY_PORT:-9443}
+      PAPERLESS_TIME_ZONE: ${TIME_ZONE:-Europe/Zurich}
+      PAPERLESS_OCR_LANGUAGE: ${OCR_LANGUAGES:-deu+fra+eng}
+      USERMAP_UID: ${HOST_UID:-1000}
+      USERMAP_GID: ${HOST_GID:-1000}
+      # Local break-glass admin, created on first start only
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-}
+      # SSO via Authentik (OIDC)
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: ${PAPERLESS_OIDC_JSON:-{}}
+      # A first SSO login creates the Paperless user. Safe because Authentik only lets the
+      # group paperless-users into the paperless app (every family sign-up joins it).
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      # Flip both to "true" once your SSO login is linked and tested (runbook step 6)
+      PAPERLESS_DISABLE_REGULAR_LOGIN: ${PAPERLESS_SSO_ONLY:-false}
+      PAPERLESS_REDIRECT_LOGIN_TO_SSO: ${PAPERLESS_SSO_ONLY:-false}
+      # AI suggestions, document chat, workflow "Apply AI suggestions" (RUNBOOK.md step 6b):
+      # local Ollama only. The LLM index is derived (rebuilt nightly), not backed up.
+      PAPERLESS_AI_ENABLED: "true"
+      PAPERLESS_AI_LLM_BACKEND: ollama
+      # The ollama container, or Ollama itself on macOS (OLLAMA_URL, setup/components/local-ai.toml)
+      PAPERLESS_AI_LLM_ENDPOINT: ${OLLAMA_URL:-http://ollama:11434}
+      PAPERLESS_AI_LLM_MODEL: ${PAPERLESS_AI_MODEL:-gemma4:12b}
+      PAPERLESS_AI_LLM_EMBEDDING_BACKEND: ollama
+      PAPERLESS_AI_LLM_EMBEDDING_MODEL: ${PAPERLESS_AI_EMBEDDING_MODEL:-bge-m3}
+      # First call loads the model into VRAM
+      PAPERLESS_AI_LLM_REQUEST_TIMEOUT: "300"
+      # Office files and e-mails: Tika reads their text, Gotenberg makes the PDF Paperless archives
+      # (as Paperless' own docker-compose.postgres-tika.yml; both on paperless-convert only)
+      PAPERLESS_TIKA_ENABLED: "true"
+      PAPERLESS_TIKA_ENDPOINT: http://paperless-tika:9998
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless-gotenberg:3000
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - ./consume:/usr/src/paperless/consume:Z
+      - ./export:/usr/src/paperless/export:Z
+    networks: [internal, paperless-convert]
+
+  # Office files and e-mails into PDFs for Paperless. Its own flags as Paperless ships them (no JavaScript,
+  # Chromium only reads /tmp), plus nothing fetched from anywhere: no downloadFrom, no webhooks, no URLs
+  # in a document followed by LibreOffice, and no internet on paperless-convert anyway. No port.
+  paperless-gotenberg:
+    profiles: [paperless]
+    <<: *hardening
+    image: docker.io/gotenberg/gotenberg:${PAPERLESS_GOTENBERG_TAG:-8.37.0}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=file:///tmp/.*
+      - --api-timeout=300s
+      - --api-disable-download-from=true
+      - --webhook-disable=true
+      - --libreoffice-deny-private-ips=true
+      - --libreoffice-deny-public-ips=true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 60s
+      timeout: 10s
+      start_period: 30s
+    networks: [paperless-convert]
+
+  # The text of Office files and e-mails for Paperless (Apache Tika server). No port.
+  paperless-tika:
+    profiles: [paperless]
+    <<: *hardening
+    image: docker.io/apache/tika:${PAPERLESS_TIKA_TAG:-3.3.1.0}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx1g
+    healthcheck:
+      # The image has no curl or wget
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9998 && printf 'GET /version HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q Tika <&3"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+    networks: [paperless-convert]
+
+  # Local LLM for Paperless AI (RUNBOOK.md step 6b): documents never leave this PC. On the NVIDIA
+  # card through CDI (ansible gpu role). Reached only by Paperless on the compose network. No host port.
+  ollama:
+    profiles: [local-ai]
+    <<: *hardening
+    image: docker.io/ollama/ollama:${OLLAMA_TAG:-0.40.7}
+    restart: unless-stopped
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      OLLAMA_KEEP_ALIVE: 10m
+      # Local models only, never ollama.com's cloud ones
+      OLLAMA_NO_CLOUD: "true"
+    devices:
+      - nvidia.com/gpu=all
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+    networks: [internal]
+
+  # --- Jellyfin (alongside native Plex; same media library, read-only) ---
+  # Reached only through Caddy at jellyfin.<domain>. No host port.
+  jellyfin:
+    profiles: [jellyfin]
+    <<: *hardening
+    image: docker.io/jellyfin/jellyfin:${JELLYFIN_TAG:-12.2}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      JELLYFIN_PublishedServerUrl: https://jellyfin.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      # ro: Jellyfin never writes here. z (shared SELinux label): readable by containers
+      # and still by native Plex. Relabels MEDIA_DIR once, so point it at a media-only folder.
+      - ${MEDIA_DIR:-/srv/media}:/media:ro,z
+    # Hardware transcoding (VAAPI) on RENDER_DEVICE (.env; on an AMD iGPU typically renderD128;
+    # renderD129 is the NVIDIA card, left alone), always /dev/dri/renderD128 inside the container.
+    # RENDER_GID: getent group render | cut -d: -f3
+    devices:
+      - ${RENDER_DEVICE:-/dev/dri/renderD128}:/dev/dri/renderD128
+    group_add:
+      - "${RENDER_GID}"
+    networks: [internal]
+
+  # --- Navidrome (music, music.<domain>; RUNBOOK.md 7d) ---
+  # Reached only through Caddy. No host port. The web UI signs in with Authentik forward-auth:
+  # Caddy passes X-Authentik-Username, trusted only from Caddy's fixed IP. Subsonic apps (/rest)
+  # use the user's own Navidrome password and only over NetBird; the public listener gates /rest too.
+  navidrome:
+    profiles: [music]
+    <<: *hardening
+    image: docker.io/deluan/navidrome:${NAVIDROME_TAG:-0.64.2}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_EXTAUTH_TRUSTEDSOURCES: 172.21.1.11/32
+      ND_EXTAUTH_USERHEADER: X-Authentik-Username
+      ND_EXTAUTH_LOGOUTURL: https://music.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/outpost.goauthentik.io/sign_out
+      # Subsonic needs the password itself, so Navidrome stores it encrypted with this key
+      ND_PASSWORDENCRYPTIONKEY: ${NAVIDROME_PASSWORD_KEY:-}
+      # Public share links would bypass Authentik
+      ND_ENABLESHARING: "false"
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      # The watcher picks up new files; the daily full scan catches anything it missed
+      ND_SCANNER_SCHEDULE: "@every 24h"
+      # Subsonic apps are public since 7e (each user has a long random password): failed /rest logins
+      # are limited per client IP + user (≥ 0.64.1). The IP is Caddy's X-Forwarded-For (from PROXY v2),
+      # trusted only from ND_EXTAUTH_TRUSTEDSOURCES. CrowdSec (planned) bans on top.
+      ND_AUTHREQUESTLIMIT: "5"
+      ND_AUTHWINDOWLENGTH: 60s
+    volumes:
+      - navidrome-data:/data
+      # ro: Navidrome never writes here (MEDIA_DIR already carries the shared label)
+      - ${MEDIA_DIR:-/srv/media}/Music:/music:ro,z
+    networks: [internal]
+
+  # --- Kavita (read.<domain>, RUNBOOK.md 7e): books, comics, manga for the family. OIDC against
+  # Authentik (authority, client and secret in its appsettings.json, written by files-wizard.sh);
+  # the roles claim decides admin, downloads, libraries and the kids' age limit. Read-only library.
+  kavita:
+    profiles: [reading]
+    <<: *hardening
+    image: docker.io/jvmilazz0/kavita:${KAVITA_TAG:-0.9.1}
+    restart: unless-stopped
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+    volumes:
+      - kavita-config:/kavita/config
+      # Books/{Books,Comics,Manga,Kids}; MEDIA_DIR already carries the shared label
+      - ${MEDIA_DIR:-/srv/media}/Books:/books:ro,z
+    networks: [internal]
+
+  # --- OpenCloud (files.<domain>, RUNBOOK.md 7e): files for the family, synced by its desktop and
+  # mobile apps. Sign-in only through Authentik (four public OIDC clients, authentik/files.yaml);
+  # accounts and roles come from the token. Storage on the second NVMe (FILES_DIR, posix driver:
+  # real files with metadata in xattrs). Public links are blocked in Caddy (`(opencloud)`).
+  opencloud:
+    profiles: [files]
+    <<: *hardening
+    image: docker.io/opencloudeu/opencloud:${OPENCLOUD_TAG:-7.2.4}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    # First start writes /etc/opencloud/opencloud.yaml with random secrets; later starts keep it
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "opencloud init --insecure no || true; opencloud server"]
+    environment:
+      OC_URL: https://files.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      OC_LOG_LEVEL: warn
+      # Caddy ends TLS
+      PROXY_TLS: "false"
+      OC_INSECURE: "false"
+      # Authentik is the IdP; the built-in user directory (idm) stays for the provisioned accounts
+      OC_EXCLUDE_RUN_SERVICES: idp
+      # Authentik's "same identifier for all providers" issuer; Caddy answers its discovery at
+      # auth.<domain>/.well-known (the compose alias auth.<domain> is Caddy)
+      OC_OIDC_ISSUER: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/
+      IDP_DOMAIN: auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      PROXY_OIDC_REWRITE_WELLKNOWN: "true"
+      # Added to the default CSP (merged, not replaced): the browser may fetch from IDP_DOMAIN
+      PROXY_CSP_CONFIG_FILE_LOCATION: /etc/opencloud-csp.yaml
+      PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD: jwt
+      PROXY_AUTOPROVISION_ACCOUNTS: "true"
+      PROXY_USER_OIDC_CLAIM: preferred_username
+      PROXY_AUTOPROVISION_CLAIM_USERNAME: preferred_username
+      PROXY_USER_CS3_CLAIM: username
+      # Authentik usernames may carry capitals (JaneSmith)
+      GRAPH_USERNAME_MATCH: none
+      # Roles from the token's "roles" claim (opencloudAdmin / opencloudUser); none → no login
+      PROXY_ROLE_ASSIGNMENT_DRIVER: oidc
+      PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM: roles
+      GRAPH_ASSIGN_DEFAULT_USER_ROLE: "false"
+      SETTINGS_SETUP_DEFAULT_ASSIGNMENTS: "false"
+      OC_ADMIN_USER_ID: ""
+      PROXY_ENABLE_BASIC_AUTH: "false"
+      # 100 GB: the default for every personal space and the most an admin can give one
+      OC_SPACES_MAX_QUOTA: "100000000000"
+    volumes:
+      - opencloud-config:/etc/opencloud
+      - ./opencloud/csp.yaml:/etc/opencloud-csp.yaml:ro,z
+      # Z: only this container reads it. A bind mount of nvme1/files (ansible storage role)
+      - ${FILES_DIR:-/srv/files}:/var/lib/opencloud:Z
+    networks: [internal]
+
+  # --- Sharry (share.<domain>, RUNBOOK.md 7e): send a file with a link that expires (≤ 30 days,
+  # always with a password), or let someone upload to you. Family signs in with Authentik; the
+  # people they share with need no account. Shares in its own Postgres, the files in sharry-files.
+  sharry:
+    profiles: [share]
+    <<: *hardening
+    image: docker.io/eikek0/sharry:${SHARRY_TAG:-v1.17.0}
+    restart: unless-stopped
+    command: ["/opt/sharry/sharry.conf"]
+    environment:
+      SHARRY_URL: https://share.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      SHARRY_AUTH: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      SHARRY_DB_PASSWORD: ${SHARRY_DB_PASSWORD:-}
+      SHARRY_SERVER_SECRET: ${SHARRY_SERVER_SECRET:-}
+      SHARRY_OIDC_CLIENT_SECRET: ${SHARRY_OIDC_CLIENT_SECRET:-}
+      # The sign-in button (sharry.conf); not SHARRY_*: Sharry's own env reader would map that onto a key
+      BRAND_ACCOUNT: ${BRAND:-Home} account
+    volumes:
+      # Secrets come in through the environment (${?VAR} in the file)
+      - ./sharry/sharry.conf:/opt/sharry/sharry.conf:ro,Z
+      # Uploaded files; owned by the image's uid 10001 (files-wizard.sh chowns it once). Not backed up.
+      - sharry-files:/data
+    depends_on:
+      sharry-db:
+        condition: service_healthy
+    networks: [internal]
+
+  sharry-db:
+    profiles: [share]
+    <<: *hardening
+    image: docker.io/library/postgres:${SHARRY_PG_TAG:-18-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sharry
+      POSTGRES_DB: sharry
+      POSTGRES_PASSWORD: ${SHARRY_DB_PASSWORD:-}
+    volumes:
+      # Postgres 18 keeps its data in a versioned folder below this
+      - sharry-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d sharry -U sharry"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  # --- Termix (term.<domain>, RUNBOOK.md 7e "Terminal"): web SSH client for admins, NetBird only.
+  # Signs in with Authentik OIDC (app bound to authentik Admins; password login and sign-up off).
+  # Reaches sshd on NETBIRD_IP:22 like any client: the key it holds + password;TOTP every session.
+  # Its secrets (JWT, ENCRYPTION_KEY, DATABASE_KEY) are generated into the volume on first start.
+  termix:
+    profiles: [terminal]
+    <<: *hardening
+    image: ghcr.io/termix-ssh/termix:${TERMIX_TAG:-26.10.5}
+    restart: unless-stopped
+    environment:
+      PUID: ${HOST_UID:-1000}
+      PGID: ${HOST_GID:-1000}
+      ALLOW_PASSWORD_LOGIN: "false"
+      ALLOW_REGISTRATION: "false"
+      ALLOW_PASSWORD_RESET: "false"
+      # First Authentik sign-in creates the account (only admins get past Authentik)
+      EXTERNAL_ALLOW_REGISTRATION: "true"
+      OIDC_ENV_OVERRIDE: "true"
+      OIDC_SILENT_LOGIN_DEFAULT: "true"
+      OIDC_CLIENT_ID: termix
+      OIDC_CLIENT_SECRET: ${TERMIX_OIDC_CLIENT_SECRET:-}
+      # auth.<domain> on the compose network is Caddy (alias), so these work from inside too
+      OIDC_ISSUER_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/termix/
+      OIDC_AUTHORIZATION_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/authorize/
+      OIDC_TOKEN_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/token/
+      OIDC_SCOPES: openid email profile groups
+      OIDC_GROUP_CLAIM: groups
+      OIDC_ADMIN_GROUP: authentik Admins
+      EXTERNAL_FORCE_HTTPS: "true"
+      # Caddy's fixed address: the client IP in Termix's audit log comes from it
+      TRUSTED_PROXIES: 172.21.1.11
+      ENABLE_TELEMETRY: "false"
+      LOG_LEVEL: warn
+    volumes:
+      - termix-data:/app/data
+    networks: [internal]
+
+  # ── Family apps (RUNBOOK.md 7f, family-wizard.sh) ─────────────────────
+  # One component each, its compose profile (chores, things, family-tree, notes, wiki, news, games, places).
+  # Public like Kavita: each only allows its own Authentik OIDC login (authentik/<component>.yaml,
+  # bound to family; chores and games also kids), local passwords off where the app allows it.
+  # auth.<domain> on the compose network is Caddy (alias), so the apps reach Authentik through it.
+
+  # --- Donetick (chores.<domain>): chores and to-dos for the household, one shared circle.
+  # Env-only config (no /config/selfhosted.yaml: the image's /config holds its sources).
+  donetick:
+    profiles: [chores]
+    <<: *hardening
+    image: docker.io/donetick/donetick:${DONETICK_TAG:-v0.1.83}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      DT_ENV: selfhosted
+      DT_SQLITE_PATH: /data/donetick.db
+      DT_JWT_SECRET: ${DONETICK_JWT_SECRET:-}
+      DT_SERVER_SERVE_FRONTEND: "true"
+      DT_SERVER_SERVE_SWAGGER: "false"
+      DT_SERVER_PUBLIC_HOST: https://chores.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      DT_SERVER_READ_TIMEOUT: 10s
+      DT_SERVER_WRITE_TIMEOUT: 10s
+      # The phone app is a Capacitor web view
+      DT_SERVER_CORS_ALLOW_ORIGINS: https://chores.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443},capacitor://localhost,https://localhost,http://localhost
+      DT_REALTIME_ALLOWED_ORIGINS: https://chores.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      DT_OAUTH2_NAME: ${BRAND:-Home}
+      DT_OAUTH2_CLIENT_ID: donetick
+      DT_OAUTH2_CLIENT_SECRET: ${DONETICK_OIDC_CLIENT_SECRET:-}
+      DT_OAUTH2_AUTH_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/authorize/
+      DT_OAUTH2_TOKEN_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/token/
+      DT_OAUTH2_USER_INFO_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/userinfo/
+      DT_OAUTH2_REDIRECT_URL: https://chores.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/auth/oauth2
+      DT_OAUTH2_PKCE: "true"
+      DT_OAUTH2_SCOPES: openid,profile,email
+      # Circle role, re-synced at every login
+      DT_OAUTH2_ADMIN_GROUPS: authentik Admins
+      DT_DISABLE_PASSWORD_AUTH: "true"
+      DT_IS_USER_CREATION_DISABLED: "true"
+      # Everyone joins the one household circle
+      DT_SINGLE_CIRCLE_INSTANCE: "true"
+    volumes:
+      - donetick-data:/data
+    networks: [internal]
+
+  # --- Homebox (stuff.<domain>): what the family owns, where it is, receipts and warranties.
+  # OIDC is set up once at start: started after Caddy and Authentik (family-wizard.sh restarts it
+  # after the blueprint exists).
+  homebox:
+    profiles: [things]
+    <<: *hardening
+    image: ghcr.io/sysadminsmedia/homebox:${HOMEBOX_TAG:-0.27.1}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      HBOX_AUTH_API_KEY_PEPPER: ${HOMEBOX_API_KEY_PEPPER:-}
+      HBOX_OIDC_ENABLED: "true"
+      # Must equal the discovery's issuer exactly (port, trailing slash)
+      HBOX_OIDC_ISSUER_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/homebox/
+      HBOX_OIDC_CLIENT_ID: homebox
+      HBOX_OIDC_CLIENT_SECRET: ${HOMEBOX_OIDC_CLIENT_SECRET:-}
+      HBOX_OIDC_ALLOWED_GROUPS: family
+      HBOX_OIDC_VERIFY_EMAIL: "true"
+      HBOX_OIDC_AUTO_REDIRECT: "true"
+      HBOX_OIDC_BUTTON_TEXT: Sign in
+      HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: "false"
+      HBOX_OPTIONS_ALLOW_REGISTRATION: "false"
+      # host:port, no scheme; the scheme comes from X-Forwarded-Proto
+      HBOX_OPTIONS_HOSTNAME: stuff.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      HBOX_OPTIONS_TRUST_PROXY: "true"
+      HBOX_OPTIONS_GITHUB_RELEASE_CHECK: "false"
+      HBOX_OPTIONS_ALLOW_ANALYTICS: "false"
+    volumes:
+      - homebox-data:/data
+    depends_on: [caddy]
+    networks: [internal]
+
+  # --- Gramps Web (tree.<domain>): the family tree. Web + Celery worker (same image, env, volumes)
+  # + Valkey. Roles from the groups claim: authentik Admins → admin, family → editor. The tree is
+  # created on first start (GRAMPSWEB_TREE).
+  gramps: &gramps
+    profiles: [family-tree]
+    <<: *hardening
+    image: ghcr.io/gramps-project/grampsweb:${GRAMPS_TAG:-26.10.2}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /root/.gunicorn]
+    environment:
+      # Opened by name and created when missing: GRAMPS_TREE pins it (family-wizard.sh writes it once)
+      GRAMPSWEB_TREE: ${GRAMPS_TREE:-${BRAND:-Home}}
+      GRAMPSWEB_SECRET_KEY: ${GRAMPS_SECRET_KEY:-}
+      GRAMPSWEB_BASE_URL: https://tree.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      GRAMPSWEB_OIDC_ENABLED: "true"
+      # Full discovery URL: with the issuer alone it builds "…/gramps//.well-known" (404)
+      GRAMPSWEB_OIDC_OPENID_CONFIG_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/gramps/.well-known/openid-configuration
+      GRAMPSWEB_OIDC_ISSUER: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/gramps/
+      GRAMPSWEB_OIDC_CLIENT_ID: gramps
+      GRAMPSWEB_OIDC_CLIENT_SECRET: ${GRAMPS_OIDC_CLIENT_SECRET:-}
+      GRAMPSWEB_OIDC_NAME: ${BRAND:-Home}
+      GRAMPSWEB_OIDC_DISABLE_LOCAL_AUTH: "true"
+      GRAMPSWEB_OIDC_AUTO_REDIRECT: "true"
+      GRAMPSWEB_REGISTRATION_DISABLED: "true"
+      GRAMPSWEB_OIDC_ROLE_CLAIM: groups
+      GRAMPSWEB_OIDC_GROUP_ADMIN: authentik Admins
+      GRAMPSWEB_OIDC_GROUP_EDITOR: family
+      GRAMPSWEB_DISABLE_TELEMETRY: "true"
+      GRAMPSWEB_CELERY_CONFIG__broker_url: redis://gramps-redis:6379/0
+      GRAMPSWEB_CELERY_CONFIG__result_backend: redis://gramps-redis:6379/0
+      GRAMPSWEB_RATELIMIT_STORAGE_URI: redis://gramps-redis:6379/1
+      GUNICORN_NUM_WORKERS: "2"
+    volumes:
+      - gramps-users:/app/users
+      - gramps-index:/app/indexdir
+      - gramps-thumbs:/app/thumbnail_cache
+      - gramps-cache:/app/cache
+      - gramps-tree:/root/.gramps/grampsdb
+      - gramps-media:/app/media
+    # The worker waits for this: both create the tree when it's missing, and started together they
+    # each made one (seen 2026-10-27)
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/ready', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    depends_on: [gramps-redis]
+    networks: [internal]
+
+  gramps-celery:
+    profiles: [family-tree]
+    <<: *gramps
+    command: ["celery", "-A", "gramps_webapi.celery", "worker", "--loglevel=WARNING", "--concurrency=2"]
+    healthcheck:
+      disable: true
+    depends_on:
+      gramps:
+        condition: service_healthy
+      gramps-redis:
+        condition: service_started
+
+  gramps-redis:
+    profiles: [family-tree]
+    <<: *hardening
+    image: docker.io/valkey/valkey:${VALKEY_TAG:-9.0-alpine}
+    restart: unless-stopped
+    networks: [internal]
+
+  # --- Memos (notes.<domain>): quick notes, private by default. Our build (memos/build.sh):
+  # upstream's source + memos/sso-admin.patch, so that with password auth off nobody signs in or
+  # signs up with a password, admins included, and authentik Admins are its admins (checked at every
+  # sign-in). Configured from files in /etc/secrets at every start (memos/*.json; the Authentik
+  # one is written from the env here).
+  memos:
+    profiles: [notes]
+    <<: *hardening
+    image: homelab-memos:${MEMOS_TAG:-0.31.0}-sso
+    # Built locally, never pulled
+    pull_policy: never
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/etc/secrets]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cp /config/*.json /etc/secrets/
+        sed -e "s|__SECRET__|$$MEMOS_OIDC_CLIENT_SECRET|" -e "s|__AUTH__|$$MEMOS_AUTH|g" -e "s|__BRAND__|$$MEMOS_BRAND|" \
+          /config/idp-authentik.json.in > /etc/secrets/memos-idp-authentik.json
+        chmod 644 /etc/secrets/*.json
+        exec /usr/local/memos/entrypoint.sh /usr/local/memos/memos
+    environment:
+      MEMOS_INSTANCE_URL: https://notes.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      MEMOS_TRUSTED_PROXIES: 172.21.1.11
+      MEMOS_SSO_ADMIN_GROUP: authentik Admins
+      MEMOS_AUTH: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      # The sign-in button's name (idp-authentik.json.in)
+      MEMOS_BRAND: ${BRAND:-Home}
+      MEMOS_OIDC_CLIENT_SECRET: ${MEMOS_OIDC_CLIENT_SECRET:-}
+    volumes:
+      - memos-data:/var/opt/memos
+      - ./memos:/config:ro,Z
+    networks: [internal]
+
+  # --- Outline (wiki.<domain>): the family wiki. OIDC only (Outline has no passwords; no SMTP, so
+  # no magic links). The first sign-in creates the team and is its admin; passkeys are switched
+  # off in its settings (family-wizard.sh), or they'd skip Authentik.
+  outline:
+    profiles: [wiki]
+    <<: *hardening
+    image: docker.getoutline.com/outlinewiki/outline:${OUTLINE_TAG:-1.12.0}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      URL: https://wiki.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      SECRET_KEY: ${OUTLINE_SECRET_KEY:-}
+      UTILS_SECRET: ${OUTLINE_UTILS_SECRET:-}
+      DATABASE_URL: postgres://outline:${OUTLINE_DB_PASSWORD:-}@outline-db:5432/outline
+      PGSSLMODE: disable
+      REDIS_URL: redis://outline-redis:6379
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      OIDC_CLIENT_ID: outline
+      OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET:-}
+      OIDC_AUTH_URI: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/authorize/
+      OIDC_TOKEN_URI: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/token/
+      OIDC_USERINFO_URI: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/userinfo/
+      OIDC_LOGOUT_URI: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/outline/end-session/
+      OIDC_USERNAME_CLAIM: preferred_username
+      OIDC_DISPLAY_NAME: ${BRAND:-Home}
+      OIDC_SCOPES: openid profile email
+      APP_NAME: ${BRAND:-Home}
+      ENABLE_UPDATES: "false"
+      TELEMETRY: "false"
+    volumes:
+      # Owned by the image's nodejs (1001): a new named volume takes the image folder's owner
+      - outline-data:/var/lib/outline/data
+    depends_on:
+      outline-db:
+        condition: service_healthy
+      outline-redis:
+        condition: service_started
+    networks: [internal]
+
+  outline-db:
+    profiles: [wiki]
+    <<: *hardening
+    image: docker.io/library/postgres:${OUTLINE_PG_TAG:-18-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: outline
+      POSTGRES_DB: outline
+      POSTGRES_PASSWORD: ${OUTLINE_DB_PASSWORD:-}
+    volumes:
+      - outline-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d outline -U outline"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  outline-redis:
+    profiles: [wiki]
+    <<: *hardening
+    image: docker.io/valkey/valkey:${VALKEY_TAG:-9.0-alpine}
+    restart: unless-stopped
+    networks: [internal]
+
+  # --- FreshRSS (news.<domain>): feeds. Apache's mod_auth_openidc guards /i/ (the web UI); /api/
+  # (Google Reader API for phone apps, per-user API password) is outside it. New Authentik users
+  # get a FreshRSS account on first visit. Not read-only: its entrypoint edits Apache/PHP config.
+  freshrss:
+    profiles: [news]
+    <<: *hardening
+    image: docker.io/freshrss/freshrss:${FRESHRSS_TAG:-1.30.4}
+    restart: unless-stopped
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      CRON_MIN: "7,37"
+      ENABLE_ACCESS_LOG: "0"
+      # Caddy only: it may send the forwarded headers (and nobody may send Remote-User, see Caddyfile)
+      TRUSTED_PROXY: 172.21.1.11/32
+      OIDC_ENABLED: "1"
+      OIDC_PROVIDER_METADATA_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/freshrss/.well-known/openid-configuration
+      OIDC_CLIENT_ID: freshrss
+      OIDC_CLIENT_SECRET: ${FRESHRSS_OIDC_CLIENT_SECRET:-}
+      OIDC_CLIENT_CRYPTO_KEY: ${FRESHRSS_OIDC_CRYPTO_KEY:-}
+      OIDC_REMOTE_USER_CLAIM: preferred_username
+      OIDC_SCOPES: openid email profile
+      OIDC_X_FORWARDED_HEADERS: X-Forwarded-Host X-Forwarded-Port X-Forwarded-Proto
+      OIDC_SESSION_INACTIVITY_TIMEOUT: "86400"
+      OIDC_SESSION_MAX_DURATION: "2592000"
+      # First start only: HTTP auth (= the OIDC username), admin = FRESHRSS_ADMIN_USER
+      FRESHRSS_INSTALL: |-
+        --auth-type http_auth
+        --default-user ${FRESHRSS_ADMIN_USER:-${ADMIN_LOGIN:-${ADMIN_USER:-admin}}}
+        --base-url https://news.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+        --api-enabled
+        --disable-update
+        --language en
+      FRESHRSS_USER: |-
+        --user ${FRESHRSS_ADMIN_USER:-${ADMIN_LOGIN:-${ADMIN_USER:-admin}}}
+        --language en
+    volumes:
+      - freshrss-data:/var/www/FreshRSS/data
+    networks: [internal]
+
+  # --- RomM (games.<domain>): the family's old console games, played in the browser (EmulatorJS).
+  # Library MEDIA_DIR/Games (roms/<platform>/, bios/), read-write: uploads and scans; not backed up,
+  # like films. Roles from groups (authentik Admins → admin, family → viewer). Accounts only through
+  # Authentik: creating local users and password logins are refused in Caddy (`(romm)`).
+  romm:
+    profiles: [games]
+    <<: *hardening
+    image: docker.io/rommapp/romm:${ROMM_TAG:-5.4.1}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    read_only: true
+    tmpfs: [/tmp, /etc/nginx/conf.d]
+    environment:
+      DB_HOST: romm-db
+      DB_NAME: romm
+      DB_USER: romm
+      DB_PASSWD: ${ROMM_DB_PASSWORD:-}
+      ROMM_AUTH_SECRET_KEY: ${ROMM_AUTH_SECRET_KEY:-}
+      ROMM_BASE_URL: https://games.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      ROMM_SESSION_SECURE_COOKIE: "true"
+      OIDC_ENABLED: "true"
+      OIDC_PROVIDER: authentik
+      OIDC_CLIENT_ID: romm
+      OIDC_CLIENT_SECRET: ${ROMM_OIDC_CLIENT_SECRET:-}
+      OIDC_SERVER_APPLICATION_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/romm/
+      OIDC_REDIRECT_URI: https://games.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/api/oauth/openid
+      OIDC_USERNAME_ATTRIBUTE: preferred_username
+      OIDC_CLAIM_ROLES: groups
+      OIDC_ROLE_ADMIN: authentik Admins
+      OIDC_ROLE_VIEWER: family
+      OIDC_AUTOLOGIN: "true"
+      OIDC_RP_INITIATED_LOGOUT: "true"
+      OIDC_END_SESSION_ENDPOINT: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/romm/end-session/
+      DISABLE_USERPASS_LOGIN: "true"
+      DISABLE_SETUP_WIZARD: "true"
+      UPC_LOOKUP_ENABLED: "false"
+      # Covers and titles: IGDB (a Twitch developer app, optional, family-wizard.sh) and Hasheous
+      IGDB_CLIENT_ID: ${ROMM_IGDB_CLIENT_ID:-}
+      IGDB_CLIENT_SECRET: ${ROMM_IGDB_CLIENT_SECRET:-}
+      HASHEOUS_API_ENABLED: "true"
+      WEB_SERVER_CONCURRENCY: "2"
+      SCAN_WORKERS: "2"
+    volumes:
+      - romm-resources:/romm/resources
+      - romm-assets:/romm/assets
+      - romm-config:/romm/config
+      - romm-redis:/redis-data
+      # MEDIA_DIR already carries the shared label
+      - ${MEDIA_DIR:-/srv/media}/Games:/romm/library:z
+    depends_on:
+      romm-db:
+        condition: service_healthy
+    networks: [internal]
+
+  romm-db:
+    profiles: [games]
+    <<: *hardening
+    image: docker.io/library/mariadb:${ROMM_DB_TAG:-11.8}
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: romm
+      MARIADB_USER: romm
+      MARIADB_PASSWORD: ${ROMM_DB_PASSWORD:-}
+      MARIADB_ROOT_PASSWORD: ${ROMM_DB_ROOT_PASSWORD:-}
+    volumes:
+      - romm-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  # --- Dawarich (places.<domain>): where you've been, from the phone (its app, OwnTracks or
+  # Overland, with a per-user API key). OIDC only, password login off; reverse geocoding off (no
+  # addresses sent anywhere). Its first start seeds a demo admin; family-wizard.sh makes your
+  # account the admin and deletes it. Background jobs run inside the app (1.17+).
+  dawarich:
+    profiles: [places]
+    <<: *hardening
+    image: docker.io/freikin/dawarich:${DAWARICH_TAG:-1.17.0}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    read_only: true
+    tmpfs: ["/tmp", "/var/app/tmp:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000}"]
+    entrypoint: web-entrypoint.sh
+    command: ["bin/rails", "server", "-p", "3000", "-b", "::"]
+    stop_grace_period: 60s
+    environment:
+      RAILS_ENV: production
+      REDIS_URL: redis://dawarich-redis:6379
+      DATABASE_HOST: dawarich-db
+      DATABASE_PORT: "5432"
+      DATABASE_USERNAME: dawarich
+      DATABASE_PASSWORD: ${DAWARICH_DB_PASSWORD:-}
+      DATABASE_NAME: dawarich
+      # Rails' host check: the name only, the :9443 port is accepted
+      APPLICATION_HOSTS: places.${DOMAIN}
+      APPLICATION_PROTOCOL: https
+      DOMAIN: places.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      TIME_ZONE: ${TIME_ZONE:-Europe/Zurich}
+      SECRET_KEY_BASE: ${DAWARICH_SECRET_KEY_BASE:-}
+      SELF_HOSTED: "true"
+      STORE_GEODATA: "false"
+      SIDEKIQ_EMBEDDED: "true"
+      WEB_CONCURRENCY: "0"
+      BACKGROUND_PROCESSING_CONCURRENCY: "2"
+      PROMETHEUS_EXPORTER_ENABLED: "false"
+      OIDC_CLIENT_ID: dawarich
+      OIDC_CLIENT_SECRET: ${DAWARICH_OIDC_CLIENT_SECRET:-}
+      # Trailing slash: must equal the token's iss
+      OIDC_ISSUER: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/dawarich/
+      OIDC_REDIRECT_URI: https://places.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/users/auth/openid_connect/callback
+      OIDC_PROVIDER_NAME: ${BRAND:-Home}
+      OIDC_AUTO_REGISTER: "true"
+      OIDC_PKCE_ENABLED: "true"
+      ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
+      ALLOW_EMAIL_PASSWORD_LOGIN: "false"
+    volumes:
+      # Owned by HOST_UID (family-wizard.sh chowns them once: new volumes are root's)
+      - dawarich-public:/var/app/public
+      - dawarich-storage:/var/app/storage
+      - dawarich-watched:/var/app/tmp/imports/watched
+    depends_on:
+      dawarich-db:
+        condition: service_healthy
+      dawarich-redis:
+        condition: service_started
+    networks: [internal]
+
+  dawarich-db:
+    profiles: [places]
+    <<: *hardening
+    image: docker.io/postgis/postgis:${DAWARICH_PG_TAG:-17-3.5-alpine}
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      POSTGRES_USER: dawarich
+      POSTGRES_DB: dawarich
+      POSTGRES_PASSWORD: ${DAWARICH_DB_PASSWORD:-}
+    volumes:
+      - dawarich-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d dawarich -U dawarich"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  dawarich-redis:
+    profiles: [places]
+    <<: *hardening
+    image: docker.io/valkey/valkey:${VALKEY_TAG:-9.0-alpine}
+    restart: unless-stopped
+    networks: [internal]
+
+  # --- ntfy (ntfy.<domain>, RUNBOOK.md 7g): push notifications to the phone apps, NetBird only.
+  # Its own login: nothing is readable or writable without a user (deny-all); the users and the
+  # n8n token are made by files-wizard.sh (stage ntfy) into user.db. iOS needs ntfy.sh as upstream:
+  # it gets only a message ID to wake the phone, which then fetches the message from here.
+  ntfy:
+    profiles: [ntfy]
+    <<: *hardening
+    image: docker.io/binwiederhier/ntfy:${NTFY_TAG:-v2.34.0}
+    restart: unless-stopped
+    command: serve
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      NTFY_BASE_URL: https://ntfy.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_CACHE_DURATION: 72h
+      NTFY_AUTH_FILE: /var/lib/ntfy/user.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_ENABLE_LOGIN: "true"
+      NTFY_ENABLE_SIGNUP: "false"
+      NTFY_UPSTREAM_BASE_URL: https://ntfy.sh
+      NTFY_LOG_LEVEL: warn
+    volumes:
+      - ntfy-data:/var/lib/ntfy
+    networks: [internal]
+
+  # --- n8n (n8n.<domain>, RUNBOOK.md 7h): automations for admins, NetBird only, Authentik forward-auth
+  # in front (n8n's community edition has no OIDC) and n8n's own owner login behind it.
+  # N8N_ENCRYPTION_KEY encrypts its stored credentials: it's in .env, so in the backup; without it they
+  # can't be read.
+  n8n:
+    profiles: [n8n]
+    <<: *hardening
+    image: docker.io/n8nio/n8n:${N8N_TAG:-2.45.6}
+    restart: unless-stopped
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      GENERIC_TIMEZONE: ${TIME_ZONE:-Europe/Zurich}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+      # IPv4: the compose network has no IPv6, and n8n's default "::" fails without it
+      N8N_LISTEN_ADDRESS: 0.0.0.0
+      N8N_HOST: n8n.${DOMAIN}
+      N8N_PROTOCOL: https
+      N8N_EDITOR_BASE_URL: https://n8n.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/
+      # Also the base of OAuth sign-ins' redirects (…/rest/oauth2-credential/callback)
+      WEBHOOK_URL: https://n8n.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/
+      N8N_PROXY_HOPS: "1"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      # Old runs are pruned (default 14 days would be fine too; a week is plenty for polling workflows)
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks: [internal]
+
+  # --- ops (RUNBOOK.md 7e, "Details"): the home page's detail sheets for admins. Serves the reports
+  # in ops/data (written on the host) and drops job requests (only a name) into ops/requests, where
+  # homelab-ops.path starts ops-run.sh. No Docker socket, no host access, no port: Caddy only, admins only.
+  ops:
+    <<: *hardening
+    image: docker.io/library/python:3.13.9-alpine3.22
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: ["python3", "-I", "/app/server.py"]
+    read_only: true
+    cap_drop: [ALL]
+    environment:
+      OPS_ORIGINS: https://home.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443} https://home.${DOMAIN}
+      # Caddy's fixed address (below): the only client it answers
+      OPS_TRUSTED_PROXY: 172.21.1.11
+      # The chosen components: their jobs and services are what the console may run and restart
+      OPS_COMPONENTS: ${COMPONENTS:-}
+    volumes:
+      - ./ops/server.py:/app/server.py:ro,Z
+      # What it accepts (ops/access.py: the job registry's actions and jobs, the components'
+      # services); z: the host reads them too
+      - ./ops/access.py:/app/access.py:ro,z
+      - ./jobs/jobs.toml:/app/jobs.toml:ro,z
+      - ./setup/components:/app/components:ro,z
+      - ./ops/data:/data:ro,z
+      - ./ops/requests:/requests:Z
+    networks: [internal]
+
+  # --- Immich (photos; family via Authentik OIDC). From the upstream release compose
+  # (github.com/immich-app/immich/releases → docker-compose.yml), diff it before bumping IMMICH_TAG.
+  # Reached only through Caddy at photos.<domain>. No host port.
+  immich-server:
+    profiles: [photos]
+    <<: *hardening
+    image: ghcr.io/immich-app/immich-server:${IMMICH_TAG:-v3.3.5}
+    restart: unless-stopped
+    # Library files belong to HOST_UID (ADMIN_USER), so backup-photos.sh can read them
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD:-}
+      REDIS_HOSTNAME: immich-redis
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      # Real client IPs from Caddy (X-Forwarded-For)
+      IMMICH_TRUSTED_PROXIES: 172.21.0.0/16
+    volumes:
+      # Z: only this container reads it. A mount on the second NVMe (RUNBOOK.md 7c); Immich
+      # refuses to start if its .immich marker files are missing, so an unmounted disk is noticed.
+      - ${IMMICH_UPLOAD_DIR:-/srv/photos}:/data:Z
+      - /etc/localtime:/etc/localtime:ro
+    # Video transcoding (VAAPI) on the AMD iGPU, as for Jellyfin
+    devices:
+      - ${RENDER_DEVICE:-/dev/dri/renderD128}:/dev/dri/renderD128
+    group_add:
+      - "${RENDER_GID}"
+    depends_on:
+      immich-db:
+        condition: service_healthy
+      immich-redis:
+        condition: service_started
+    networks: [internal]
+
+  # Face/search models on the CPU (the NVIDIA card stays untouched)
+  immich-machine-learning:
+    profiles: [photos]
+    <<: *hardening
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_TAG:-v3.3.5}
+    restart: unless-stopped
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+    volumes:
+      - immich-model-cache:/cache
+    networks: [internal]
+
+  immich-redis:
+    profiles: [photos]
+    <<: *hardening
+    image: docker.io/valkey/valkey:9@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+    restart: unless-stopped
+    healthcheck:
+      test: redis-cli ping | grep -q PONG || exit 1
+    networks: [internal]
+
+  # Immich's own Postgres build (vector search). On the SSD (named volume), as upstream requires.
+  immich-db:
+    profiles: [photos]
+    <<: *hardening
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes:
+      - immich-db:/var/lib/postgresql/data
+    shm_size: 128mb
+    healthcheck:
+      disable: false
+    networks: [internal]
+
+  # --- Home Assistant + Matter (RUNBOOK.md step 7d). NetBird only: no public site. ---
+  # Host network: Matter and device discovery need mDNS and IPv6 multicast on the LAN, which a
+  # bridge network can't carry. HA listens only on the compose bridge's gateway (172.21.0.1:8123,
+  # seeded by homeassistant/setup.sh, then Settings → System → Network); Caddy proxies ha.<domain>
+  # there. Its own users + MFA; Authentik doesn't front it (the Companion app can't do forward-auth).
+  homeassistant:
+    profiles: [home-assistant]
+    <<: *hardening
+    image: ghcr.io/home-assistant/home-assistant:${HA_TAG:-2026.10.4}
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+    volumes:
+      - homeassistant-config:/config
+      - /etc/localtime:/etc/localtime:ro
+    depends_on: [matter-server]
+
+  # Matter controller (matter.js server, the successor of python-matter-server). Host network, like
+  # HA; its WebSocket only on 127.0.0.1:5580 (HA: ws://127.0.0.1:5580/ws). The fabric keys in
+  # matter-data are what pairs the devices: they're in the backup.
+  matter-server:
+    profiles: [home-assistant]
+    <<: *hardening
+    image: ghcr.io/matter-js/matterjs-server:${MATTER_TAG:-1.5.5}
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LISTEN_ADDRESS: 127.0.0.1
+    volumes:
+      - matter-data:/data
+
+  # --- AdGuard Home: ad-blocking DNS for NetBird peers (NetBird nameserver group → NETBIRD_IP:53) ---
+  # Port 53 on the NetBird IP only (NetBird's own resolver on this PC moves to 127.0.0.153, ansible
+  # netbird role). Admin UI through Caddy at dns.<domain>, NetBird only, admins only.
+  adguard:
+    profiles: [adblock]
+    <<: *hardening
+    image: docker.io/adguard/adguardhome:${ADGUARD_TAG:-v0.107.79}
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    ports:
+      - "${NETBIRD_IP}:53:53/udp"
+      - "${NETBIRD_IP}:53:53/tcp"
+    volumes:
+      # nocopy: Docker would seed the empty volumes from the image, owned by nobody, on every
+      # start, and root without DAC_OVERRIDE (cap_drop) can't write them. It runs as root because
+      # it refuses a first launch as anyone else.
+      - {type: volume, source: adguard-work, target: /opt/adguardhome/work, volume: {nocopy: true}}
+      - {type: volume, source: adguard-conf, target: /opt/adguardhome/conf, volume: {nocopy: true}}
+    networks: [internal]
+
+  # --- Audiobookshelf (books.<domain>): its own OIDC login against Authentik (family), web and
+  # app. Audiobooks read-only; podcasts it downloads go to a volume, never into the media folder.
+  audiobookshelf:
+    profiles: [audiobooks]
+    <<: *hardening
+    image: ghcr.io/advplyr/audiobookshelf:${ABS_TAG:-2.37.2}
+    restart: unless-stopped
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+    volumes:
+      - abs-config:/config
+      - abs-metadata:/metadata
+      - abs-podcasts:/podcasts
+      - ${AUDIOBOOKS_DIR:-/srv/media/audiobooks}:/audiobooks:ro,z
+    networks: [internal]
+
+  # --- Actual Budget (budget.<domain>): OIDC only (Authentik app "actual", group budget) ---
+  actual:
+    profiles: [budget]
+    <<: *hardening
+    image: docker.io/actualbudget/actual-server:${ACTUAL_TAG:-26.10.0}
+    restart: unless-stopped
+    environment:
+      ACTUAL_LOGIN_METHOD: openid
+      ACTUAL_OPENID_ENFORCE: "true"
+      ACTUAL_OPENID_DISCOVERY_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/actual/.well-known/openid-configuration
+      ACTUAL_OPENID_CLIENT_ID: actual
+      ACTUAL_OPENID_CLIENT_SECRET: ${ACTUAL_OIDC_CLIENT_SECRET:-}
+      ACTUAL_OPENID_SERVER_HOSTNAME: https://budget.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      # Sessions last 7 days (Actual's default is "never")
+      ACTUAL_TOKEN_EXPIRATION: "604800"
+    volumes:
+      - actual-data:/data
+    networks: [internal]
+
+  # --- Karakeep (links.<domain>): bookmarks, AI tags from the local Ollama. OIDC only. ---
+  karakeep:
+    profiles: [bookmarks]
+    <<: *hardening
+    image: ghcr.io/karakeep-app/karakeep:${KARAKEEP_TAG:-0.34.1}
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      NEXTAUTH_URL: https://links.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      NEXTAUTH_SECRET: ${KARAKEEP_NEXTAUTH_SECRET:-}
+      MEILI_ADDR: http://karakeep-meili:7700
+      MEILI_MASTER_KEY: ${KARAKEEP_MEILI_KEY:-}
+      BROWSER_WEB_URL: http://karakeep-chrome:9222
+      OAUTH_WELLKNOWN_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/karakeep/.well-known/openid-configuration
+      OAUTH_CLIENT_ID: karakeep
+      OAUTH_CLIENT_SECRET: ${KARAKEEP_OIDC_CLIENT_SECRET:-}
+      OAUTH_PROVIDER_NAME: ${BRAND:-Home} account
+      DISABLE_PASSWORD_AUTH: "true"
+      OAUTH_AUTO_REDIRECT: "true"
+      # Tags (and image descriptions) on the GPU, like Paperless AI. Bookmarks never leave the PC.
+      OLLAMA_BASE_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_KEEP_ALIVE: 10m
+      INFERENCE_TEXT_MODEL: ${KARAKEEP_AI_MODEL:-gemma4:12b}
+      INFERENCE_IMAGE_MODEL: ${KARAKEEP_AI_MODEL:-gemma4:12b}
+      INFERENCE_CONTEXT_LENGTH: "8192"
+      # First call loads the model into VRAM
+      INFERENCE_JOB_TIMEOUT_SEC: "300"
+      CRAWLER_BROWSER_TIMEZONE: ${TIME_ZONE:-Europe/Zurich}
+      DISABLE_NEW_RELEASE_CHECK: "true"
+    volumes:
+      - karakeep-data:/data
+    depends_on: [karakeep-meili, karakeep-chrome]
+    networks: [internal, karakeep]
+
+  karakeep-chrome:
+    profiles: [bookmarks]
+    <<: *hardening
+    image: ghcr.io/karakeep-app/karakeep-chrome:${KARAKEEP_CHROME_TAG:-156.0.8078.47-r1}
+    restart: unless-stopped
+    init: true
+    command:
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --hide-scrollbars
+      - --disable-blink-features=AutomationControlled
+      - --window-size=1440,900
+    networks: [karakeep]
+
+  # Search index only (derived: Karakeep → Admin → Reindex rebuilds it); not backed up.
+  # Pinned to Karakeep's own compose version: Meilisearch can't open data from another minor.
+  karakeep-meili:
+    profiles: [bookmarks]
+    <<: *hardening
+    image: docker.io/getmeili/meilisearch:${KARAKEEP_MEILI_TAG:-v1.41.0}
+    restart: unless-stopped
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${KARAKEEP_MEILI_KEY:-}
+    volumes:
+      - karakeep-meili:/meili_data
+    networks: [karakeep]
+
+  # --- BentoPDF (pdf.<domain>): PDF tools that run in the browser; the server only hands out
+  # static files, so documents never reach it. Family, behind Authentik forward-auth.
+  bentopdf:
+    profiles: [pdf]
+    <<: *hardening
+    image: ghcr.io/alam00000/bentopdf-simple:${BENTOPDF_TAG:-2.8.10}
+    restart: unless-stopped
+    networks: [internal]

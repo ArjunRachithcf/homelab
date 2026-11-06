@@ -1,0 +1,133 @@
+version: 1
+metadata:
+  name: homelab - Files
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_oauth2.scopemapping
+    id: opencloud-roles
+    identifiers:
+      name: Files roles (roles)
+    attrs:
+      scope_name: profile
+      description: Your role in Files
+      expression: |
+        if ak_is_group_member(request.user, name="authentik Admins"):
+            return {"roles": ["opencloudAdmin"]}
+        if ak_is_group_member(request.user, name="family") or ak_is_group_member(request.user, name="kids"):
+            return {"roles": ["opencloudUser"]}
+        return {"roles": []}
+  - model: authentik_providers_oauth2.oauth2provider
+    id: opencloud-web
+    identifiers:
+      name: Provider for Files (web)
+    attrs: &opencloud-provider
+      client_type: public
+      client_id: web
+      grant_types: [authorization_code, refresh_token]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      issuer_mode: global
+      access_token_validity: minutes=10
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+        - !KeyOf opencloud-roles
+      redirect_uris:
+        - matching_mode: strict
+          url: https://files.example.com:9443/
+        - matching_mode: strict
+          url: https://files.example.com:9443/oidc-callback.html
+        - matching_mode: strict
+          url: https://files.example.com:9443/oidc-silent-redirect.html
+  - model: authentik_providers_oauth2.oauth2provider
+    id: opencloud-desktop
+    identifiers:
+      name: Provider for Files (desktop app)
+    attrs:
+      <<: *opencloud-provider
+      client_id: OpenCloudDesktop
+      redirect_uris:
+        - matching_mode: regex
+          url: '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?(/.*)?$'
+  - model: authentik_providers_oauth2.oauth2provider
+    id: opencloud-android
+    identifiers:
+      name: Provider for Files (Android app)
+    attrs:
+      <<: *opencloud-provider
+      client_id: OpenCloudAndroid
+      redirect_uris:
+        - matching_mode: strict
+          url: oc://android.opencloud.eu
+  - model: authentik_providers_oauth2.oauth2provider
+    id: opencloud-ios
+    identifiers:
+      name: Provider for Files (iOS app)
+    attrs:
+      <<: *opencloud-provider
+      client_id: OpenCloudIOS
+      redirect_uris:
+        - matching_mode: strict
+          url: oc://ios.opencloud.eu
+  - model: authentik_core.application
+    id: opencloud-app
+    identifiers:
+      slug: opencloud
+    attrs:
+      name: Files
+      provider: !KeyOf opencloud-web
+      meta_launch_url: https://files.example.com:9443/
+      policy_engine_mode: any
+  - model: authentik_core.application
+    id: opencloud-desktop-app
+    identifiers:
+      slug: opencloud-desktop
+    attrs:
+      name: Files (desktop app)
+      provider: !KeyOf opencloud-desktop
+      meta_launch_url: blank://blank
+      policy_engine_mode: any
+  - model: authentik_core.application
+    id: opencloud-android-app
+    identifiers:
+      slug: opencloud-android
+    attrs:
+      name: Files (Android app)
+      provider: !KeyOf opencloud-android
+      meta_launch_url: blank://blank
+      policy_engine_mode: any
+  - model: authentik_core.application
+    id: opencloud-ios-app
+    identifiers:
+      slug: opencloud-ios
+    attrs:
+      name: Files (iOS app)
+      provider: !KeyOf opencloud-ios
+      meta_launch_url: blank://blank
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf opencloud-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf opencloud-desktop-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf opencloud-android-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf opencloud-ios-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0

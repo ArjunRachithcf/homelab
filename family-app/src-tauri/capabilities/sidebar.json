@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sidebar",
+  "description": "The bundled sidebar: events and the app's own commands. The app webview (remote pages) gets nothing.",
+  "webviews": ["sidebar"],
+  "permissions": [
+    "core:event:default",
+    "allow-apps", "allow-open-app", "allow-go-home", "allow-nav", "allow-set-rail", "allow-open-in-browser", "allow-sign-out", "allow-reload-apps", "allow-sign-in-here", "allow-browser-sign-in"
+  ]
+}

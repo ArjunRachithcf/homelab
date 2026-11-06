@@ -1,0 +1,23 @@
+# /etc/systemd/system/homelab-photos-local.service (RUNBOOK.md step 7c)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab photos: dedupe the Immich library + second copy on the primary SSD
+OnFailure=homelab-notify@%n.service
+After=homelab-backup.service
+RequiresMountsFor={{ photos_dir }} {{ photos_copy_dir }}
+
+[Service]
+Type=oneshot
+User={{ homelab_user }}
+WorkingDirectory={{ homelab_dir }}
+Environment=PHOTOS_COPY_DIR={{ photos_copy_dir }}
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash {{ homelab_dir }}/photos-local.sh
+# rsync started by a system service switches to SELinux's rsync_t, which may not read Immich's
+# container_file_t library. Run as the admin's normal login context instead (what `./photos-local.sh`
+# by hand does), rather than widening rsync_t for every rsync with rsync_full_access.
+{% if homelab_selinux | default(true) %}
+SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0
+{% endif %}
+Nice=10
+IOSchedulingClass=idle

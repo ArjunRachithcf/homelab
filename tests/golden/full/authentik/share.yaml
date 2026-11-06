@@ -1,0 +1,49 @@
+version: 1
+metadata:
+  name: homelab - Share
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: sharry-provider
+    identifiers:
+      name: Provider for Share
+    attrs:
+      client_type: confidential
+      client_id: sharry
+      grant_types: [authorization_code, refresh_token]
+      client_secret: !Env SHARRY_OIDC_CLIENT_SECRET
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+      redirect_uris:
+        - matching_mode: strict
+          url: https://share.example.com:9443/api/v2/open/auth/oauth/authentik/resume
+  - model: authentik_core.application
+    id: sharry-app
+    identifiers:
+      slug: sharry
+    attrs:
+      name: Share
+      provider: !KeyOf sharry-provider
+      meta_launch_url: https://share.example.com:9443/
+      policy_engine_mode: all
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf sharry-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf sharry-app
+      group: !Find [authentik_core.group, [name, kids]]
+      order: 1
+    attrs:
+      negate: true

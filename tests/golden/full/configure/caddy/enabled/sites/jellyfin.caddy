@@ -1,0 +1,17 @@
+# caddy/components/jellyfin/sites.caddy (component jellyfin; copied into caddy/enabled/ by ./homelab configure)
+(jellyfin) {
+	reverse_proxy jellyfin:8096
+}
+
+jellyfin.{$DOMAIN}, jellyfin.{$DOMAIN_ALIAS}, jellyfin.{$DOMAIN}:{$PUBLIC_PORT}, jellyfin.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import jellyfin
+}
+
+# No forward-auth here: Swiftfin and TV apps can't do a browser login. Jellyfin checks every
+# login against Authentik over LDAP instead (family only, "password;TOTP"); see
+# authentik/jellyfin-ldap.yaml.
+jellyfin.{$DOMAIN}:8444, jellyfin.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	import jellyfin
+}

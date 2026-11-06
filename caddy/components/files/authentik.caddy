@@ -1,0 +1,4 @@
+# caddy/components/files/authentik.caddy (component files; copied into caddy/enabled/ by ./homelab configure)
+# OpenCloud's clients look for the IdP's discovery at the issuer's root (Authentik's
+# "same identifier for all providers" issuer, https://auth.<domain>:<port>/; RUNBOOK.md 7e)
+rewrite /.well-known/openid-configuration /application/o/opencloud/.well-known/openid-configuration

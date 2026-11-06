@@ -1,0 +1,33 @@
+# caddy/components/games/sites.caddy (component games; copied into caddy/enabled/ by ./homelab configure)
+# Games (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+# RomM: accounts only through Authentik. It lets anyone create an admin while none exists, and its
+# password login (/api/login, and /api/token's password grant, which the web app never uses), reset and
+# invite routes stay open with the login form hidden: all refused here.
+(romm) {
+	@local_accounts {
+		method POST
+		path /api/users /api/users/ /api/users/invite-link /api/users/register /api/login /api/token /api/token/ /api/forgot-password /api/reset-password
+	}
+	respond @local_accounts "Sign in with your {$BRAND} account." 403
+	reverse_proxy romm:8080
+}
+
+games.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import romm
+}
+
+games.{$DOMAIN}, games.{$DOMAIN_ALIAS}, games.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical games
+}
+
+games.{$DOMAIN}:8444 {
+	import headers
+	import romm
+}
+
+games.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://games.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

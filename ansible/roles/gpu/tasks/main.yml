@@ -1,0 +1,68 @@
+# The NVIDIA card for containers (Ollama, Paperless AI; RUNBOOK.md step 6b), through CDI: Docker
+# reads /etc/cdi, so daemon.json and Docker itself stay untouched. SELinux stays enforcing: Fedora's
+# nvidia-driver-selinux module already lets container_t open /dev/nvidia*.
+# The driver itself (Fedora: akmod-nvidia from RPM Fusion; Debian/Ubuntu: nvidia-driver; Arch: nvidia) is
+# installed by hand, like on any desktop. Toolkit repo and package per distro: tasks/<family>.yml.
+- name: The toolkit, Fedora
+  ansible.builtin.import_tasks: RedHat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: The toolkit, Debian/Ubuntu
+  ansible.builtin.import_tasks: Debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: The toolkit, Arch
+  ansible.builtin.import_tasks: Archlinux.yml
+  when: ansible_os_family == "Archlinux"
+
+- name: CDI refresh unit from the toolkit (regenerates the spec after driver updates)
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/nvidia-cdi-refresh.path
+  register: gpu_cdi_refresh
+
+- name: Keep the CDI spec current
+  ansible.builtin.systemd_service:
+    name: nvidia-cdi-refresh.path
+    enabled: true
+    state: started
+  when: gpu_cdi_refresh.stat.exists
+
+- name: CDI spec for the card (nvidia.com/gpu=all)
+  ansible.builtin.command: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  args:
+    creates: /etc/cdi/nvidia.yaml
+  when: not gpu_cdi_refresh.stat.exists
+
+# A manual Ollama install from before the homelab, crash-looping since its data folder went
+# missing. It was removed on the first box (2026-10-24); Ollama now runs in the compose stack.
+# Only on request (-e remove_host_ollama=true): on another machine a host Ollama may be in use.
+- name: "Old host Ollama: removed (only with -e remove_host_ollama=true)"
+  when: remove_host_ollama | default(false) | bool
+  block:
+    - name: "Old host Ollama: unit stopped and disabled"
+      ansible.builtin.systemd_service:
+        name: ollama
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: "Old host Ollama: files gone"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/ollama.service
+        - /etc/systemd/system/default.target.wants/ollama.service
+        - /usr/local/bin/ollama
+        - /usr/local/lib/ollama
+      notify: Reload systemd after Ollama removal
+
+    - name: "Old host Ollama: user gone"
+      ansible.builtin.user:
+        name: ollama
+        state: absent
+
+    - name: "Old host Ollama: group gone"
+      ansible.builtin.group:
+        name: ollama
+        state: absent

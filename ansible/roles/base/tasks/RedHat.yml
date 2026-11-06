@@ -1,0 +1,28 @@
+# Fedora: the packages, and dnf5-automatic for security updates (RUNBOOK.md steps 1, 11)
+- name: Packages used by the homelab scripts
+  ansible.builtin.dnf5:
+    name: "{{ distro_packages }}"   # ansible/distro/RedHat.yml
+    state: present
+
+- name: dnf5-automatic
+  ansible.builtin.dnf5:
+    name: dnf5-plugin-automatic
+    state: present
+
+# On dnf5 too, /etc/dnf/automatic.conf is the file that counts (RUNBOOK.md step 11)
+- name: Security updates only, applied, no reboot
+  ansible.builtin.copy:
+    dest: /etc/dnf/automatic.conf
+    content: |
+      [commands]
+      apply_updates = yes
+      upgrade_type = security
+      reboot = never
+    mode: "0644"
+
+- name: dnf5-automatic.timer
+  ansible.builtin.systemd_service:
+    name: dnf5-automatic.timer
+    enabled: true
+    state: started
+  tags: service   # tests/distro/install.yml (a container without systemd) skips these

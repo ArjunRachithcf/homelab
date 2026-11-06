@@ -1,0 +1,110 @@
+# NetBird client. A rebuild keeps the same peer and IP: restore.sh --config-only puts the backed-up
+# /var/lib/netbird into {{ restore_dir }}/netbird, and it goes back before NetBird connects.
+# Never run the old and the new box at the same time with that identity.
+- name: NetBird's repo and package, Fedora
+  ansible.builtin.import_tasks: RedHat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: NetBird's repo and package, Debian/Ubuntu
+  ansible.builtin.import_tasks: Debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: NetBird from the AUR, Arch
+  ansible.builtin.import_tasks: Archlinux.yml
+  when: ansible_os_family == "Archlinux"
+
+# The packages ship the binary only; `netbird service install` writes the unit
+- name: NetBird service unit
+  ansible.builtin.command: netbird service install
+  args:
+    creates: /etc/systemd/system/netbird.service
+
+- name: NetBird enabled and running
+  ansible.builtin.systemd_service:
+    name: netbird
+    enabled: true
+    state: started
+
+- name: NetBird status
+  ansible.builtin.command: netbird status
+  register: netbird_status
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Backed-up peer identity
+  ansible.builtin.stat:
+    path: "{{ restore_dir }}/netbird/config.json"
+  register: netbird_restore
+
+- name: Put the backed-up peer identity back
+  when: "'Management: Connected' not in netbird_status.stdout and netbird_restore.stat.exists"
+  block:
+    - name: Stop NetBird
+      ansible.builtin.systemd_service:
+        name: netbird
+        state: stopped
+
+    - name: Copy /var/lib/netbird from the backup
+      ansible.builtin.copy:
+        src: "{{ restore_dir }}/netbird/"
+        dest: /var/lib/netbird/
+        remote_src: true
+        owner: root
+        group: root
+        mode: preserve
+
+    - name: SELinux labels on /var/lib/netbird
+      ansible.builtin.command: restorecon -R /var/lib/netbird
+      changed_when: false
+      when: homelab_selinux
+
+    - name: Start NetBird
+      ansible.builtin.systemd_service:
+        name: netbird
+        state: started
+
+- name: "Join with a setup key (new peer: new NetBird IP, update NETBIRD_IP in .env)"
+  when: "'Management: Connected' not in netbird_status.stdout and not netbird_restore.stat.exists and not ansible_check_mode"
+  block:
+    - name: Ask for the setup key
+      ansible.builtin.pause:
+        prompt: "NetBird setup key (dashboard → Setup Keys; input hidden)"
+        echo: false
+      register: netbird_key
+      no_log: true
+
+    - name: netbird up
+      ansible.builtin.command: netbird up --setup-key {{ netbird_key.user_input }}
+      no_log: true
+      changed_when: true
+
+# AdGuard Home (RUNBOOK.md 7d) publishes NETBIRD_IP:53. NetBird's resolver takes <overlay IP>:53
+# first when it's free, which it is at boot (Docker starts after NetBird), so it gets a fixed
+# address instead (saved in its profile by down + up with the flag). Run detached, so
+# a run over SSH (through NetBird) survives the few seconds without the tunnel.
+- name: NetBird's DNS listeners
+  ansible.builtin.command: ss -Hulnp sport = :53
+  register: netbird_dns
+  check_mode: false
+  changed_when: false
+  when: adguard_enabled
+
+# `netbird up` on a connected client only says "Already connected" and ignores the flag (0.80.0,
+# 2026-10-25), so down first; if that up fails, a plain up brings the tunnel back.
+- name: Move NetBird's resolver to 127.0.0.153:53 (persists in its profile)
+  ansible.builtin.command: >-
+    systemd-run --collect --unit=homelab-netbird-dns-move --setenv=HOME=/root
+    /bin/sh -c '/usr/bin/netbird down; /usr/bin/netbird up --dns-resolver-address 127.0.0.153:53 || /usr/bin/netbird up'
+  when: adguard_enabled and netbird_dns.stdout is not search('127\\.0\\.0\\.153:53 .*"netbird"')
+  register: netbird_dns_moved
+  changed_when: true
+
+- name: NetBird back, resolver on 127.0.0.153:53
+  ansible.builtin.command: ss -Hulnp sport = :53
+  register: netbird_dns_after
+  until: netbird_dns_after.stdout is search('127\\.0\\.0\\.153:53 .*"netbird"')
+  retries: 12
+  delay: 5
+  changed_when: false
+  when: netbird_dns_moved is changed

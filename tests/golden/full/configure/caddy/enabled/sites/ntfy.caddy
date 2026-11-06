@@ -1,0 +1,17 @@
+# caddy/components/ntfy/sites.caddy (component ntfy; copied into caddy/enabled/ by ./homelab configure)
+(ntfy) {
+	# ntfy's own login (deny-all by default); the phone apps hold a long-lived stream, so no forward-auth
+	reverse_proxy ntfy:80
+}
+
+# ntfy (push notifications): NetBird only (no :8444 site, no NetBird service, DNS zone for the Admin group
+# only). Port 443 and 9443 both work, like Terminal.
+ntfy.{$DOMAIN}, ntfy.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import ntfy
+}
+
+ntfy.{$DOMAIN_ALIAS}, ntfy.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	redir https://ntfy.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

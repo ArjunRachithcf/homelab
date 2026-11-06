@@ -1,0 +1,125 @@
+/* The sidebar, in the home page's Apple-like tokens (site/index.html: keep the two in step) */
+@font-face {
+  font-family: "Inter"; font-weight: 100 900; font-display: swap;
+  src: url(fonts/inter.woff2) format("woff2");
+}
+:root {
+  --side: #f5f5f7; --text: #1d1d1f; --muted: #6e6e73; --sel: rgba(120,120,128,.16); --hover: rgba(120,120,128,.08);
+  --ground: #f5f5f7; --card: #ffffff; --on-accent: #ffffff;
+  --sep: rgba(60,60,67,.16); --accent: #1b6e66; --green: #34c759; --red: #ff3b30; --red-text: #d70015;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --spring: linear(0, .06 2.6%, .24 5.7%, .84 15.1%, 1.03 20.5%, 1.08 24.6%, 1.07 29.2%, 1.01 38.6%, .99 48%, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --side: #1c1c1e; --text: #f5f5f7; --muted: #98989d; --sel: rgba(120,120,128,.3); --hover: rgba(120,120,128,.16);
+    --ground: #000000; --card: #1c1c1e; --on-accent: #000000;
+    --sep: rgba(84,84,88,.6); --accent: #5fb3a9; --green: #30d158; --red: #ff453a; --red-text: #ff6961;
+  }
+}
+/* macOS: the window's vibrancy shows through */
+.mac { --side: transparent; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--side); color: var(--text); font: 400 13px/1.35 var(--font); letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; cursor: default;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: default; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; border-radius: 8px; }
+.side { display: flex; flex-direction: column; height: 100%; border-right: 1px solid var(--sep); }
+.head { padding: 14px 12px 8px; }
+.mac .head { padding-top: 40px; } /* room for the traffic lights */
+.head { display: flex; align-items: center; gap: 4px; }
+.brand { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; padding: 4px; pointer-events: none; }
+.brand img { width: 22px; height: 22px; }
+.tools { margin-left: auto; display: flex; gap: 2px; }
+/* The sidebar toggle never moves: 16px + 14px = its centre at x 30, the rail's middle */
+.head { padding-left: 16px; }
+.tools.lead { margin-left: 0; }
+.tools button {
+  width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--muted);
+  transition: background-color .15s, color .15s, transform .45s var(--spring);
+}
+.tools button:hover { background: var(--hover); color: var(--text); }
+.tools button:active { transform: scale(.88); transition-duration: .1s; }
+.tools svg, .app .icon.home svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tools button.spin svg { animation: spin .6s var(--ease-out); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.homerow { padding: 0 8px; }
+.app .icon.home { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.app .icon.home svg { width: 13px; height: 13px; }
+.groups { flex: 1; overflow: auto; padding: 4px 8px 12px; }
+.hint { color: var(--muted); padding: 8px; margin: 0; }
+.group h2 { font-size: 11px; font-weight: 600; color: var(--muted); margin: 14px 8px 4px; }
+.app {
+  position: relative; display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 8px;
+  border-radius: 8px; text-align: left; transition: background-color .15s, transform .45s var(--spring);
+}
+.app:hover { background: var(--hover); }
+.app.active { background: var(--sel); }
+.app:active { transform: scale(.97); transition-duration: .1s; }
+.app .icon { width: 20px; height: 20px; flex: none; border-radius: 22.5%; background: #fff; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.12); display: grid; place-items: center; }
+.app .icon img { width: 14px; height: 14px; object-fit: contain; }
+.app .n { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .dot { width: 6px; height: 6px; border-radius: 50%; background: transparent; flex: none; }
+.app.down .dot { background: var(--red); }
+.foot { padding: 10px 12px 12px; border-top: 1px solid var(--sep); display: grid; gap: 10px; }
+.status { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sel); flex: none; }
+.status.up .dot { background: var(--green); }
+.status.bad .dot { background: var(--red); }
+.status.bad { color: var(--red-text); }
+.user { display: flex; align-items: center; gap: 8px; }
+.avatar { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 12px; color: #1d1d1f; background: var(--sel); }
+.who b { font-weight: 600; }
+.actions { display: flex; gap: 6px; }
+.actions button { flex: 1; height: 28px; border-radius: 999px; background: var(--hover); font-size: 12px; transition: transform .45s var(--spring), background-color .15s; }
+.actions button:hover { background: var(--sel); }
+.actions button:active { transform: scale(.95); transition-duration: .1s; }
+
+/* Signed out: the whole window */
+.welcome { height: 100%; display: grid; place-items: center; padding: 24px; background: var(--ground); }
+.welcome .card { width: 100%; max-width: 380px; text-align: center; padding: 40px 32px 28px; background: var(--card); border-radius: 22px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.welcome .mark { width: 56px; height: 56px; }
+.welcome h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin: 12px 0 4px; }
+.welcome p { color: var(--muted); font-size: 15px; margin: 0 0 24px; }
+.welcome .primary {
+  width: 100%; height: 48px; border-radius: 999px; background: var(--accent); color: var(--on-accent);
+  font-size: 16px; font-weight: 600; cursor: pointer; transition: transform .45s var(--spring), filter .2s;
+}
+.welcome .primary:hover { filter: brightness(1.08); }
+.welcome .primary:active { transform: scale(.96); transition-duration: .1s; }
+.welcome .primary[disabled] { opacity: .6; }
+.welcome .plain { margin-top: 14px; color: var(--accent); font-size: 14px; cursor: pointer; padding: 8px; }
+.welcome .plain:hover { text-decoration: underline; }
+.welcome .wait { margin: 14px 0 0; font-size: 14px; }
+.welcome .err { margin: 14px 0 0; font-size: 14px; color: var(--red-text); }
+.welcome .fine { margin: 16px 0 0; font-size: 12px; }
+[hidden] { display: none !important; }
+
+/* Collapsed: an icon rail (60px). Names become tooltips; the toggle stays first. */
+.rail .brand, .rail .tools [data-nav], .rail .group h2, .rail .app .n, .rail .app .dot,
+.rail .user .who, .rail .actions, .rail .status span:last-child { display: none; }
+.rail .head { padding-right: 0; }
+.rail .tools { margin: 0; }
+.rail .groups, .rail .homerow { padding-inline: 10px; }
+.rail .group { padding-top: 10px; border-top: 1px solid var(--sep); margin-top: 10px; }
+.rail .app { justify-content: center; padding: 0; height: 40px; }
+.rail .app .icon { width: 28px; height: 28px; }
+.rail .app .icon img { width: 20px; height: 20px; }
+.rail .foot { justify-items: center; padding-inline: 0; }
+.rail .status, .rail .user { justify-content: center; }
+.side .n, .side .group h2, .side .brand span { transition: opacity .2s; }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes card-in { from { opacity: 0; transform: translateY(16px) scale(.98); } }
+  .welcome .card { animation: card-in .7s var(--ease-out) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  .rise { animation: rise .5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 25ms); }
+  .app.active { transition: background-color .25s var(--ease-out), transform .45s var(--spring); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

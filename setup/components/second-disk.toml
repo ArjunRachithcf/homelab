@@ -1,0 +1,30 @@
+title = "Second disk for photos and files"
+description = "A dedicated NVMe (XFS with reflinks) for the photo library and the files; the wizard formats it."
+category = "storage"
+core = false
+requires = []
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = "second_disk_enabled"
+stages = ["immich:disk", "files:disk"]
+
+[options.PHOTOS_DISK]
+help = "The disk's stable name: ls -l /dev/disk/by-id/ | grep -v part (it gets wiped)"
+type = "path"
+required = true
+[options.PHOTOS_UUID]
+help = "Its filesystem UUID (written by the wizard after formatting)"
+type = "text"
+set_by = "immich:disk"
+[options.NVME1_DIR]
+help = "Where the disk is mounted"
+type = "path"
+default = "/srv/nvme1"
+advanced = true

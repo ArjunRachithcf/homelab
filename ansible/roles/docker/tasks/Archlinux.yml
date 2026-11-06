@@ -1,0 +1,5 @@
+# Arch: Docker and the compose plugin from the official repos
+- name: Docker and compose
+  community.general.pacman:
+    name: [docker, docker-compose]
+    state: present

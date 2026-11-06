@@ -1,0 +1,34 @@
+# caddy/components/share/sites.caddy (component share; copied into caddy/enabled/ by ./homelab configure)
+# Sharry: recipients are anonymous, Sharry gates the rest itself. A share's expiry can't be moved
+# afterwards: Sharry checks max-validity (30 days) only when a share is created, not on this route.
+# Publishing again (…/publish, also with reuseId to keep the link) starts the share's own validity
+# over, at most 30 days: the owner's renewal each time, which Caddy can't tell apart from the first
+# publish (the flag is in the body), so it stays.
+(sharry) {
+	@validity {
+		method POST
+		path_regexp ^/api/v2/sec/share/[^/]+/validity$
+	}
+	respond @validity "Expiry can't be changed. Make a new share instead." 403
+	reverse_proxy sharry:9090
+}
+
+share.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import sharry
+}
+
+share.{$DOMAIN}, share.{$DOMAIN_ALIAS}, share.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical share
+}
+
+share.{$DOMAIN}:8444 {
+	import headers
+	import sharry
+}
+
+share.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://share.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

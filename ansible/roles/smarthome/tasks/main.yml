@@ -1,0 +1,47 @@
+# Host side of Home Assistant + Matter (RUNBOOK.md 7d). The containers use the host network, so
+# Matter's IPv6/mDNS needs live on this machine's own settings (matter.js os_requirements.md).
+#
+# firewalld is stateful: its default 120 s UDP timeout drops reports from battery-powered (sleepy)
+# Matter devices, whose intervals are several minutes. systemd re-applies net.netfilter.* whenever
+# nf_conntrack loads, so this holds after a reboot too.
+- name: Conntrack keeps Matter's UDP flows for an hour
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-matter.conf
+    content: "net.netfilter.nf_conntrack_udp_timeout_stream = 3600\n"
+    mode: "0644"
+  notify: Reload sysctl
+
+# With IPv6 forwarding on, the kernel ignores router advertisements, so Thread devices (behind a
+# border router) become unreachable. Nothing on this box should turn it on; say so if something did.
+- name: IPv6 forwarding
+  ansible.builtin.slurp:
+    src: /proc/sys/net/ipv6/conf/all/forwarding
+  register: smarthome_ipv6_fwd
+
+- name: IPv6 forwarding is off (Thread routes need router advertisements)
+  ansible.builtin.assert:
+    that: (smarthome_ipv6_fwd.content | b64decode | trim) == "0"
+    fail_msg: "net.ipv6.conf.all.forwarding is on: Thread devices won't be reachable. Find what set it (sysctl -a, Docker ipv6, NetBird routing)."
+    quiet: true
+
+# NetworkManager handles router advertisements itself; Thread's route options need 1.42 or newer.
+# Servers without it (netplan/networkd, ifupdown) leave RAs to the kernel: a warning, not a stop
+# (the roles after this one, timers among them, must still run)
+- name: NetworkManager version
+  ansible.builtin.command: NetworkManager --version
+  register: smarthome_nm
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: NetworkManager ≥ 1.42
+  ansible.builtin.assert:
+    that: smarthome_nm.stdout is version('1.42', '>=')
+    fail_msg: "NetworkManager {{ smarthome_nm.stdout }} is too old for Thread (needs 1.42)"
+    quiet: true
+  when: smarthome_nm.rc == 0
+
+- name: No NetworkManager
+  ansible.builtin.debug:
+    msg: "No NetworkManager here: Matter over Wi-Fi/Ethernet works; Thread devices need the kernel to accept router advertisements (accept_ra) on the LAN interface."
+  when: smarthome_nm.rc != 0

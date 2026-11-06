@@ -1,0 +1,44 @@
+title = "Automations (n8n)"
+description = "Workflow automation for admins, mesh only; it can send to ntfy."
+category = "apps"
+core = false
+requires = ["core", "ntfy"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["n8n"]
+public_names = []
+peer_names = ["n8n"]
+blueprints = ["n8n.yaml"]
+jobs = []
+ansible = ""
+stages = ["files:automations"]
+
+
+[[tiles]]
+order = 200
+id = "n8n"
+name = "Automations"
+desc = "Workflows"
+url = "https://n8n.%s/"
+icon = "/apps/n8n.svg"
+status = "n8n"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.N8N_TAG]
+help = "n8n version"
+type = "tag"
+default = "2.45.6"
+advanced = true
+[options.N8N_ENCRYPTION_KEY]
+help = "Encrypts n8n's stored credentials; in the backup with .env"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+
+# What Authentik needs beyond the blueprint (lib/authentik.py): a list addition the blueprint would replace
+[authentik]
+outpost = ["Provider for n8n"]

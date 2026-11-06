@@ -1,0 +1,25 @@
+# caddy/components/wiki/sites.caddy (component wiki; copied into caddy/enabled/ by ./homelab configure)
+# Wiki (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+(outline) {
+	reverse_proxy outline:3000
+}
+
+wiki.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import outline
+}
+
+wiki.{$DOMAIN}, wiki.{$DOMAIN_ALIAS}, wiki.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical wiki
+}
+
+wiki.{$DOMAIN}:8444 {
+	import headers
+	import outline
+}
+
+wiki.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://wiki.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

@@ -1,0 +1,16 @@
+# caddy/components/photos/sites.caddy (component photos; copied into caddy/enabled/ by ./homelab configure)
+(immich) {
+	reverse_proxy immich-server:2283
+}
+
+photos.{$DOMAIN}, photos.{$DOMAIN_ALIAS}, photos.{$DOMAIN}:{$PUBLIC_PORT}, photos.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import immich
+}
+
+# No forward-auth: the Immich app can't do a browser login in front of the API. Immich itself
+# only lets in Authentik OIDC sign-ins (family), password login off (RUNBOOK.md 7c).
+photos.{$DOMAIN}:8444, photos.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	import immich
+}

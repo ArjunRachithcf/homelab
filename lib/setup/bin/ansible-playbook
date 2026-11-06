@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# ~/homelab/lib/setup/bin/ansible-playbook: first on PATH only under ./homelab setup --protocol.
+# -K (ask for the become password at a terminal) becomes --become-password-file with the setup
+# app's askpass, which Ansible runs as a script (it's executable). Everything else is unchanged.
+self=$(cd "$(dirname "$0")" && pwd)
+# Without this folder on PATH: Ansible's become runs `sudo -S` itself (password from the file below)
+PATH=$(tr ':' '\n' <<<"$PATH" | grep -vxF "$self" | paste -sd:); export PATH
+real=$(command -v ansible-playbook) || { echo "ansible-playbook not found" >&2; exit 127; }
+args=()
+for a in "$@"; do
+  case "$a" in
+    -K|--ask-become-pass) args+=(--become-password-file "$self/../askpass.py") ;;
+    *) args+=("$a") ;;
+  esac
+done
+exec "$real" "${args[@]}"

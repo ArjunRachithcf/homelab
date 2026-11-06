@@ -1,0 +1,50 @@
+title = "Films and shows (Jellyfin)"
+description = "Open-source player for the media folder, in the browser and TV/phone apps; sign-in with Authentik."
+category = "media"
+core = false
+requires = ["core", "media-library"]
+suggests = ["plex"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["jellyfin", "authentik-ldap"]
+public_names = ["jellyfin"]
+peer_names = ["jellyfin"]
+blueprints = ["jellyfin-ldap.yaml", "jellyfin.yaml"]
+jobs = []
+ansible = ""
+stages = ["wizard:jellyfin", "public:jellyfin_ldap"]
+
+
+[[tiles]]
+order = 10
+id = "jellyfin"
+name = "Jellyfin"
+kids = "Films and shows"
+desc = "Films and shows in the browser"
+url = "https://jellyfin.%s/sso/OID/start/authentik"
+icon = "/apps/jellyfin.svg"
+status = "jellyfin"
+group = "watch"
+audience = "family-and-kids"
+comment = "SSO plugin start URL: signs in with the Authentik session, no second login"
+
+[options.JELLYFIN_TAG]
+help = "Jellyfin version"
+type = "tag"
+default = "12.2"
+advanced = true
+[options.JELLYFIN_LDAP_BIND_PASSWORD]
+help = "Password of Jellyfin's LDAP bind user"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
+[options.AK_LDAP_OUTPOST_TOKEN]
+help = "Token of the Authentik outpost \"ldap\""
+type = "secret"
+set_by = "public:jellyfin_ldap"
+[options.JELLYFIN_OIDC_CLIENT_SECRET]
+help = "Jellyfin's Authentik client secret (SSO plugin)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

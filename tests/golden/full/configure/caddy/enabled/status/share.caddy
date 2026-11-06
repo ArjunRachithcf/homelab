@@ -1,0 +1,2 @@
+# caddy/components/share/status.caddy (component share; copied into caddy/enabled/ by ./homelab configure)
+import status share sharry:9090 /api/v2/open/info/version

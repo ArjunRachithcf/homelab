@@ -1,0 +1,22 @@
+# ~/homelab/ansible/distro/Debian.yml: Debian 13 and Ubuntu 24.04 (ansible_os_family Debian).
+# No SELinux here (AppArmor): the :Z/:z labels are ignored by Docker, the SELinux tasks are skipped.
+distro_name: Debian/Ubuntu
+distro_packages:
+  - age
+  - zstd
+  - pass
+  - duperemove
+  - rsync
+  - git
+  - bind9-dnsutils              # dig
+  - jq
+  - curl
+  - unzip
+  - gh
+  - nodejs
+  - btrfs-progs
+  - xfsprogs
+  - ansible                     # ansible-core with its collections (posix, community.general)
+  - ca-certificates
+  - gnupg
+distro_sshd_unit: ssh

@@ -1,0 +1,41 @@
+title = "Smart home (Home Assistant + Matter)"
+description = "Home Assistant with its own login and TOTP, mesh only; Matter devices on the LAN."
+category = "home"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["homeassistant", "matter-server"]
+public_names = []
+peer_names = ["ha"]
+blueprints = []
+jobs = []
+ansible = "smarthome_enabled"
+stages = ["apps:host", "apps:start", "apps:netbird", "apps:homeassistant"]
+
+
+[[tiles]]
+order = 120
+id = "ha"
+name = "Home Assistant"
+desc = "Lights and devices at home"
+url = "https://ha.%s/"
+icon = "/apps/home-assistant.svg"
+status = "ha"
+group = "home"
+netbird = true
+audience = "family"
+comment = "NetBird only: HA has no public site"
+
+[options.HA_TAG]
+help = "Home Assistant version"
+type = "tag"
+default = "2026.10.4"
+advanced = true
+[options.MATTER_TAG]
+help = "Matter server version"
+type = "tag"
+default = "1.5.5"
+advanced = true

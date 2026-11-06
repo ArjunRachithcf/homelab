@@ -1,0 +1,2 @@
+# caddy/components/reading/status.caddy (component reading; copied into caddy/enabled/ by ./homelab configure)
+import status read kavita:5000 /api/health

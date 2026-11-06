@@ -1,0 +1,2 @@
+# caddy/components/n8n/status.caddy (component n8n; copied into caddy/enabled/ by ./homelab configure)
+import status n8n n8n:5678 /healthz

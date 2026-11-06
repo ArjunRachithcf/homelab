@@ -1,0 +1,39 @@
+title = "Ad blocking (AdGuard Home)"
+description = "DNS with ad and tracker blocking for every mesh device; admin page for admins, mesh only."
+category = "home"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["adguard"]
+public_names = []
+peer_names = ["dns"]
+blueprints = ["adblock.yaml"]
+jobs = []
+ansible = "adguard_enabled"
+stages = ["apps:host", "apps:authentik", "apps:start", "apps:netbird", "apps:adguard"]
+
+
+[[tiles]]
+order = 170
+id = "dns"
+name = "Ad blocking"
+desc = "AdGuard Home for NetBird devices"
+url = "https://dns.%s/"
+icon = "/apps/adguard-home.svg"
+status = "dns"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.ADGUARD_TAG]
+help = "AdGuard Home version"
+type = "tag"
+default = "v0.107.79"
+advanced = true
+
+# What Authentik needs beyond the blueprint (lib/authentik.py): a list addition the blueprint would replace
+[authentik]
+outpost = ["Provider for Ad blocking"]

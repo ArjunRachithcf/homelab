@@ -1,0 +1,12 @@
+# /etc/systemd/system/homelab-files-local.timer: daily 03:50 (after homelab-backup at 03:30,
+# before the Proton copy at 04:30), catches up after downtime
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Daily OpenCloud snapshot + local copy
+
+[Timer]
+OnCalendar=*-*-* 03:50:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

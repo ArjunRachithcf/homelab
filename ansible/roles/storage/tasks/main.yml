@@ -1,0 +1,31 @@
+# Mounts and folders for photos, files and media. Never formats anything: wiping a disk stays in
+# immich-wizard.sh stage 1, behind its typed "wipe".
+- name: The second disk (component second-disk)
+  ansible.builtin.import_tasks: disk.yml
+  when: second_disk_enabled | bool
+
+- name: "{{ media_dir }} (Plex, and Jellyfin read-only)"
+  ansible.builtin.file:
+    path: "{{ media_dir }}"
+    state: directory
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0755"
+
+# Mounted read-only by Navidrome, Audiobookshelf and Kavita: each must exist first, or Docker
+# creates it as root. Kavita's four libraries are Books/{Books,Comics,Manga,Kids}.
+- name: Media folders for the read-only apps
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0755"
+  loop:
+    - "{{ media_dir }}/Music"
+    - "{{ audiobooks_dir }}"
+    - "{{ books_dir }}"
+    - "{{ books_dir }}/Books"
+    - "{{ books_dir }}/Comics"
+    - "{{ books_dir }}/Manga"
+    - "{{ books_dir }}/Kids"

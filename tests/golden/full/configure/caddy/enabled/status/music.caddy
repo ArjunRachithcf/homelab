@@ -1,0 +1,2 @@
+# caddy/components/music/status.caddy (component music; copied into caddy/enabled/ by ./homelab configure)
+import status music navidrome:4533 /ping

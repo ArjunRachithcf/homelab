@@ -1,0 +1,44 @@
+title = "Music (Navidrome)"
+description = "Your music in the browser and in Subsonic apps (each person their own long app password)."
+category = "media"
+core = false
+requires = ["core", "media-library"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["navidrome"]
+public_names = ["music"]
+peer_names = ["music"]
+blueprints = ["music.yaml"]
+jobs = []
+ansible = ""
+stages = ["music:zones", "music:first_login", "music:services", "music:apps", "music:music", "files:navidrome"]
+
+
+[[tiles]]
+order = 30
+id = "music"
+name = "Music"
+kids = "Music"
+desc = "Your music, in the browser or an app"
+url = "https://music.%s/"
+icon = "/apps/navidrome.svg"
+status = "music"
+group = "watch"
+audience = "family-and-kids"
+
+[options.NAVIDROME_TAG]
+help = "Navidrome version"
+type = "tag"
+default = "0.64.2"
+advanced = true
+[options.NAVIDROME_PASSWORD_KEY]
+help = "Encrypts the users' app passwords in Navidrome's database"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
+
+# What Authentik needs beyond the blueprint (lib/authentik.py): a list addition the blueprint would replace
+[authentik]
+outpost = ["Provider for Music"]

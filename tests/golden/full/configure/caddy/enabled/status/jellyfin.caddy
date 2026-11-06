@@ -1,0 +1,2 @@
+# caddy/components/jellyfin/status.caddy (component jellyfin; copied into caddy/enabled/ by ./homelab configure)
+import status jellyfin jellyfin:8096 /health

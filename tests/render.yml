@@ -1,0 +1,40 @@
+# tests/render.yml: what Ansible makes of vars.yml + .env, without touching the host (tests/golden.sh).
+#   ansible-playbook tests/render.yml -e homelab_env=$PWD/tests/fixtures/full.env -e out=/tmp/x
+# Writes out/vars.json (every vars.yml key, resolved), out/units/ (the timers role's templates) and
+# out/firewall/ (the firewall role's: zone, policy, service, mesh guard and its unit).
+- name: Render the host layer's values and units
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars_files: [../ansible/vars.yml, ../ansible/roles/timers/defaults/main.yml, ../ansible/roles/firewall/defaults/main.yml]
+  vars:
+    netbird_ip: "{{ lookup('homelab_env', 'NETBIRD_IP', file=homelab_env) }}"
+    keys: "{{ (lookup('ansible.builtin.file', playbook_dir ~ '/../ansible/vars.yml') | from_yaml).keys() | reject('in', ['homelab_env', 'homelab_repo']) | sort }}"
+  tasks:
+    - name: Output folders
+      ansible.builtin.file:
+        path: "{{ out }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [units, firewall]
+
+    - name: vars.json
+      ansible.builtin.copy:
+        dest: "{{ out }}/vars.json"
+        content: "{{ dict(keys | zip(query('ansible.builtin.vars', *keys))) | to_nice_json(sort_keys=true) }}\n"
+        mode: "0644"
+
+    - name: Unit templates
+      ansible.builtin.template:
+        src: "{{ item }}"
+        dest: "{{ out }}/units/{{ item | basename | regex_replace('\\.j2$', '') }}"
+        mode: "0644"
+      loop: "{{ query('ansible.builtin.fileglob', playbook_dir ~ '/../ansible/roles/timers/templates/*.j2') | sort }}"
+
+    - name: Firewall templates
+      ansible.builtin.template:
+        src: "{{ item }}"
+        dest: "{{ out }}/firewall/{{ item | basename | regex_replace('\\.j2$', '') }}"
+        mode: "0644"
+      loop: "{{ query('ansible.builtin.fileglob', playbook_dir ~ '/../ansible/roles/firewall/templates/*.j2') | sort }}"

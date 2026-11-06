@@ -1,0 +1,199 @@
+version: 1
+metadata:
+  name: homelab - Family
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_core.group
+    state: created
+    identifiers:
+      name: family
+    attrs:
+      is_superuser: false
+
+  - model: authentik_core.group
+    id: kids-group
+    identifiers:
+      name: kids
+    attrs:
+      is_superuser: false
+
+  - model: authentik_core.group
+    state: created
+    identifiers:
+      name: operators
+    attrs:
+      is_superuser: false
+
+  - model: authentik_providers_oauth2.scopemapping
+    id: email-verified
+    identifiers:
+      name: email (verified)
+    attrs:
+      scope_name: email
+      description: Your email address
+      expression: |
+        return {"email": request.user.email, "email_verified": True}
+  - model: authentik_providers_oauth2.scopemapping
+    id: groups-homelab
+    identifiers:
+      name: groups (homelab)
+    attrs:
+      scope_name: groups
+      description: Your groups
+      expression: |
+        return {"groups": [g.name for g in request.user.ak_groups.all()]}
+
+  - model: authentik_policies_expression.expressionpolicy
+    id: signup-groups
+    identifiers:
+      name: family-signup-groups
+    attrs:
+      expression: |
+        from authentik.core.models import Group
+        context["flow_plan"].context["groups"] = list(
+            Group.objects.filter(name__in=["family", "paperless-users"])
+        )
+        return True
+  - model: authentik_policies_expression.expressionpolicy
+    state: created
+    identifiers:
+      name: example-email-domain
+    attrs:
+      expression: |
+        email = request.context.get("prompt_data", {}).get("email", "")
+        if email.lower().rsplit("@", 1)[-1] in ("example.org", "example.com"):
+            return True
+        ak_message("Please use your @example.org address")
+        return False
+  - model: authentik_flows.flowstagebinding
+    id: user-write-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-enrollment-flow]]
+      stage: !Find [authentik_stages_user_write.userwritestage, [name, default-enrollment-user-write]]
+      order: 20
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf signup-groups
+      target: !KeyOf user-write-binding
+      order: 0
+
+  - model: authentik_policies_expression.expressionpolicy
+    id: signup-notify
+    identifiers:
+      name: family-signup-notify
+    attrs:
+      expression: |
+        from authentik.core.models import User
+        try:
+            u = request.context.get("pending_user")
+            if u and u.pk:
+                to = [a.email for a in User.objects.filter(
+                    is_active=True, groups__name="authentik Admins").exclude(email="")]
+                member = {
+                    "name": u.name or u.username,
+                    "username": u.username,
+                    "email": u.email,
+                    "phone": u.attributes.get("phone", ""),
+                    "groups": " and ".join(sorted(g.name for g in u.groups.all())) or "no groups",
+                    "admin_url": f"https://auth.example.com/if/admin/#/identity/users/{u.pk}",
+                }
+                if to:
+                    ak_send_email(to, f"Example: New family member: {member['name']}",
+                                  template="example/signup_notice.html", context={"member": member})
+        except Exception as exc:
+            ak_logger.warning("family-signup-notify failed", exc=exc)
+        return True
+  - model: authentik_flows.flowstagebinding
+    id: user-login-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-enrollment-flow]]
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-enrollment-user-login]]
+      order: 100
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf signup-notify
+      target: !KeyOf user-login-binding
+      order: 0
+
+  - model: authentik_events.notificationrule
+    state: absent
+    identifiers:
+      name: New sign-up
+  - model: authentik_policies_event_matcher.eventmatcherpolicy
+    state: absent
+    identifiers:
+      name: new-user-created
+    attrs:
+      action: model_created
+
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-enrollment-flow
+    attrs:
+      name: Example sign-up
+      title: Create your Example account
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-source-enrollment
+    attrs:
+      name: Example sign-up (external account)
+      title: Create your Example account
+  - model: authentik_stages_email.emailstage
+    identifiers:
+      name: default-enrollment-email-verification
+    attrs:
+      subject: Confirm your email
+      template: example/account_confirmation.html
+  - model: authentik_stages_email.emailstage
+    identifiers:
+      name: default-recovery-email
+    attrs:
+      subject: Reset your password
+      template: example/password_reset.html
+  - model: authentik_events.notificationtransport
+    identifiers:
+      name: default-email-transport
+    attrs:
+      email_template: example/event_notification.html
+  - model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+    identifiers:
+      name: default-authenticator-webauthn-setup
+    attrs:
+      friendly_name: Passkey
+      device_type_restrictions: []
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-authenticator-webauthn-setup
+    attrs:
+      name: Add a passkey
+      title: Add a passkey
+  - model: authentik_core.user
+    identifiers:
+      username: Alex
+    attrs:
+      name: Alex Example
+
+  - model: authentik_providers_proxy.proxyprovider
+    id: home-provider
+    state: created
+    identifiers:
+      name: Provider for Home
+    attrs:
+      mode: forward_single
+      external_host: https://home.example.com:9443
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_core.application
+    state: created
+    identifiers:
+      slug: home
+    attrs:
+      name: Home
+      provider: !KeyOf home-provider

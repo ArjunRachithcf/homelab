@@ -1,0 +1,16 @@
+# /etc/systemd/system/homelab-backup-watch.service (RUNBOOK.md step 9): backup-watch.sh, backs up
+# soon after a change (starts homelab-backup, -photos-copy, -offbox; allowed by the polkit rule)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: back up after changes
+OnFailure=homelab-notify@%n.service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User={{ homelab_user }}
+WorkingDirectory={{ homelab_dir }}
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash {{ homelab_dir }}/backup-watch.sh
+Nice=10

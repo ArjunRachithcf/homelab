@@ -1,0 +1,40 @@
+# caddy/components/music/sites.caddy (component music; copied into caddy/enabled/ by ./homelab configure)
+# Navidrome trusts X-Authentik-Username from Caddy's IP (ND_EXTAUTH_*). forward_auth strips the
+# client's copy, the app path below has to strip it itself. Subsonic apps (/rest without the web
+# UI's c=NavidromeUI) sign in with their own Navidrome password; the web UI goes through Authentik.
+# Same on the public listener since 7e: each user's app password is long and random, and failed
+# logins are limited per IP + user (ND_AUTHREQUESTLIMIT, docker-compose.yml).
+(navidrome) {
+	request_header -X-Authentik-Username
+	@apps {
+		path /rest/*
+		not query c=NavidromeUI
+	}
+	route {
+		reverse_proxy @apps navidrome:4533
+		import forward_auth
+		reverse_proxy navidrome:4533
+	}
+}
+
+# Same as home: the Authentik Music provider's external host is https://music.<domain>:<public port>.
+music.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import navidrome
+}
+
+music.{$DOMAIN}, music.{$DOMAIN_ALIAS}, music.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical music
+}
+
+# Public since 7e: the Subsonic apps (the web UI stays behind Authentik)
+music.{$DOMAIN}:8444 {
+	import headers
+	import navidrome
+}
+
+music.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://music.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

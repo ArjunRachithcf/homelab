@@ -1,0 +1,25 @@
+# caddy/components/notes/sites.caddy (component notes; copied into caddy/enabled/ by ./homelab configure)
+# Notes (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+(memos) {
+	reverse_proxy memos:5230
+}
+
+notes.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import memos
+}
+
+notes.{$DOMAIN}, notes.{$DOMAIN_ALIAS}, notes.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical notes
+}
+
+notes.{$DOMAIN}:8444 {
+	import headers
+	import memos
+}
+
+notes.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://notes.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

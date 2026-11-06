@@ -1,0 +1,61 @@
+# Docker CE (not Podman), SELinux labels on where SELinux is, started after NetBird. RUNBOOK.md step 1.
+# Repos and packages per distro: tasks/<family>.yml.
+# Never restarts Docker by itself: that would restart every container (see the handler).
+- name: /etc/docker
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    mode: "0755"
+
+# Written before the first start, so a fresh install comes up with it. Only where SELinux is on
+# (Fedora): elsewhere the labels are ignored and Docker's defaults stay.
+- name: SELinux labels for containers (:Z mounts are no-ops without it)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: "{ \"selinux-enabled\": true }\n"
+    mode: "0644"
+  notify: Docker config changed
+  when: homelab_selinux
+
+- name: Start Docker after NetBird (binds to the NetBird IP)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/after-netbird.conf
+    content: |
+      [Unit]
+      After=netbird.service
+      Wants=netbird.service
+    mode: "0644"
+  notify: Docker config changed
+
+# After the two files above: Debian's package starts Docker right away
+- name: Docker's repo and packages, Fedora
+  ansible.builtin.import_tasks: RedHat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: Docker's repo and packages, Debian/Ubuntu
+  ansible.builtin.import_tasks: Debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: Docker and compose, Arch
+  ansible.builtin.import_tasks: Archlinux.yml
+  when: ansible_os_family == "Archlinux"
+
+- name: Docker enabled and running
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+
+- name: "{{ homelab_user }} in the docker group"
+  ansible.builtin.user:
+    name: "{{ homelab_user }}"
+    groups: docker
+    append: true
+
+# Only the apps that transcode get the device (docker-compose.yml): without them it needn't exist
+- name: Render device for VAAPI (Jellyfin, Immich)
+  ansible.builtin.stat:
+    path: "{{ render_device }}"
+  register: docker_render
+  failed_when: not docker_render.stat.exists or not docker_render.stat.ischr
+  when: "'all' in homelab_components or 'jellyfin' in homelab_components or 'photos' in homelab_components"

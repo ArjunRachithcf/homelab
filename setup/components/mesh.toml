@@ -1,0 +1,25 @@
+title = "Mesh network (NetBird)"
+description = "Your devices reach this machine over WireGuard; nothing listens on the internet or the LAN."
+category = "core"
+core = true
+requires = []
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = ""
+stages = ["wizard:netbird", "hardening:netbird"]
+
+[options.NETBIRD_PEER]
+help = "This machine's peer name in the NetBird dashboard"
+type = "text"
+default = "homelab"
+[options.LAN_ALLOW]
+help = "What the LAN may reach on this machine itself besides DHCPv6, mDNS and NetBird: firewalld services or PORT/PROTO, spaces between (e.g. samba-client transmission-client); the homelab answers only over NetBird"
+type = "firewall"
+advanced = true

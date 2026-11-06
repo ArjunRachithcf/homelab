@@ -1,0 +1,21 @@
+# ~/homelab/ansible/distro/Archlinux.yml: Arch Linux (ansible_os_family Archlinux). Rolling: no
+# unattended updates (update with pacman -Syu yourself). NetBird and Plex are in the AUR only:
+# install netbird yourself first (e.g. yay -S netbird-bin); the plex component isn't offered here.
+distro_name: Arch Linux
+distro_packages:
+  - age
+  - zstd
+  - pass
+  - duperemove
+  - rsync
+  - git
+  - bind                        # dig
+  - jq
+  - curl
+  - unzip
+  - github-cli
+  - nodejs
+  - btrfs-progs
+  - xfsprogs
+  - ansible                     # with its collections
+distro_sshd_unit: sshd

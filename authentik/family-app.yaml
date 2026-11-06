@@ -1,0 +1,110 @@
+# ~/homelab/authentik/family-app.yaml
+# The family app (family-app/, RUNBOOK.md "Family app") signs in through the person's own browser, where
+# passkeys work (the app's webview has no WebAuthn, and admins sign in with a passkey only):
+#
+#   1. The app opens the browser at the authorization endpoint of the PUBLIC client "family-app"
+#      (PKCE, redirect to the app's one-off listener http://127.0.0.1:<port>/callback). The browser
+#      signs in exactly as always (password + MFA, admins with their passkey).
+#   2. The app redeems the code for an access token (valid 2 minutes) and opens the flow
+#      app-signin?t=<token> in its own window. The flow's one stage logs that token's user in;
+#      its policy checks the token against Authentik's own table (this client, not revoked, not
+#      expired, active user) and revokes it, so each token signs in once.
+#
+# Applied by `authentik/setup-ssh.sh app` (also part of `hardening`).
+version: 1
+metadata:
+  name: homelab - Family app
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: family-app-provider
+    identifiers:
+      name: Provider for the family app
+    attrs:
+      client_type: public
+      client_id: family-app
+      grant_types: [authorization_code]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      # Only long enough to carry it from the browser into the app's window
+      access_code_validity: minutes=2
+      access_token_validity: minutes=2
+      refresh_token_validity: minutes=2
+      sub_mode: hashed_user_id
+      issuer_mode: per_provider
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+      redirect_uris:
+        # The app listens on a random free port, on loopback only (RFC 8252 §7.3)
+        - matching_mode: regex
+          url: '^http://127\.0\.0\.1:[0-9]{4,5}/callback$'
+  - model: authentik_core.application
+    id: family-app-app
+    identifiers:
+      slug: family-app
+    attrs:
+      name: Family app
+      provider: !KeyOf family-app-provider
+      policy_engine_mode: any
+      meta_launch_url: blank://blank
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf family-app-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0
+
+  # ── The flow the app's window runs with the token ──────────────────────
+  - model: authentik_policies_expression.expressionpolicy
+    id: family-app-token
+    identifiers:
+      name: family-app-token
+    attrs:
+      expression: |
+        # The flow's query string (the app opens /if/flow/app-signin/?t=<access token>)
+        from django.utils.timezone import now
+        from authentik.providers.oauth2.models import AccessToken
+        query = http_request.session.get("authentik/flows/get") if http_request else None
+        raw = query.get("t", "") if query is not None else ""
+        if not raw:
+            return False
+        token = (AccessToken.objects.select_related("user", "provider")
+                 .filter(token=raw, provider__client_id="family-app", expires__gt=now())
+                 .first())
+        # Authentik checks this policy again when the stage is submitted: the session that
+        # redeemed the token may pass again, nobody else
+        redeemed_here = token is not None and http_request.session.get("__BRAND_SLUG__/app-token") == str(token.pk)
+        if token is None or not token.user.is_active or (token.revoked and not redeemed_here):
+            ak_message("This sign-in link has expired. Sign in again from the app.")
+            return False
+        if not token.revoked:
+            token.revoked = True
+            token.save(update_fields=["revoked"])
+            http_request.session["__BRAND_SLUG__/app-token"] = str(token.pk)
+        context["flow_plan"].context["pending_user"] = token.user
+        return True
+  - model: authentik_flows.flow
+    id: app-signin
+    identifiers:
+      slug: app-signin
+    attrs:
+      name: Family app sign-in
+      title: Signing in…
+      designation: authentication
+      authentication: none
+  - model: authentik_flows.flowstagebinding
+    id: app-signin-login
+    identifiers:
+      target: !KeyOf app-signin
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+      order: 10
+    attrs:
+      # The policy runs when the stage is reached, with the plan to put the user into
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf family-app-token
+      target: !KeyOf app-signin-login
+      order: 0

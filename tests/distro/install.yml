@@ -1,0 +1,86 @@
+# tests/distro/install.yml: every distro family's repos and packages, really installed, in a throwaway
+# container (.github/workflows/ci.yml: Fedora, Debian 13, Ubuntu 24.04, Arch). Runs exactly the
+# roles' tasks/<family>.yml files, without their systemd parts (tag service: no systemd there).
+#   HOMELAB_DISTRO_TEST=1 ansible-playbook -i localhost, tests/distro/install.yml --skip-tags service
+#   (-e '{"distro_roles": ["base", "docker"]}' for fewer)
+# Never on a real machine: it installs Docker, NetBird, Plex and NVIDIA's toolkit.
+- name: Install what each role installs on this distro
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: false
+  vars:
+    homelab_selinux: false
+    homelab_components: [all]
+  tasks:
+    - name: Not on a real machine
+      ansible.builtin.assert:
+        that: lookup('ansible.builtin.env', 'HOMELAB_DISTRO_TEST') == '1'
+        fail_msg: "Set HOMELAB_DISTRO_TEST=1 (only in a throwaway container: this installs Docker, NetBird, Plex)"
+
+    - name: The family's names (ansible/distro/)
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../../ansible/distro/{{ ansible_os_family }}.yml"
+
+    - name: Which roles
+      ansible.builtin.set_fact:
+        roles_run: "{{ distro_roles | default(['base', 'firewall', 'docker', 'gpu'] + ([] if ansible_os_family == 'Archlinux' else ['netbird', 'plex'])) }}"
+
+    # Fedora's rpms of NetBird and Plex need systemd in their scriptlets, which a container lacks: NetBird's
+    # is in anyway (the check below runs it), Plex's %pre refuses, so there the check asks Plex's repo
+    # for the package instead (signed metadata, the package is there)
+    - name: Each role's tasks for this family
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/../../ansible/roles/{{ item }}/tasks/{{ ansible_os_family }}.yml"
+        apply:
+          ignore_errors: "{{ ansible_os_family == 'RedHat' and item in ['netbird', 'plex'] }}"
+      loop: "{{ roles_run }}"
+
+    - name: What got installed answers
+      ansible.builtin.command: "{{ item }}"
+      loop: "{{ checks | dict2items | selectattr('key', 'in', roles_run) | map(attribute='value') | flatten }}"
+      vars:
+        checks:
+          base: [age --version, jq --version, dig -v, git --version]
+          firewall: [nft --version, firewall-offline-cmd --check-config]
+          docker: [docker --version, docker compose version]
+          gpu: [nvidia-ctk --version]
+          netbird: [netbird version]
+          plex: ["{{ 'sh -c \"dnf -q repoquery --available plexmediaserver | grep -q plexmediaserver\"' if ansible_os_family == 'RedHat' else 'test -d /usr/lib/plexmediaserver' }}"]
+      changed_when: false
+
+    # The firewall role's zone, policy and service as this distro's firewalld reads them (no daemon here):
+    # Ubuntu 24.04 has firewalld 2.1, Debian 13 2.3, Fedora 44 2.4, Arch the newest
+    - name: The firewall role's files, offline
+      when: "'firewall' in roles_run"
+      block:
+        - name: The role's defaults
+          ansible.builtin.include_vars: "{{ playbook_dir }}/../../ansible/roles/firewall/defaults/main.yml"
+
+        - name: firewalld's folders
+          ansible.builtin.file:
+            path: "/etc/firewalld/{{ item }}"
+            state: directory
+            mode: "0750"
+          loop: [zones, services, policies]
+
+        - name: Zone, policy and service (with a LAN_ALLOW port and the Matter rule)
+          ansible.builtin.template:
+            src: "{{ playbook_dir }}/../../ansible/roles/firewall/templates/{{ item.src }}"
+            dest: "/etc/firewalld/{{ item.dest }}"
+            mode: "0644"
+          loop:
+            - { src: homelab-netbird.xml.j2, dest: services/homelab-netbird.xml }
+            - { src: homelab-lan.xml.j2, dest: zones/homelab-lan.xml }
+            - { src: homelab-no-route.xml.j2, dest: policies/homelab-no-route.xml }
+          vars:
+            lan_allow: [samba-client, 51413/tcp]
+            smarthome_enabled: true
+
+        - name: firewalld accepts them, and the zone can be the default
+          ansible.builtin.command: "{{ item }}"
+          loop:
+            - firewall-offline-cmd --check-config
+            - firewall-offline-cmd --set-default-zone=homelab-lan
+            - firewall-offline-cmd --info-zone=homelab-lan
+            - firewall-offline-cmd --info-policy=homelab-no-route
+          changed_when: false

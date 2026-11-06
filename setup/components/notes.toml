@@ -1,0 +1,40 @@
+title = "Notes (Memos, our build)"
+description = "Quick private notes; our build has no password sign-in (memos/build.sh, about 8 minutes). Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["memos"]
+public_names = ["notes"]
+peer_names = ["notes"]
+blueprints = ["notes.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:memos", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 133
+id = "notes"
+name = "Notes"
+desc = "Quick notes, just for you"
+url = "https://notes.%s/"
+icon = "/apps/memos.png"
+status = "notes"
+group = "life"
+audience = "family"
+
+[options.MEMOS_TAG]
+help = "Memos version (Notes): upstream's tag, built with our patch by memos/build.sh"
+type = "tag"
+default = "0.31.0"
+advanced = true
+[options.MEMOS_OIDC_CLIENT_SECRET]
+help = "Memos's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

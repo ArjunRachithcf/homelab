@@ -1,0 +1,61 @@
+# ~/homelab/authentik/budget.yaml
+# Budget (Actual, budget.<domain>, RUNBOOK.md 7d): OIDC, the app itself only allows this login;
+# group budget. setup-ssh.sh then puts you in budget (a list addition a blueprint would replace).
+# Needs ACTUAL_OIDC_CLIENT_SECRET in the worker's environment (setup-ssh.sh passes it from .env).
+#
+# Applied by `authentik/setup-ssh.sh component budget` when budget is chosen (also part of
+# `hardening`, so it's re-applied after upgrades).
+version: 1
+metadata:
+  name: homelab - Budget
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # Who may open the budget (Actual). Add people in Directory → Groups → budget, then in Actual's
+  # user directory.
+  - model: authentik_core.group
+    id: budget-group
+    identifiers:
+      name: budget
+    attrs:
+      is_superuser: false
+
+  # ── Actual Budget (budget.<domain>) ───────────────────────────────────
+  # The first user to sign in owns the Actual server; others need a binding here (group budget)
+  # and an entry in Actual's user directory.
+  - model: authentik_providers_oauth2.oauth2provider
+    id: actual-provider
+    identifiers:
+      name: Provider for Budget
+    attrs:
+      client_type: confidential
+      client_id: actual
+      grant_types: [authorization_code, refresh_token]
+      client_secret: !Env ACTUAL_OIDC_CLIENT_SECRET
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+      redirect_uris:
+        - matching_mode: strict
+          url: https://budget.__DOMAIN__:__PUBLIC_PORT__/openid/callback
+  - model: authentik_core.application
+    id: actual-app
+    identifiers:
+      slug: actual
+    attrs:
+      name: Budget
+      provider: !KeyOf actual-provider
+      meta_launch_url: https://budget.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf actual-app
+      group: !KeyOf budget-group
+      order: 0

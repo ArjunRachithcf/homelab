@@ -1,0 +1,2 @@
+# caddy/components/wiki/status.caddy (component wiki; copied into caddy/enabled/ by ./homelab configure)
+import status wiki outline:3000 /_health

@@ -1,0 +1,8 @@
+{% autoescape off %}Confirm your email
+
+Hi{% if user.name %} {{ user.name }}{% endif %}, open this link to confirm this address and finish creating your Example account:
+
+{{ url }}
+
+If you didn't sign up, ignore this mail.
+{% endautoescape %}

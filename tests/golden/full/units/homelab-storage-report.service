@@ -1,0 +1,18 @@
+# /etc/systemd/system/homelab-storage-report.service (RUNBOOK.md 7e, "Details"): storage-report.py,
+# what uses the disks and what each cleanup would free, for the home page's Disk sheet. Read-only.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: disk usage report
+After=docker.service
+
+[Service]
+Type=oneshot
+User=alex
+WorkingDirectory=/home/alex/homelab
+Environment=NVME1_DIR=/srv/nvme1
+Environment=PHOTOS_COPY_DIR=/srv/photos-copy
+Environment=FILES_COPY_DIR=/srv/files-copy
+ExecStart=/usr/bin/python3 /home/alex/homelab/storage-report.py
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=30min

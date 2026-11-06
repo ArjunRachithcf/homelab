@@ -1,0 +1,7 @@
+{"uid":"authentik","name":"__BRAND__","type":"OAUTH2","identifierFilter":"",
+ "config":{"oauth2Config":{"clientId":"memos","clientSecret":"__SECRET__",
+  "authUrl":"__AUTH__/application/o/authorize/",
+  "tokenUrl":"__AUTH__/application/o/token/",
+  "userInfoUrl":"__AUTH__/application/o/userinfo/",
+  "scopes":["openid","profile","email"],
+  "fieldMapping":{"identifier":"preferred_username","displayName":"name","email":"email","avatarUrl":""}}}}

@@ -1,0 +1,25 @@
+# caddy/components/audiobooks/sites.caddy (component audiobooks; copied into caddy/enabled/ by ./homelab configure)
+(audiobookshelf) {
+	reverse_proxy audiobookshelf:80
+}
+
+books.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import audiobookshelf
+}
+
+books.{$DOMAIN}, books.{$DOMAIN_ALIAS}, books.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical books
+}
+
+# No forward-auth: it only allows its own Authentik OIDC login (family)
+books.{$DOMAIN}:8444 {
+	import headers
+	import audiobookshelf
+}
+
+books.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://books.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

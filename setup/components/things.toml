@@ -1,0 +1,45 @@
+title = "Things (Homebox)"
+description = "What the household owns and where it is, with receipts and manuals. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["homebox"]
+public_names = ["stuff"]
+peer_names = ["stuff"]
+blueprints = ["things.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 134
+id = "stuff"
+name = "Things"
+desc = "What we own and where"
+url = "https://stuff.%s/"
+icon = "/apps/homebox.svg"
+status = "stuff"
+group = "life"
+audience = "family"
+
+[options.HOMEBOX_TAG]
+help = "Homebox version (Things)"
+type = "tag"
+default = "0.27.1"
+advanced = true
+[options.HOMEBOX_OIDC_CLIENT_SECRET]
+help = "Homebox's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.HOMEBOX_API_KEY_PEPPER]
+help = "Keys Homebox's API key hashes (never change it)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n'"

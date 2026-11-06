@@ -1,0 +1,22 @@
+{% extends "__BRAND_SLUG__/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 12px; font-size:20px;">{{ title }}</h1>
+<p style="margin:0 0 20px; white-space:pre-line;">{{ body }}</p>
+{% if link %}
+<p style="margin:0 0 20px; text-align:center;">
+  <a href="{{ link.target }}" target="_blank" rel="noopener noreferrer" style="display:inline-block; padding:10px 20px; background:#18181b; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:bold;">{{ link.label }}</a>
+</p>
+{% endif %}
+{% if key_value %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e4e4e7; font-size:13px;">
+  {% for key, value in key_value.items %}
+  <tr>
+    <td style="padding:6px 12px 6px 0; color:#71717a; white-space:nowrap; vertical-align:top;">{{ key }}</td>
+    <td style="padding:6px 0; word-break:break-all;">{{ value }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}
+{% block footer %}Alert from the __BRAND__ family server{% if source %} ({{ source.from }}){% endif %}.{% endblock %}

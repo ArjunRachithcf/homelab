@@ -1,0 +1,38 @@
+title = "PDF tools (BentoPDF)"
+description = "Merge, split, sign and convert PDFs in the browser; nothing leaves the machine."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["bentopdf"]
+public_names = ["pdf"]
+peer_names = ["pdf"]
+blueprints = ["pdf.yaml"]
+jobs = []
+ansible = ""
+stages = ["apps:authentik", "apps:start", "apps:netbird", "apps:proxy", "apps:media"]
+
+
+[[tiles]]
+order = 130
+id = "pdf"
+name = "PDF tools"
+desc = "Merge, split, sign, on your device"
+url = "https://pdf.%s/"
+icon = "/apps/bentopdf.svg"
+status = "pdf"
+group = "home"
+audience = "family"
+
+[options.BENTOPDF_TAG]
+help = "BentoPDF version"
+type = "tag"
+default = "2.8.10"
+advanced = true
+
+# What Authentik needs beyond the blueprint (lib/authentik.py): a list addition the blueprint would replace
+[authentik]
+outpost = ["Provider for PDF tools"]

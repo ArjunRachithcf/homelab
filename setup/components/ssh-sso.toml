@@ -1,0 +1,25 @@
+title = "SSH with your sign-in"
+description = "SSH into this machine with the key in your Authentik profile plus password and authenticator code; admins only, mesh only."
+category = "access"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora"]
+services = ["authentik-ldap-ssh"]
+public_names = []
+peer_names = []
+blueprints = ["ssh-ldap.yaml"]
+jobs = []
+ansible = ""
+stages = ["hardening:keys", "hardening:host", "hardening:test", "wizard:ssh"]
+
+[options.SSH_LDAP_BIND_PASSWORD]
+help = "Password of SSSD's bind user (written by authentik/setup-ssh.sh)"
+type = "secret"
+set_by = "hardening:authentik"
+[options.AK_LDAP_SSH_OUTPOST_TOKEN]
+help = "Token of the Authentik outpost \"ldap-ssh\" (written by authentik/setup-ssh.sh)"
+type = "secret"
+set_by = "hardening:authentik"

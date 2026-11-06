@@ -1,0 +1,24 @@
+# ~/homelab/ansible/distro/RedHat.yml: Fedora (ansible_os_family RedHat). site.yml loads the file of
+# this machine's family; the roles import <role>/tasks/<family>.yml for repos and packages.
+# The first homelab ran on Fedora: what Ansible does here is what it always did.
+distro_name: Fedora
+distro_packages:
+  - age                         # backup.sh
+  - zstd                        # backup.sh: compressed DB dumps
+  - pass                        # proton-drive session store
+  - duperemove                  # photos-local.sh
+  - rsync
+  - git
+  - bind-utils                  # wizards' dig checks
+  - policycoreutils-python-utils
+  - jq
+  - curl
+  - unzip                       # proton-drive/update.sh: Bun release zip
+  - gh                          # proton-drive/update.sh: Bun release download
+  - nodejs                      # proton-drive/update.sh: Proton's jest tests (the timer has no nvm)
+  - btrfs-progs
+  - xfsprogs
+  - ansible-core
+  - ansible-collection-ansible-posix
+  - ansible-collection-community-general
+distro_sshd_unit: sshd

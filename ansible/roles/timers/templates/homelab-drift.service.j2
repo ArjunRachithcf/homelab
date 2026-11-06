@@ -1,0 +1,17 @@
+# /etc/systemd/system/homelab-drift.service: has this machine drifted from ansible/site.yml?
+# `ansible-playbook --check --diff` (changes nothing); mails a summary only when something would
+# change. Waits up to 30 min for running homelab jobs, then skips (not fails); never 02:00–05:30.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: weekly drift check (Ansible --check)
+OnFailure=homelab-notify@%n.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ homelab_dir }}
+Environment=NOTIFY_TO={{ notify_to }}
+ExecCondition=/usr/bin/bash {{ homelab_dir }}/ansible/live-safe.sh {{ homelab_home }} 1800
+ExecStart=/usr/bin/bash {{ homelab_dir }}/ansible/drift.sh
+Nice=10

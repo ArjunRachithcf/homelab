@@ -1,0 +1,142 @@
+<!doctype html>
+<!-- ~/homelab/setup-app/ui/index.html: the setup app's window (src-tauri/src/main.rs does the work).
+     Steps: Connect → This machine → Choose → Set up. Every value lands via textContent (app.js). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Homelab Setup</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <nav class="side" aria-label="Steps">
+    <div class="brand"><img src="icon.png" alt=""><span>Homelab Setup</span></div>
+    <ol class="steps" id="steps">
+      <li data-step="connect" aria-current="step">Connect</li>
+      <li data-step="machine">This machine</li>
+      <li data-step="choose">Choose</li>
+      <li data-step="run">Set up</li>
+    </ol>
+    <ol class="stages" id="stages" aria-label="Stages"></ol>
+    <button type="button" class="ai-toggle" id="ai-toggle" aria-expanded="false" aria-controls="ai">Assistant</button>
+    <div class="where" id="where"></div>
+  </nav>
+
+  <main id="main">
+    <!-- 1. Connect -->
+    <section class="page" id="p-connect">
+      <h1>Where should the homelab run?</h1>
+      <p class="lead">On this computer, or on another one at home that you reach over SSH. Nothing changes until you choose and confirm.</p>
+      <div class="cards">
+        <button type="button" class="card pick" id="pick-local">
+          <strong>This computer</strong><span>Linux or macOS. The setup runs right here.</span>
+        </button>
+        <button type="button" class="card pick" id="pick-ssh">
+          <strong>Another computer</strong><span>Over SSH, with its address, your user and password or key.</span>
+        </button>
+      </div>
+      <form class="card form" id="f-local" hidden>
+        <label>Folder for the homelab <input name="dir" value="~/homelab" autocomplete="off" spellcheck="false"></label>
+        <div class="row"><button class="primary" type="submit">Continue</button></div>
+      </form>
+      <form class="card form" id="f-ssh" hidden>
+        <div class="two">
+          <label>Address <input name="host" required placeholder="192.168.1.20 or homelab.local" autocomplete="off" spellcheck="false"></label>
+          <label class="narrow">Port <input name="port" type="number" value="22" min="1" max="65535"></label>
+        </div>
+        <label>User <input name="user" required autocomplete="username" spellcheck="false"></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password">
+          <small>If the computer asks for a code as well, type it after the password with a ; (password;123456).</small></label>
+        <details>
+          <summary>Sign in with a key instead</summary>
+          <label>Private key file <input name="key_path" placeholder="~/.ssh/id_ed25519" spellcheck="false"></label>
+          <label>Its passphrase <input name="key_passphrase" type="password" autocomplete="off"></label>
+        </details>
+        <label>Folder for the homelab there <input name="dir" value="~/homelab" spellcheck="false"></label>
+        <div class="row"><button class="primary" type="submit">Connect</button></div>
+      </form>
+      <p class="msg" id="connect-msg" role="status"></p>
+    </section>
+
+    <!-- 2. This machine -->
+    <section class="page" id="p-machine" hidden>
+      <h1>This machine</h1>
+      <ul class="list" id="facts"></ul>
+      <div id="get" hidden>
+        <h2>Get the homelab</h2>
+        <p>It isn't on this machine yet. The app installs git and Python if they're missing, then downloads the homelab (<span id="release"></span>).</p>
+        <label class="card form" id="sudo-box">Your password on that machine, for sudo
+          <input type="password" id="sudo-pw" autocomplete="off">
+          <small>Kept in the app's memory until you close it, and only handed to sudo there.</small></label>
+        <div class="row"><button class="primary" type="button" id="do-bootstrap">Download the homelab</button></div>
+        <pre class="log" id="boot-log" hidden></pre>
+      </div>
+      <div class="row"><button class="primary" type="button" id="to-choose" hidden>Choose what to set up</button></div>
+    </section>
+
+    <!-- 3. Choose -->
+    <section class="page" id="p-choose" hidden>
+      <div class="head">
+        <h1>What should it do?</h1>
+        <div class="seg" role="group" aria-label="Detail">
+          <button type="button" data-mode="basic" aria-pressed="true">Basic</button>
+          <button type="button" data-mode="advanced" aria-pressed="false">Advanced</button>
+        </div>
+      </div>
+      <p class="lead">Start from a set, then switch apps on or off. Everything it needs comes along by itself.</p>
+      <div class="cards presets" id="presets"></div>
+      <div class="split">
+        <div id="catalogue"></div>
+        <aside class="card plan" id="plan" aria-live="polite"></aside>
+      </div>
+      <div class="row sticky">
+        <div class="card confirm-off" id="off-confirm" role="alert" hidden></div>
+        <button type="button" id="save-answers">Save answers…</button>
+        <button type="button" id="to-run" hidden>Set up without changes</button>
+        <button class="primary" type="button" id="do-apply">Apply and continue</button>
+      </div>
+    </section>
+
+    <!-- 4. Set up -->
+    <section class="page" id="p-run" hidden>
+      <div class="head">
+        <h1>Set up</h1>
+        <div class="row">
+          <button type="button" id="run-check">Check everything</button>
+          <button class="primary" type="button" id="run-start">Start everything</button>
+          <button type="button" id="run-stop" hidden>Stop</button>
+        </div>
+      </div>
+      <p class="lead" id="run-lead">The steps of what you chose, in order. Some happen in other places (your DNS provider, a phone); the app shows where and waits. Already set up? Check first: each part says what's missing, and you can start a part, or one step of it.</p>
+      <div id="applied" class="card applied" role="status" hidden></div>
+      <div id="parts" class="parts"></div>
+      <div id="feed" class="feed"></div>
+      <div id="ask" class="card ask" hidden></div>
+    </section>
+  </main>
+</div>
+<!-- The assistant (optional): a model with the setup's tools; changes wait for a yes here -->
+<aside class="ai" id="ai" aria-label="Assistant" hidden>
+  <header><strong>Assistant</strong><button type="button" id="ai-close" aria-label="Close">Close</button></header>
+  <details class="card" id="ai-settings">
+    <summary>Settings</summary>
+    <label>Model from <select id="ai-provider"><option value="anthropic">Anthropic (Claude)</option><option value="ollama">Ollama (on your network)</option></select></label>
+    <label id="ai-key-row">API key <input type="password" id="ai-key" autocomplete="off" placeholder="sk-ant-…">
+      <small id="ai-key-state"></small></label>
+    <label id="ai-url-row" hidden>Ollama address <input id="ai-url" spellcheck="false"></label>
+    <label>Model <input id="ai-model" spellcheck="false"><small id="ai-model-hint"></small></label>
+    <div class="row"><button type="button" id="ai-forget">Forget the key</button><button class="primary" type="button" id="ai-save">Save</button></div>
+    <p class="hint" id="ai-privacy"></p>
+  </details>
+  <div class="ai-log" id="ai-log" aria-live="polite"></div>
+  <form class="ai-input" id="ai-form">
+    <textarea id="ai-text" rows="2" placeholder="What would you like to set up?"></textarea>
+    <div class="row"><button type="button" id="ai-reset">New conversation</button><button class="primary" type="submit" id="ai-send">Send</button></div>
+  </form>
+</aside>
+<script src="app.js"></script>
+<script src="assistant.js"></script>
+</body>
+</html>

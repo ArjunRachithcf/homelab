@@ -1,0 +1,30 @@
+version: 1
+metadata:
+  name: homelab - Music
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    id: music-provider
+    identifiers:
+      name: Provider for Music
+    attrs:
+      mode: forward_single
+      external_host: https://music.example.com:9443
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    id: music-app
+    identifiers:
+      slug: music
+    attrs:
+      name: Music
+      provider: !KeyOf music-provider
+      meta_launch_url: https://music.example.com:9443/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf music-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0

@@ -1,0 +1,5 @@
+# Arch: the toolkit is in the official repos
+- name: nvidia-container-toolkit (nvidia-ctk)
+  community.general.pacman:
+    name: nvidia-container-toolkit
+    state: present

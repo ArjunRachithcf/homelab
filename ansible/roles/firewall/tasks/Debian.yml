@@ -1,0 +1,8 @@
+# Debian/Ubuntu: firewalld from the distro, nftables for the mesh guard, the Python bindings Ansible's
+# firewalld module needs. Ubuntu ships ufw: tasks/main.yml refuses while it is active.
+- name: firewalld and nftables
+  ansible.builtin.apt:
+    name: [firewalld, nftables, python3-firewall]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# ~/homelab/lib/setup/bin/sudo: first on PATH only under ./homelab setup --protocol (lib/setup/run.py).
+# The wizards' plain `sudo …` has no terminal there, so it asks through the setup app instead
+# (SUDO_ASKPASS = lib/setup/askpass.py). Everything else is the real sudo.
+self=$(cd "$(dirname "$0")" && pwd)
+real=$(PATH=$(tr ':' '\n' <<<"$PATH" | grep -vxF "$self" | paste -sd:) command -v sudo) || { echo "sudo not found" >&2; exit 127; }
+# A caller that feeds the password itself (-S, e.g. Ansible's become) keeps its way: sudo refuses -A with -S
+skip=0
+for a in "$@"; do
+  if (( skip )); then skip=0; continue; fi
+  case "$a" in
+    -S|--stdin|-[AbBEHiKklnPSsVv]*S*) exec "$real" "$@" ;;
+    -[ugpCDhrtTU]) skip=1 ;;  # their value comes next
+    --) break ;;
+    -*) ;;
+    *) break ;;
+  esac
+done
+exec "$real" -A "$@"

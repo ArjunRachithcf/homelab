@@ -1,0 +1,69 @@
+title = "Games (RomM)"
+description = "Old console games in the browser from MEDIA_DIR/Games; kids play too. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core", "media-library"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["romm", "romm-db"]
+public_names = ["games"]
+peer_names = ["games"]
+blueprints = ["games.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 138
+id = "games"
+name = "Games"
+kids = "Games"
+desc = "Old console games"
+url = "https://games.%s/"
+icon = "/apps/romm.svg"
+status = "games"
+group = "life"
+audience = "family-and-kids"
+
+[options.ROMM_TAG]
+help = "RomM version (Games)"
+type = "tag"
+default = "5.4.1"
+advanced = true
+[options.ROMM_DB_TAG]
+help = "Its MariaDB"
+type = "tag"
+default = "11.8"
+advanced = true
+[options.ROMM_OIDC_CLIENT_SECRET]
+help = "RomM's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.ROMM_AUTH_SECRET_KEY]
+help = "RomM's secret key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 32"
+[options.ROMM_DB_PASSWORD]
+help = "RomM's database password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc A-Za-z0-9"
+[options.ROMM_DB_ROOT_PASSWORD]
+help = "Its MariaDB root password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc A-Za-z0-9"
+[options.ROMM_IGDB_CLIENT_ID]
+help = "Optional, more game covers and titles: a Twitch developer app's client id"
+type = "text"
+set_by = "family:secrets"
+[options.ROMM_IGDB_CLIENT_SECRET]
+help = "That app's secret"
+type = "secret"
+set_by = "family:secrets"

@@ -1,0 +1,11 @@
+{% extends "example/base.html" %}
+{% block title %}Confirm your email{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 12px; font-size:22px;">Confirm your email</h1>
+<p style="margin:0 0 20px;">Hi{% if user.name %} {{ user.name }}{% endif %}, press the button to confirm this address and finish creating your Example account.</p>
+<p style="margin:0 0 20px; text-align:center;">
+  <a href="{{ url }}" target="_blank" rel="noopener noreferrer" style="display:inline-block; padding:12px 24px; background:#18181b; color:#ffffff; text-decoration:none; border-radius:8px; font-weight:bold;">Confirm email</a>
+</p>
+<p style="margin:0; font-size:12px; color:#71717a; word-break:break-all;">If the button doesn't work, open this link: {{ url }}</p>
+{% endblock %}
+{% block footer %}You get this mail because someone signed up with this address. If it wasn't you, ignore it.{% endblock %}

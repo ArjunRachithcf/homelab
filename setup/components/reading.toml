@@ -1,0 +1,40 @@
+title = "Reading (Kavita)"
+description = "Books, comics and manga in the browser and OPDS readers; a Kids library with an age limit."
+category = "media"
+core = false
+requires = ["core", "media-library"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["kavita"]
+public_names = ["read"]
+peer_names = ["read"]
+blueprints = ["reading.yaml"]
+jobs = []
+ansible = ""
+stages = ["files:secrets", "files:authentik", "files:start", "files:zones", "files:kavita", "files:proxy", "files:kids"]
+
+
+[[tiles]]
+order = 50
+id = "read"
+name = "Reading"
+kids = "Books and comics"
+desc = "Books, comics and manga"
+url = "https://read.%s/"
+icon = "/apps/kavita.svg"
+status = "read"
+group = "watch"
+audience = "family-and-kids"
+
+[options.KAVITA_TAG]
+help = "Kavita version"
+type = "tag"
+default = "0.9.1"
+advanced = true
+[options.KAVITA_OIDC_CLIENT_SECRET]
+help = "Kavita's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

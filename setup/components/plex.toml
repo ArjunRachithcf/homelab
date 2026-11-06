@@ -1,0 +1,28 @@
+title = "Plex (native)"
+description = "Plex Media Server on the host for the media folder; mesh only. Needs a Plex account."
+category = "media"
+core = false
+requires = ["media-library"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = "plex_enabled"
+stages = ["wizard:plex"]
+
+[[tiles]]
+order = 20
+id = "plex"
+name = "Plex"
+desc = "The same library in the Plex app"
+url = "https://app.plex.tv/"
+icon = "/apps/plex.svg"
+status = "plex"
+group = "watch"
+netbird = true
+audience = "family"

@@ -1,0 +1,12 @@
+# Arch: NetBird is in the AUR only, which Ansible doesn't build. Install it first (yay -S netbird-bin).
+- name: NetBird is installed (AUR)
+  ansible.builtin.command: netbird version
+  register: netbird_version
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Stop if it isn't
+  ansible.builtin.fail:
+    msg: "NetBird isn't installed. On Arch it comes from the AUR: yay -S netbird-bin (or paru), then run this again."
+  when: netbird_version.rc != 0

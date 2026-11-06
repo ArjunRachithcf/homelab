@@ -1,0 +1,2 @@
+# caddy/components/plex/status.caddy (component plex; copied into caddy/enabled/ by ./homelab configure)
+import status plex host.docker.internal:32400 /identity

@@ -1,0 +1,241 @@
+# ~/homelab/authentik/family.yaml
+# Core (every install): family sign-up without approval, the brand's wording instead of "authentik",
+# the groups family, kids and operators, the mappings the apps share, and Home's forward-auth.
+# Applied by `authentik/setup-ssh.sh family` (also part of `hardening`, so it's re-applied after
+# upgrades). RUNBOOK.md "New family members". Each app's sign-in is in its component's own blueprint
+# (authentik/<component>.yaml: jellyfin, photos, music, …).
+#
+# Needs the mail templates (./homelab configure → authentik/templates/<BRAND_SLUG>/) mounted at /templates.
+version: 1
+metadata:
+  name: homelab - Family
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # The family: everyone who signed up (family-signup-groups below). Also made by jellyfin-ldap.yaml;
+  # here too since Jellyfin is optional (setup/components/) and every app's binding needs it.
+  - model: authentik_core.group
+    state: created
+    identifiers:
+      name: family
+    attrs:
+      is_superuser: false
+
+  # Children (RUNBOOK.md 7e): still in family, but the home page and the family app show them only
+  # their own apps, Kavita only its Kids library. `setup-ssh.sh kid <user>` adds a child here and
+  # takes them out of paperless-users.
+  - model: authentik_core.group
+    id: kids-group
+    identifiers:
+      name: kids
+    attrs:
+      is_superuser: false
+
+  # Operators (RUNBOOK.md "Console"): may open the console at home.<domain>/console/, see every job,
+  # app and certificate, read logs, and over NetBird run backups and restart apps (each restart
+  # mails the admin). Not admins: no Authentik admin, no SSH. Add people in Directory → Groups.
+  - model: authentik_core.group
+    state: created
+    identifiers:
+      name: operators
+    attrs:
+      is_superuser: false
+
+  # ── Mappings shared by the apps of 7e and later ─────────────────────────
+  # Authentik sends email_verified: false since 2025.10 (it can't know); Kavita, Outline, RomM and
+  # Gramps refuse that. Every account here has a confirmed address (sign-up mails a link), so true.
+  - model: authentik_providers_oauth2.scopemapping
+    id: email-verified
+    identifiers:
+      name: email (verified)
+    attrs:
+      scope_name: email
+      description: Your email address
+      expression: |
+        return {"email": request.user.email, "email_verified": True}
+  # The person's group names, for apps that map groups to roles
+  - model: authentik_providers_oauth2.scopemapping
+    id: groups-homelab
+    identifiers:
+      name: groups (homelab)
+    attrs:
+      scope_name: groups
+      description: Your groups
+      expression: |
+        return {"groups": [g.name for g in request.user.ak_groups.all()]}
+
+  # ── Sign-up: addresses at DOMAIN / DOMAIN_ALIAS join family + paperless-users at once ──
+  # __BRAND_SLUG__-email-domain (on default-enrollment-prompt-second) and the email verification stay,
+  # so only someone with a working mailbox at those domains gets this far.
+  - model: authentik_policies_expression.expressionpolicy
+    id: signup-groups
+    identifiers:
+      name: family-signup-groups
+    attrs:
+      expression: |
+        from authentik.core.models import Group
+        # The user-write stage adds the plan's "groups" (Group objects, not names) on creation
+        context["flow_plan"].context["groups"] = list(
+            Group.objects.filter(name__in=["family", "paperless-users"])
+        )
+        return True
+  # Sign-up only with an address at DOMAIN / DOMAIN_ALIAS. state: created: made here on a new
+  # instance (setup-ssh.sh family puts it on default-enrollment-prompt-second); one made by hand in
+  # the UI (public-wizard.sh) under the same name stays as it is.
+  - model: authentik_policies_expression.expressionpolicy
+    state: created
+    identifiers:
+      name: __BRAND_SLUG__-email-domain
+    attrs:
+      expression: |
+        email = request.context.get("prompt_data", {}).get("email", "")
+        if email.lower().rsplit("@", 1)[-1] in ("__DOMAIN_ALIAS__", "__DOMAIN__"):
+            return True
+        ak_message("Please use your @__DOMAIN_ALIAS__ address")
+        return False
+  # Policy bindings need the stage binding via !KeyOf (its policy-target id); !Find gives another id
+  - model: authentik_flows.flowstagebinding
+    id: user-write-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-enrollment-flow]]
+      stage: !Find [authentik_stages_user_write.userwritestage, [name, default-enrollment-user-write]]
+      order: 20
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf signup-groups
+      target: !KeyOf user-write-binding
+      order: 0
+
+  # ── Mail to the admins once the new member is confirmed and has MFA ────
+  # Bound to the last stage (login), so it runs after email verification and MFA setup.
+  # Never blocks the login: always returns True.
+  - model: authentik_policies_expression.expressionpolicy
+    id: signup-notify
+    identifiers:
+      name: family-signup-notify
+    attrs:
+      expression: |
+        from authentik.core.models import User
+        try:
+            u = request.context.get("pending_user")
+            if u and u.pk:
+                to = [a.email for a in User.objects.filter(
+                    is_active=True, groups__name="authentik Admins").exclude(email="")]
+                member = {
+                    "name": u.name or u.username,
+                    "username": u.username,
+                    "email": u.email,
+                    "phone": u.attributes.get("phone", ""),
+                    "groups": " and ".join(sorted(g.name for g in u.groups.all())) or "no groups",
+                    "admin_url": f"https://auth.__DOMAIN__/if/admin/#/identity/users/{u.pk}",
+                }
+                if to:
+                    ak_send_email(to, f"__BRAND__: New family member: {member['name']}",
+                                  template="__BRAND_SLUG__/signup_notice.html", context={"member": member})
+        except Exception as exc:
+            ak_logger.warning("family-signup-notify failed", exc=exc)
+        return True
+  - model: authentik_flows.flowstagebinding
+    id: user-login-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-enrollment-flow]]
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-enrollment-user-login]]
+      order: 100
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf signup-notify
+      target: !KeyOf user-login-binding
+      order: 0
+
+  # The old event rule mailed "authentik Notification: model_created" without a name
+  - model: authentik_events.notificationrule
+    state: absent
+    identifiers:
+      name: New sign-up
+  - model: authentik_policies_event_matcher.eventmatcherpolicy
+    state: absent
+    identifiers:
+      name: new-user-created
+    # validated even when deleted
+    attrs:
+      action: model_created
+
+  # ── Wording: no "authentik" on pages or in mails ───────────────────────
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-enrollment-flow
+    attrs:
+      name: __BRAND__ sign-up
+      title: Create your __BRAND__ account
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-source-enrollment
+    attrs:
+      name: __BRAND__ sign-up (external account)
+      title: Create your __BRAND__ account
+  - model: authentik_stages_email.emailstage
+    identifiers:
+      name: default-enrollment-email-verification
+    attrs:
+      subject: Confirm your email
+      template: __BRAND_SLUG__/account_confirmation.html
+  - model: authentik_stages_email.emailstage
+    identifiers:
+      name: default-recovery-email
+    attrs:
+      subject: Reset your password
+      template: __BRAND_SLUG__/password_reset.html
+  - model: authentik_events.notificationtransport
+    identifiers:
+      name: default-email-transport
+    # email_subject_prefix "<BRAND>: " is set by setup-ssh.sh: the API trims its trailing space
+    attrs:
+      email_template: __BRAND_SLUG__/event_notification.html
+  # Passkeys: any number per person (no device restrictions); "Passkey", not "WebAuthn device".
+  # Add more in My account → MFA Devices → Enroll. Made on auth.<DOMAIN>, they work only there.
+  - model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+    identifiers:
+      name: default-authenticator-webauthn-setup
+    attrs:
+      friendly_name: Passkey
+      device_type_restrictions: []
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-authenticator-webauthn-setup
+    attrs:
+      name: Add a passkey
+      title: Add a passkey
+  # Shown as "Hi …" on the user home and in the admin UI (was "authentik Default Admin")
+  - model: authentik_core.user
+    identifiers:
+      username: __ADMIN_LOGIN__
+    attrs:
+      name: __ADMIN_NAME__
+
+  # ── Home (home.<domain>): forward-auth for the landing page ────────────
+  # Any signed-in user (no bindings). state: created: a new instance gets it from here, the one made
+  # in the UI (public-wizard.sh) under the same names stays as it is. setup-ssh.sh family adds it to
+  # the embedded outpost.
+  - model: authentik_providers_proxy.proxyprovider
+    id: home-provider
+    state: created
+    identifiers:
+      name: Provider for Home
+    attrs:
+      mode: forward_single
+      external_host: https://home.__DOMAIN__:__PUBLIC_PORT__
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_core.application
+    state: created
+    identifiers:
+      slug: home
+    attrs:
+      name: Home
+      provider: !KeyOf home-provider

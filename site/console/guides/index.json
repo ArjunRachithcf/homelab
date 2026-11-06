@@ -1,0 +1,15 @@
+[
+  {"id": "job-failed", "title": "A job failed", "summary": "Logs, run again, when to tell the admin"},
+  {"id": "app-down", "title": "An app isn't running", "summary": "Logs, restart, what keeps it down"},
+  {"id": "backup-failed", "title": "The backup failed", "summary": "The hourly encrypted backup"},
+  {"id": "photos-copy-failed", "title": "The photo copy failed", "summary": "The second copy on the SSD"},
+  {"id": "files-copy-failed", "title": "The files snapshot or copy failed", "summary": "OpenCloud's nightly snapshot"},
+  {"id": "offbox-failed", "title": "The off-box copy failed", "summary": "Proton Drive"},
+  {"id": "disk-full", "title": "A disk is almost full", "summary": "Cleanups and what uses the space"},
+  {"id": "site-down", "title": "Not reachable from outside", "summary": "The heartbeat, NetBird, the internet"},
+  {"id": "certificate", "title": "Certificates", "summary": "Renewals and what blocks them"},
+  {"id": "drift", "title": "The machine drifted from its setup", "summary": "The weekly Ansible check"},
+  {"id": "after-power-cut", "title": "After a power cut", "summary": "What to check once it's back"},
+  {"id": "add-family-member", "title": "Adding a family member", "summary": "Sign-up, groups, children, operators"},
+  {"id": "update-apps", "title": "Updating the apps", "summary": "One at a time, after a backup"}
+]

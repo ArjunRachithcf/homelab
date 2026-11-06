@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-offbox.timer: every 4 h at :50 (fallback; changes go out sooner)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab off-box copy every 4 hours
+
+[Timer]
+OnCalendar=*-*-* 00/4:50:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

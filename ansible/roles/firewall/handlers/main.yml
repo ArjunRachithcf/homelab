@@ -1,0 +1,5 @@
+# Drops the runtime bindings (FlushAllOnReload): wt0 comes back from the permanent config, Docker
+# re-adds its bridges on firewalld's Reloaded signal (tasks/main.yml waits for them)
+- name: Reload firewalld
+  ansible.builtin.command: firewall-cmd --reload
+  changed_when: true

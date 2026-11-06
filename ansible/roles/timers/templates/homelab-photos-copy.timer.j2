@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-photos-copy.timer: hourly at :45 (after the :30 backup), around the clock
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Hourly homelab photo copy to the primary SSD
+
+[Timer]
+OnCalendar=*-*-* *:45:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

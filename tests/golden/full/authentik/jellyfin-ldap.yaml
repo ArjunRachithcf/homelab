@@ -1,0 +1,133 @@
+version: 1
+metadata:
+  name: homelab - Jellyfin LDAP
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_core.group
+    id: family
+    identifiers:
+      name: family
+    state: created
+
+  - model: authentik_core.user
+    id: bind-user
+    identifiers:
+      username: ldap-jellyfin
+    attrs:
+      name: Jellyfin LDAP bind
+      type: service_account
+      path: goauthentik.io/service-accounts
+
+  - model: authentik_core.token
+    identifiers:
+      identifier: ldap-jellyfin-app-password
+    attrs:
+      user: !KeyOf bind-user
+      intent: app_password
+      expiring: false
+      key: !Env JELLYFIN_LDAP_BIND_PASSWORD
+      description: Jellyfin LDAP plugin bind password
+
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: ldap-mfa
+    identifiers:
+      name: ldap-mfa
+    attrs:
+      device_classes: [totp, static]
+      not_configured_action: deny
+
+  - model: authentik_policies_expression.expressionpolicy
+    id: not-bind-user
+    identifiers:
+      name: ldap-mfa-unless-bind-account
+    attrs:
+      expression: |
+        pending = request.context.get("pending_user")
+        return not (pending and pending.username == "ldap-jellyfin")
+
+  - model: authentik_flows.flow
+    id: flow
+    identifiers:
+      slug: ldap-authentication-flow
+    attrs:
+      name: LDAP bind (Jellyfin)
+      title: LDAP bind
+      designation: authentication
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !Find [authentik_stages_identification.identificationstage, [name, default-authentication-identification]]
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+      order: 20
+  - model: authentik_flows.flowstagebinding
+    id: mfa-binding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf ldap-mfa
+      order: 30
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+      order: 100
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf not-bind-user
+      target: !KeyOf mfa-binding
+      order: 0
+
+  - model: authentik_providers_ldap.ldapprovider
+    id: provider
+    identifiers:
+      name: jellyfin-ldap
+    attrs:
+      authorization_flow: !KeyOf flow
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      base_dn: DC=ldap,DC=goauthentik,DC=io
+      bind_mode: direct
+      search_mode: cached
+      mfa_support: true
+    permissions:
+      - permission: authentik_providers_ldap.search_full_directory
+        user: !KeyOf bind-user
+
+  - model: authentik_core.application
+    id: app
+    identifiers:
+      slug: jellyfin-ldap
+    attrs:
+      name: Jellyfin (LDAP)
+      provider: !KeyOf provider
+      policy_engine_mode: any
+      meta_launch_url: blank://blank
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf app
+      group: !KeyOf family
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf app
+      user: !KeyOf bind-user
+      order: 1
+
+  - model: authentik_outposts.outpost
+    identifiers:
+      name: ldap
+    attrs:
+      type: ldap
+      providers:
+        - !KeyOf provider
+      config:
+        authentik_host: http://authentik-server:9000

@@ -1,0 +1,17 @@
+# caddy/components/home-assistant/sites.caddy (component home-assistant; copied into caddy/enabled/ by ./homelab configure)
+# Home Assistant runs on the host network and listens only on the compose bridge's gateway
+# (docker-compose.yml, homeassistant/setup.sh). It trusts X-Forwarded-For from Caddy's fixed 172.21.1.11.
+(homeassistant) {
+	reverse_proxy 172.21.0.1:8123
+}
+
+# Home Assistant: NetBird only (no :8444 site, no NetBird service). Port 443 and 9443 both work.
+ha.{$DOMAIN}, ha.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import homeassistant
+}
+
+ha.{$DOMAIN_ALIAS}, ha.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	redir https://ha.{$DOMAIN}{uri}
+}

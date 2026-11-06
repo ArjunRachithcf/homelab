@@ -1,0 +1,19 @@
+# caddy/components/adblock/sites.caddy (component adblock; copied into caddy/enabled/ by ./homelab configure)
+# AdGuard Home keeps its own login too: the compose network can reach adguard:3000 without Caddy.
+(adguard) {
+	route {
+		import forward_auth
+		reverse_proxy adguard:3000
+	}
+}
+
+# AdGuard admin: NetBird only, admins only (Authentik app bound to authentik Admins)
+dns.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import adguard
+}
+
+dns.{$DOMAIN}, dns.{$DOMAIN_ALIAS}, dns.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical dns
+}

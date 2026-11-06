@@ -1,0 +1,36 @@
+title = "Local AI (Ollama)"
+description = "Titles, tags and search for Documents, tags for Bookmarks, on your own graphics card; nothing leaves the machine."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "nvidia"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["ollama"]
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = "gpu_enabled"
+stages = []
+
+[options.OLLAMA_URL]
+help = "Where the apps reach Ollama: empty = the ollama container here; macOS: Ollama itself (Homebrew, Metal)"
+type = "text"
+advanced = true
+macos_default = "http://host.docker.internal:11434"
+[options.OLLAMA_TAG]
+help = "Ollama version"
+type = "tag"
+default = "0.40.7"
+advanced = true
+[options.PAPERLESS_AI_MODEL]
+help = "Model for Paperless (pull it first: docker compose exec ollama ollama pull <model>)"
+type = "text"
+default = "gemma4:12b"
+[options.PAPERLESS_AI_EMBEDDING_MODEL]
+help = "Embedding model for Paperless's search"
+type = "text"
+default = "bge-m3"
+advanced = true

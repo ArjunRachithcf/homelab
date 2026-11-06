@@ -1,0 +1,298 @@
+diff --git a/provider/idp/idp.go b/provider/idp/idp.go
+index 1360d6a..57a7eb7 100644
+--- a/provider/idp/idp.go
++++ b/provider/idp/idp.go
+@@ -5,4 +5,6 @@ type IdentityProviderUserInfo struct {
+ 	DisplayName string
+ 	Email       string
+ 	AvatarURL   string
++	// Groups is the "groups" claim, when the provider sends one (MEMOS_SSO_ADMIN_GROUP).
++	Groups []string
+ }
+diff --git a/provider/idp/oauth2/oauth2.go b/provider/idp/oauth2/oauth2.go
+index 150547d..3549ea6 100644
+--- a/provider/idp/oauth2/oauth2.go
++++ b/provider/idp/oauth2/oauth2.go
+@@ -138,5 +138,12 @@ func (p *IdentityProvider) UserInfo(ctx context.Context, token string) (*idp.Ide
+ 			userInfo.AvatarURL = v
+ 		}
+ 	}
++	if groups, ok := claims["groups"].([]any); ok {
++		for _, g := range groups {
++			if name, ok := g.(string); ok {
++				userInfo.Groups = append(userInfo.Groups, name)
++			}
++		}
++	}
+ 	return userInfo, nil
+ }
+diff --git a/server/api/v1/auth_service.go b/server/api/v1/auth_service.go
+index 28ab5f2..001a373 100644
+--- a/server/api/v1/auth_service.go
++++ b/server/api/v1/auth_service.go
+@@ -91,7 +91,8 @@ func (s *APIV1Service) SignIn(ctx context.Context, request *v1pb.SignInRequest)
+ 			return nil, status.Errorf(codes.Internal, "failed to get instance general setting, error: %v", err)
+ 		}
+ 		// Check if the password auth in is allowed.
+-		if instanceGeneralSetting.DisallowPasswordAuth && user.Role == store.RoleUser {
++		// Admins included: with password auth off, every sign-in goes through the identity provider.
++		if instanceGeneralSetting.DisallowPasswordAuth {
+ 			return nil, status.Errorf(codes.PermissionDenied, "password signin is not allowed")
+ 		}
+ 		existingUser = user
+@@ -108,6 +109,10 @@ func (s *APIV1Service) SignIn(ctx context.Context, request *v1pb.SignInRequest)
+ 			attempt.succeeded()
+ 			return nil, err
+ 		}
++		if user, err = s.syncSSORole(ctx, user, userInfo); err != nil {
++			attempt.succeeded()
++			return nil, err
++		}
+ 		existingUser = user
+ 	}
+ 
+diff --git a/server/api/v1/auth_service_sso.go b/server/api/v1/auth_service_sso.go
+index 95e6888..7f6fc7c 100644
+--- a/server/api/v1/auth_service_sso.go
++++ b/server/api/v1/auth_service_sso.go
+@@ -3,7 +3,9 @@ package v1
+ import (
+ 	"context"
+ 	"log/slog"
++	"os"
+ 	"regexp"
++	"slices"
+ 
+ 	"github.com/pkg/errors"
+ 	"golang.org/x/crypto/bcrypt"
+@@ -317,3 +319,27 @@ func (s *APIV1Service) bindSSOIdentityToUser(ctx context.Context, currentUser *s
+ // 2. Stores refresh token metadata in user_setting.
+ // 3. Sets refresh token as HttpOnly cookie.
+ // 4. Returns access token and its expiry time.
++
++// syncSSORole makes an SSO user ADMIN while the identity provider puts them in the group
++// MEMOS_SSO_ADMIN_GROUP, and USER otherwise; checked at every SSO sign-in, so the provider decides.
++// Unset, roles are left alone (upstream behaviour).
++func (s *APIV1Service) syncSSORole(ctx context.Context, user *store.User, userInfo *idp.IdentityProviderUserInfo) (*store.User, error) {
++	group := os.Getenv("MEMOS_SSO_ADMIN_GROUP")
++	if group == "" {
++		return user, nil
++	}
++	role := store.RoleUser
++	if slices.Contains(userInfo.Groups, group) {
++		role = store.RoleAdmin
++	}
++	if user.Role == role {
++		return user, nil
++	}
++	updated, err := s.Store.UpdateUser(ctx, &store.UpdateUser{ID: user.ID, Role: &role})
++	if err != nil {
++		return nil, status.Errorf(codes.Internal, "failed to update user role, error: %v", err)
++	}
++	slog.Info("identity provider group changed the user's role",
++		slog.String("username", user.Username), slog.String("role", string(role)))
++	return updated, nil
++}
+diff --git a/server/api/v1/test/sso_admin_group_test.go b/server/api/v1/test/sso_admin_group_test.go
+new file mode 100644
+index 0000000..9a92c1e
+--- /dev/null
++++ b/server/api/v1/test/sso_admin_group_test.go
+@@ -0,0 +1,113 @@
++package test
++
++import (
++	"context"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"testing"
++
++	"github.com/stretchr/testify/require"
++
++	v1pb "github.com/usememos/memos/proto/gen/api/v1"
++	storepb "github.com/usememos/memos/proto/gen/store"
++	"github.com/usememos/memos/store"
++)
++
++// An identity provider whose "groups" claim can change between sign-ins.
++func newGroupsOAuthServer(t *testing.T, sub string, groups *[]string) *httptest.Server {
++	t.Helper()
++	mux := http.NewServeMux()
++	mux.HandleFunc("/oauth2/token", func(w http.ResponseWriter, _ *http.Request) {
++		w.Header().Set("Content-Type", "application/json")
++		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"access_token": "token", "token_type": "Bearer", "expires_in": 3600}))
++	})
++	mux.HandleFunc("/oauth2/userinfo", func(w http.ResponseWriter, _ *http.Request) {
++		w.Header().Set("Content-Type", "application/json")
++		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"sub": sub, "name": sub, "email": sub + "@example.com", "groups": *groups}))
++	})
++	return httptest.NewServer(mux)
++}
++
++func TestSSOAdminGroupGrantsAndRevokesAdmin(t *testing.T) {
++	t.Setenv("MEMOS_SSO_ADMIN_GROUP", "authentik Admins")
++	ts := NewTestService(t)
++	defer ts.Cleanup()
++	ctx := context.Background()
++
++	groups := []string{"family", "authentik Admins"}
++	server := newGroupsOAuthServer(t, "alex", &groups)
++	defer server.Close()
++	idpName := createTestingOAuthIdentityProvider(ctx, t, ts, server.URL, "authentik")
++
++	response, err := signInWithTestingSSO(ctx, ts, idpName, "code")
++	require.NoError(t, err)
++	require.Equal(t, v1pb.User_ADMIN, response.User.Role, "in the admin group: admin from the first sign-in")
++
++	groups = []string{"family"}
++	response, err = signInWithTestingSSO(ctx, ts, idpName, "code")
++	require.NoError(t, err)
++	require.Equal(t, v1pb.User_USER, response.User.Role, "left the admin group: plain user at the next sign-in")
++}
++
++func TestSSORoleUntouchedWithoutAdminGroup(t *testing.T) {
++	t.Setenv("MEMOS_SSO_ADMIN_GROUP", "")
++	ts := NewTestService(t)
++	defer ts.Cleanup()
++	ctx := context.Background()
++
++	groups := []string{"authentik Admins"}
++	server := newGroupsOAuthServer(t, "alice", &groups)
++	defer server.Close()
++	idpName := createTestingOAuthIdentityProvider(ctx, t, ts, server.URL, "authentik")
++
++	response, err := signInWithTestingSSO(ctx, ts, idpName, "code")
++	require.NoError(t, err)
++	require.Equal(t, v1pb.User_USER, response.User.Role)
++}
++
++func disallowPasswordAuth(ctx context.Context, t *testing.T, ts *TestService) {
++	t.Helper()
++	_, err := ts.Store.UpsertInstanceSetting(ctx, &storepb.InstanceSetting{
++		Key: storepb.InstanceSettingKey_GENERAL,
++		Value: &storepb.InstanceSetting_GeneralSetting{
++			GeneralSetting: &storepb.InstanceGeneralSetting{DisallowPasswordAuth: true},
++		},
++	})
++	require.NoError(t, err)
++}
++
++func TestPasswordSignInRefusedForAdminsWhenPasswordAuthOff(t *testing.T) {
++	ts := NewTestService(t)
++	defer ts.Cleanup()
++	ctx := context.Background()
++
++	_, err := ts.Service.CreateUser(ctx, &v1pb.CreateUserRequest{
++		User: &v1pb.User{Username: "admin", Email: "admin@example.com", Password: "password123"},
++	})
++	require.NoError(t, err)
++	admin, err := ts.Store.GetUser(ctx, &store.FindUser{Username: ptr("admin")})
++	require.NoError(t, err)
++	require.Equal(t, store.RoleAdmin, admin.Role)
++
++	disallowPasswordAuth(ctx, t, ts)
++	err = passwordSignIn(ctx, ts, "admin", "password123")
++	require.Error(t, err)
++	require.Contains(t, err.Error(), "password signin is not allowed")
++}
++
++func TestFirstUserPasswordSignUpRefusedWhenPasswordAuthOff(t *testing.T) {
++	ts := NewTestService(t)
++	defer ts.Cleanup()
++	ctx := context.Background()
++
++	disallowPasswordAuth(ctx, t, ts)
++	_, err := ts.Service.CreateUser(ctx, &v1pb.CreateUserRequest{
++		User: &v1pb.User{Username: "first", Email: "first@example.com", Password: "password123"},
++	})
++	require.Error(t, err)
++	require.Contains(t, err.Error(), "password signup is not allowed")
++	users, err := ts.Store.ListUsers(ctx, &store.FindUser{})
++	require.NoError(t, err)
++	require.Empty(t, users)
++}
+diff --git a/server/api/v1/user_service.go b/server/api/v1/user_service.go
+index 2f19958..78945f9 100644
+--- a/server/api/v1/user_service.go
++++ b/server/api/v1/user_service.go
+@@ -225,6 +225,15 @@ func (s *APIV1Service) CreateUser(ctx context.Context, request *v1pb.CreateUserR
+ 			return nil, status.Errorf(codes.Internal, "failed to list users: %v", err)
+ 		}
+ 		if len(allUsers) == 0 {
++			// With password auth off the first account comes from the identity provider, not a
++			// password sign-up (anyone could claim admin until it exists).
++			instanceGeneralSetting, err := s.Store.GetInstanceGeneralSetting(ctx)
++			if err != nil {
++				return nil, status.Errorf(codes.Internal, "failed to get instance general setting, error: %v", err)
++			}
++			if instanceGeneralSetting.DisallowPasswordAuth {
++				return nil, status.Errorf(codes.PermissionDenied, "password signup is not allowed")
++			}
+ 			roleToAssign = store.RoleAdmin
+ 			if !request.ValidateOnly {
+ 				passwordHash, err := bcrypt.GenerateFromPassword([]byte(request.User.Password), bcrypt.DefaultCost)
+diff --git a/web/src/pages/AuthCallback.tsx b/web/src/pages/AuthCallback.tsx
+index bd04f6f..4696c29 100644
+--- a/web/src/pages/AuthCallback.tsx
++++ b/web/src/pages/AuthCallback.tsx
+@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
+ import { setAccessToken } from "@/auth-state";
+ import { authServiceClient, userServiceClient } from "@/connect";
+ import { useAuth } from "@/contexts/AuthContext";
++import { useInstance } from "@/contexts/InstanceContext";
+ import useNavigateTo from "@/hooks/useNavigateTo";
+ import { absolutifyLink } from "@/lib/browser";
+ import { handleError } from "@/lib/error";
+@@ -19,6 +20,7 @@ interface State {
+ const AuthCallback = () => {
+   const navigateTo = useNavigateTo();
+   const { currentUser, initialize, isInitialized } = useAuth();
++  const { initialize: initInstance } = useInstance();
+   const [searchParams] = useSearchParams();
+   const handledRef = useRef(false);
+   const [state, setState] = useState<State>({
+@@ -118,6 +120,8 @@ const AuthCallback = () => {
+           errorMessage: "",
+         });
+         await initialize();
++        // The first SSO sign-in ends the instance's setup: refetch the profile so needsSetup clears.
++        await initInstance();
+         // Defense-in-depth: even though `returnUrl` was sanitized before being
+         // stored (see storeOAuthState in SignIn), re-validate on the way out so
+         // a corrupted state entry can never be used for an open redirect.
+@@ -135,7 +139,7 @@ const AuthCallback = () => {
+         });
+       }
+     })();
+-  }, [currentUser?.name, initialize, isInitialized, navigateTo, searchParams]);
++  }, [currentUser?.name, initialize, initInstance, isInitialized, navigateTo, searchParams]);
+ 
+   if (state.loading) return null;
+ 
+diff --git a/web/src/pages/SignUp.tsx b/web/src/pages/SignUp.tsx
+index adc111f..909ee0c 100644
+--- a/web/src/pages/SignUp.tsx
++++ b/web/src/pages/SignUp.tsx
+@@ -40,8 +40,9 @@ const SignUp = () => {
+   const registrationOpen = !instanceGeneralSetting.disallowUserRegistration;
+   const needsSetup = profile.needsSetup;
+   // Provider buttons only render on the SSO-provisioned branch below; skip the request elsewhere.
++  // With password sign-in off, the first run also signs in through the identity provider.
+   const { identityProviderList, isLoading: identityProvidersLoading } = useIdentityProviderList(
+-    !needsSetup && registrationOpen && !passwordAuthAllowed,
++    (needsSetup || registrationOpen) && !passwordAuthAllowed,
+   );
+   const hasIdentityProviders = identityProviderList.length > 0;
+ 
+@@ -117,8 +118,8 @@ const SignUp = () => {
+ 
+   const signInPrompt = <AuthLinkPrompt prompt={t("auth.sign-in-tip")} to={signInPath} label={t("common.sign-in")} />;
+ 
+-  // First run: create the instance owner account.
+-  if (needsSetup) {
++  // First run: create the instance owner account (with a password, unless password sign-in is off).
++  if (needsSetup && passwordAuthAllowed) {
+     return (
+       <AuthPageLayout
+         chip={

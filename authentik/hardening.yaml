@@ -1,0 +1,493 @@
+# ~/homelab/authentik/hardening.yaml
+# Account hardening: required phone number, strong passwords, 12 h sessions, passkey-only
+# web login for admins (mail when abroad), MFA on password reset, alerts for failed logins and suspicious requests.
+# Applied by authentik/setup-ssh.sh, idempotent. RUNBOOK.md "Hardening".
+#
+# Additions to the default stages' lists (phone field on sign-up and user settings, password
+# policy on every password prompt) are made by setup-ssh.sh with ak shell instead, because a
+# blueprint can only replace a list. Authentik upgrades re-apply the default blueprints, so
+# re-run `./authentik/setup-ssh.sh --hardening` after every upgrade.
+version: 1
+metadata:
+  name: homelab - Hardening
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # akadmin was renamed to the admin's own name (ADMIN_LOGIN). Keep a disabled placeholder so the bootstrap blueprint
+  # (re-applied on upgrades, state: created) never recreates a passwordless superuser.
+  - model: authentik_core.user
+    state: created
+    identifiers:
+      username: akadmin
+    attrs:
+      name: Placeholder (do not enable)
+      is_active: false
+      path: goauthentik.io/placeholders
+
+  # ── Phone number: required, format-checked, no SMS ─────────────────────
+  - model: authentik_policies_expression.expressionpolicy
+    id: phone-e164
+    identifiers:
+      name: phone-e164
+    attrs:
+      expression: |
+        import re
+        data = request.context.get("prompt_data", {})
+        # The prompt form delivers field key "attributes.phone" nested: {"attributes": {"phone": …}}
+        nested = data.get("attributes") if isinstance(data.get("attributes"), dict) else None
+        raw = nested.get("phone", "") if nested is not None else data.get("attributes.phone", "")
+        phone = re.sub(r"[\s\-/().]", "", str(raw))
+        if phone.startswith("00"):
+            phone = "+" + phone[2:]
+        if not re.fullmatch(r"\+[1-9]\d{7,14}", phone):
+            ak_message("Enter your mobile number with country code, e.g. __PHONE_EXAMPLE__.")
+            return False
+        if nested is not None:
+            nested["phone"] = phone
+        else:
+            data["attributes.phone"] = phone
+        return True
+
+  - model: authentik_stages_prompt.prompt
+    id: phone
+    identifiers:
+      name: homelab-field-phone
+    attrs:
+      field_key: attributes.phone
+      label: Mobile number
+      type: text
+      required: true
+      placeholder: "__PHONE_EXAMPLE__"
+      sub_text: With country code. Only used to reach you about your account.
+      order: 250
+
+  # Same field for user settings, pre-filled with the current number
+  - model: authentik_stages_prompt.prompt
+    id: phone-settings
+    identifiers:
+      name: homelab-field-phone-settings
+    attrs:
+      field_key: attributes.phone
+      label: Mobile number
+      type: text
+      required: true
+      placeholder: "__PHONE_EXAMPLE__"
+      initial_value: return user.attributes.get("phone", "")
+      initial_value_expression: true
+      order: 250
+
+  # Catch-up for existing users: asked once at their next web login
+  - model: authentik_stages_prompt.promptstage
+    id: phone-missing
+    identifiers:
+      name: phone-missing
+    attrs:
+      fields: [!KeyOf phone]
+      validation_policies: [!KeyOf phone-e164]
+
+  - model: authentik_stages_user_write.userwritestage
+    id: phone-write
+    identifiers:
+      name: phone-write
+    attrs:
+      user_creation_mode: never_create
+
+  - model: authentik_policies_expression.expressionpolicy
+    id: no-phone
+    identifiers:
+      name: user-has-no-phone
+    attrs:
+      expression: |
+        pending = request.context.get("pending_user")
+        return bool(pending) and not pending.attributes.get("phone")
+
+  - model: authentik_flows.flowstagebinding
+    id: phone-missing-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !KeyOf phone-missing
+      order: 40
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    id: phone-write-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !KeyOf phone-write
+      order: 50
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf no-phone
+      target: !KeyOf phone-missing-binding
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf no-phone
+      target: !KeyOf phone-write-binding
+      order: 0
+
+  # ── Passwords ──────────────────────────────────────────────────────────
+  - model: authentik_policies_password.passwordpolicy
+    identifiers:
+      name: strong-password
+    attrs:
+      password_field: password
+      length_min: 12
+      check_static_rules: true
+      amount_digits: 0
+      amount_uppercase: 0
+      amount_lowercase: 0
+      amount_symbols: 0
+      check_zxcvbn: true
+      zxcvbn_score_threshold: 3
+      # k-anonymity: only the first 5 hex chars of the SHA-1 leave the box
+      check_have_i_been_pwned: true
+      hibp_allowed_count: 0
+      error_message: At least 12 characters, hard to guess, and not found in known data leaks.
+
+  # ── Login page title and name (upgrades reset both to "Welcome to authentik!") ──
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-authentication-flow
+    attrs:
+      name: __BRAND__ sign-in
+      title: __SIGNIN_TITLE__
+
+  # ── Look: the home page's (site/index.html) on every Authentik page ──────
+  # Grey ground instead of the photo, white card, SF/Inter (font served by Caddy at /__BRAND_SLUG__/fonts/),
+  # teal capsule buttons, the card rises in; smaller logo, no "Powered by authentik" footer.
+  - model: authentik_brands.brand
+    identifiers:
+      default: true
+    attrs:
+      branding_custom_css: |
+        /* Authentik in the home page's look (site/index.html): Apple-like greys, the teal accent, SF on Apple
+           devices and Inter elsewhere (served by Caddy at /__BRAND_SLUG__/fonts/), a white card with big radii,
+           capsule buttons, a card that rises in. Applied as the brand's custom CSS by
+           authentik/setup-ssh.sh brand (Authentik adds it to the page and to every component). */
+        @font-face {
+          font-family: "Inter"; font-weight: 100 900; font-display: swap;
+          src: url(/__BRAND_SLUG__/fonts/inter.woff2) format("woff2");
+        }
+        :root, :host {
+          --brand-font: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+          --brand-ground: #f5f5f7; --brand-card: #ffffff; --brand-text: #1d1d1f; --brand-muted: #6e6e73;
+          --brand-fill: rgba(120,120,128,.12); --brand-sep: rgba(60,60,67,.16);
+          --brand-accent: #1b6e66; --brand-accent-hover: #15584f; --brand-on-accent: #ffffff;
+          --brand-spring: linear(0, .06 2.6%, .24 5.7%, .84 15.1%, 1.03 20.5%, 1.08 24.6%, 1.07 29.2%, 1.01 38.6%, .99 48%, 1);
+          --pf-global--FontFamily--sans-serif: var(--brand-font);
+          --pf-global--FontFamily--heading--sans-serif: var(--brand-font);
+          --pf-global--FontFamily--redhatfont--sans-serif: var(--brand-font);
+          --pf-global--FontFamily--redhatfont--heading--sans-serif: var(--brand-font);
+          --pf-global--primary-color--100: var(--brand-accent);
+          --pf-global--primary-color--200: var(--brand-accent-hover);
+          --pf-global--link--Color: var(--brand-accent);
+          --pf-global--link--Color--hover: var(--brand-accent-hover);
+          --pf-global--active-color--100: var(--brand-accent);
+          --pf-c-button--m-primary--BackgroundColor: var(--brand-accent);
+          --pf-c-button--m-primary--hover--BackgroundColor: var(--brand-accent-hover);
+          --pf-c-button--m-primary--focus--BackgroundColor: var(--brand-accent-hover);
+          --pf-c-button--m-primary--active--BackgroundColor: var(--brand-accent-hover);
+          --pf-c-button--m-primary--Color: var(--brand-on-accent);
+        }
+        @media (prefers-color-scheme: dark) {
+          :root, :host {
+            --brand-ground: #000000; --brand-card: #1c1c1e; --brand-text: #f5f5f7; --brand-muted: #98989d;
+            --brand-fill: rgba(120,120,128,.24); --brand-sep: rgba(84,84,88,.6);
+            --brand-accent: #5fb3a9; --brand-accent-hover: #74c4ba; --brand-on-accent: #000000;
+          }
+        }
+        body { font-family: var(--brand-font); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+
+        /* Sign-in pages: grey ground instead of the photo, a white card */
+        body::before { background-image: none !important; background-color: var(--brand-ground) !important; }
+        .pf-c-login { background: var(--brand-ground); }
+        .pf-c-login__main {
+          background: var(--brand-card) !important; border-radius: 22px; overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,.05) !important; color: var(--brand-text);
+        }
+        .pf-c-login__main-header, .pf-c-login__main-body { background: transparent; }
+        .pf-c-title.pf-m-3xl { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
+        .pf-c-login__header, .pf-c-login__footer, .pf-c-login__footer.pf-m-dark, ak-locale-select.pf-m-dark { color: var(--brand-muted); --pf-global--Color--100: var(--brand-muted); }
+        .pf-c-login__footer a { color: var(--brand-muted) !important; }
+
+        /* Fields and buttons */
+        .pf-c-form__label-text { font-weight: 500; }
+        .pf-c-form-control {
+          min-height: 44px; border-radius: 12px !important; padding: 8px 14px !important;
+          border: 1px solid var(--brand-sep) !important; background: var(--brand-card) !important; color: var(--brand-text) !important;
+          transition: border-color .2s, box-shadow .2s;
+        }
+        .pf-c-form-control:focus { border-color: var(--brand-accent) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-accent) 25%, transparent) !important; outline: none; }
+        .pf-c-form-control::after { display: none !important; }
+        .pf-c-button { border-radius: 999px !important; transition: transform .45s var(--brand-spring), background-color .2s, filter .2s; }
+        .pf-c-button::after { border-radius: 999px !important; }
+        .pf-c-button.pf-m-primary { min-height: 46px; font-size: 16px; font-weight: 600; }
+        .pf-c-button.pf-m-secondary, .pf-c-button.pf-m-tertiary { background: var(--brand-fill); color: var(--brand-text); }
+        .pf-c-button.pf-m-secondary::after, .pf-c-button.pf-m-tertiary::after { border: 0 !important; }
+        .pf-c-button:active { transform: scale(.97); transition-duration: .1s; }
+        a { color: var(--brand-accent); }
+
+        /* The card rises in (Authentik redraws only the stage inside it on each step) */
+        @media (prefers-reduced-motion: no-preference) {
+          @keyframes brand-rise { from { opacity: 0; transform: translateY(16px) scale(.985); } }
+          .pf-c-login__main { animation: brand-rise .7s cubic-bezier(.16, 1, .3, 1) both; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { transition: none !important; animation: none !important; }
+        }
+
+        /* Login page: smaller logo, no "Powered by authentik" footer */
+        .pf-c-login__main-header.pf-c-brand .branding-logo {
+          max-width: 120px !important;
+          max-height: 120px;
+          width: auto;
+          margin-inline: auto;
+        }
+        /* ak-brand-links always appends "Powered by authentik" as its last, link-less item */
+        ak-brand-links li[data-kind="text"]:last-child {
+          display: none !important;
+        }
+
+  # ── Passkey sign-in: offered in the username field (browser autofill) ──
+  # A passkey (with user verification) replaces password + TOTP; the default flow already
+  # skips both after a passwordless WebAuthn login. Register one in Settings → MFA Devices.
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: passkey-login
+    identifiers:
+      name: passkey-login
+    attrs:
+      device_classes: [webauthn]
+      webauthn_user_verification: required
+      not_configured_action: skip
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      user_fields: [username, email]
+      webauthn_stage: !KeyOf passkey-login
+
+  # ── Sessions ───────────────────────────────────────────────────────────
+  - model: authentik_stages_user_login.userloginstage
+    identifiers:
+      name: default-authentication-login
+    attrs:
+      session_duration: hours=12
+      # Shows "Stay signed in" after login: ticking it adds 30 days to that browser's session
+      remember_me_offset: days=30
+
+  # ── Admins: passkey only on the web (LDAP for Jellyfin/SSH keeps TOTP) ──
+  - model: authentik_policies_expression.expressionpolicy
+    id: is-admin
+    identifiers:
+      name: pending-user-is-admin
+    attrs:
+      expression: |
+        pending = request.context.get("pending_user")
+        return bool(pending) and ak_is_group_member(pending, name="authentik Admins")
+
+  # The default MFA stage (TOTP etc.): everyone except admins. Its passwordless-skip policy
+  # stays, so the binding needs "all" and must be checked once the user is known.
+  - model: authentik_flows.flowstagebinding
+    id: default-mfa-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !Find [authentik_stages_authenticator_validate.authenticatorvalidatestage, [name, default-authentication-mfa-validation]]
+      order: 30
+    attrs:
+      policy_engine_mode: all
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf is-admin
+      target: !KeyOf default-mfa-binding
+      order: 20
+    attrs:
+      negate: true
+
+  # Passkey only. A new device gets its passkey from a signed-in one: home → "Add a passkey"
+  # (QR code for a phone, or a security key). Break-glass: `ak create_recovery_key` on the box.
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: admin-webauthn
+    identifiers:
+      name: admin-webauthn
+    attrs:
+      device_classes: [webauthn]
+      webauthn_user_verification: required
+      # No passkey yet: enrol one right there instead of being locked out
+      not_configured_action: configure
+      configuration_stages:
+        - !Find [authentik_stages_authenticator_webauthn.authenticatorwebauthnstage, [name, default-authenticator-webauthn-setup]]
+  - model: authentik_flows.flowstagebinding
+    id: admin-webauthn-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !KeyOf admin-webauthn
+      order: 31
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf is-admin
+      target: !KeyOf admin-webauthn-binding
+      order: 0
+
+  # ── Password reset ("Forgot password?") needs MFA too ──────────────────
+  # Without this, access to someone's mailbox alone would reset the password and sign them in.
+  # Checked after the mailed link, before the new password (order 25). No device → refused
+  # (never "set one up now": that would reopen the hole); an admin then helps.
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: recovery-mfa
+    identifiers:
+      name: recovery-mfa
+    attrs:
+      device_classes: [webauthn, totp, static]
+      webauthn_user_verification: preferred
+      not_configured_action: deny
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: recovery-admin-passkey
+    identifiers:
+      name: recovery-admin-passkey
+    attrs:
+      device_classes: [webauthn]
+      webauthn_user_verification: required
+      not_configured_action: deny
+  - model: authentik_flows.flowstagebinding
+    id: recovery-mfa-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-recovery-flow]]
+      stage: !KeyOf recovery-mfa
+      order: 25
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf is-admin
+      target: !KeyOf recovery-mfa-binding
+      order: 0
+    attrs:
+      negate: true
+  - model: authentik_flows.flowstagebinding
+    id: recovery-admin-passkey-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-recovery-flow]]
+      stage: !KeyOf recovery-admin-passkey
+      order: 26
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf is-admin
+      target: !KeyOf recovery-admin-passkey-binding
+      order: 0
+
+  # ── Admin sign-in from outside the home country: mail all admins ───────
+  # Mail, never blocks the login (always True). Bound to the final login stage.
+  - model: authentik_policies_expression.expressionpolicy
+    id: admin-code-notify
+    identifiers:
+      name: admin-code-login-notify
+    attrs:
+      expression: |
+        import ipaddress
+        from authentik.root.middleware import ClientIPMiddleware
+        from authentik.events.context_processors.geoip import GEOIP_CONTEXT_PROCESSOR
+        from authentik.events.context_processors.asn import ASN_CONTEXT_PROCESSOR
+        from authentik.core.models import User
+        try:
+            u = request.context.get("pending_user")
+            if not (u and ak_is_group_member(u, name="authentik Admins")):
+                return True
+            http = request.http_request
+            ip = ClientIPMiddleware.get_client_ip(http) if http else ""
+            try:
+                if ipaddress.ip_address(ip) in ipaddress.ip_network("100.64.0.0/10"):
+                    return True  # NetBird peer
+            except ValueError:
+                pass
+            geo = GEOIP_CONTEXT_PROCESSOR.city_dict(ip) if ip else None
+            if (geo or {}).get("country") == "__HOME_COUNTRY__":
+                return True
+            asn = ASN_CONTEXT_PROCESSOR.asn_dict(ip) if ip else None
+            name = u.name or u.username
+            where = ", ".join(x for x in [(geo or {}).get("city"), (geo or {}).get("country")] if x) or "unknown"
+            to = [a.email for a in User.objects.filter(
+                is_active=True, groups__name="authentik Admins").exclude(email="")]
+            ak_send_email(to, f"__BRAND__: Admin sign-in from outside __HOME_COUNTRY_NAME__: {name}",
+                template="__BRAND_SLUG__/event_notification.html", context={
+                    "title": f"Admin sign-in from outside __HOME_COUNTRY_NAME__: {name}",
+                    "body": f"{name} signed in with a passkey from {where}. If that wasn't you: "
+                            "remove unknown passkeys under My account → MFA Devices and change the password.",
+                    "key_value": {"User": u.username, "IP address": ip, "Location": where,
+                                  "Network": (asn or {}).get("as_org") or "?",
+                                  "Browser": http.META.get("HTTP_USER_AGENT", "?") if http else "?"},
+                })
+        except Exception as exc:
+            ak_logger.warning("admin-code-login-notify failed", exc=exc)
+        return True
+  - model: authentik_flows.flowstagebinding
+    id: login-binding
+    identifiers:
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+      order: 100
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf admin-code-notify
+      target: !KeyOf login-binding
+      order: 0
+
+  # ── Alerts to authentik Admins ─────────────────────────────────────────
+  - model: authentik_policies_event_matcher.eventmatcherpolicy
+    id: ev-login-failed
+    identifiers:
+      name: event-login-failed
+    attrs:
+      action: login_failed
+  - model: authentik_events.notificationrule
+    id: rule-login-failed
+    identifiers:
+      name: homelab-notify-login-failed
+    attrs:
+      severity: notice
+      destination_group: !Find [authentik_core.group, [name, authentik Admins]]
+      transports:
+        - !Find [authentik_events.notificationtransport, [name, default-local-transport]]
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf ev-login-failed
+      target: !KeyOf rule-login-failed
+      order: 0
+
+  - model: authentik_policies_event_matcher.eventmatcherpolicy
+    id: ev-suspicious
+    identifiers:
+      name: event-suspicious-request
+    attrs:
+      action: suspicious_request
+  - model: authentik_events.notificationrule
+    id: rule-suspicious
+    identifiers:
+      name: homelab-notify-suspicious-request
+    attrs:
+      severity: alert
+      destination_group: !Find [authentik_core.group, [name, authentik Admins]]
+      transports:
+        - !Find [authentik_events.notificationtransport, [name, default-local-transport]]
+        - !Find [authentik_events.notificationtransport, [name, default-email-transport]]
+  - model: authentik_policies.policybinding
+    identifiers:
+      policy: !KeyOf ev-suspicious
+      target: !KeyOf rule-suspicious
+      order: 0

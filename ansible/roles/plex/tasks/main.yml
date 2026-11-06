@@ -1,0 +1,21 @@
+# Plex runs natively (lifetime pass), from Plex's own repo (per distro: tasks/<family>.yml). RUNBOOK.md step 7.
+# Its settings and library DB come back through restore.sh (Preferences.xml, Databases/).
+- name: Plex's repo and package, Fedora
+  ansible.builtin.import_tasks: RedHat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: Plex's repo and package, Debian/Ubuntu
+  ansible.builtin.import_tasks: Debian.yml
+  when: ansible_os_family == "Debian"
+
+# Arch: the AUR only; the plex component isn't offered there (setup/components/plex.toml platforms)
+- name: Plex on Arch
+  ansible.builtin.fail:
+    msg: "Plex isn't packaged for Arch outside the AUR: leave the plex component out (Jellyfin plays the same library), or install plex-media-server from the AUR and skip this role (--skip-tags plex)."
+  when: ansible_os_family == "Archlinux"
+
+- name: Plex enabled and running
+  ansible.builtin.systemd_service:
+    name: plexmediaserver
+    enabled: true
+    state: started

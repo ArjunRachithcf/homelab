@@ -1,0 +1,20 @@
+homelab
+Copyright 2026 Arjun Rachith
+
+Licensed under the Apache License, Version 2.0 (LICENSE). REUSE.toml names each file's licence.
+
+Others' work in this repository, under its own licence:
+
+- site/apps/ (the app icons): from selfh.st/icons (https://github.com/selfhst/icons), CC BY 4.0
+  (LICENSES/CC-BY-4.0.txt); site/apps/n8n.svg from Dashboard Icons
+  (https://github.com/homarr-labs/dashboard-icons), Apache-2.0. The apps' names and logos are their owners'
+  trademarks; they appear only to show which app a tile opens.
+- site/fonts/inter.woff2: Inter, Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter),
+  SIL Open Font License 1.1 (site/fonts/OFL-inter.txt).
+- memos/sso-admin.patch: a change to Memos (https://github.com/usememos/memos), Copyright (c) 2025 Memos, MIT
+  (LICENSES/MIT.txt); the patch's context lines are Memos' code.
+- proton-drive/live-photos.patch: a change to Proton's Drive SDK (https://github.com/ProtonDriveApps/sdk),
+  Copyright (c) 2025-2026 Proton AG, MIT (LICENSES/MIT.txt); the patch's context lines are Proton's code.
+
+The apps themselves (Authentik, Paperless-ngx, Immich, Jellyfin, Plex and the others) are not in this repository:
+the homelab pulls their published images, each under its own licence.

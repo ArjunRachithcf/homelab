@@ -1,0 +1,21 @@
+# Fedora: NVIDIA's rpm repo and the toolkit
+- name: NVIDIA container toolkit repo (NVIDIA's repofile, stable part; signed metadata)
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/nvidia-container-toolkit.repo
+    content: |
+      [nvidia-container-toolkit]
+      name=nvidia-container-toolkit
+      baseurl=https://nvidia.github.io/libnvidia-container/stable/rpm/$basearch
+      repo_gpgcheck=1
+      gpgcheck=0
+      enabled=1
+      gpgkey=https://nvidia.github.io/libnvidia-container/gpgkey
+    mode: "0644"
+  register: gpu_repo
+
+# --check doesn't write the repo file, so dnf can't see the package yet: skip it then
+- name: nvidia-container-toolkit (nvidia-ctk)
+  ansible.builtin.dnf5:
+    name: nvidia-container-toolkit
+    state: present
+  when: not (ansible_check_mode and gpu_repo is changed)

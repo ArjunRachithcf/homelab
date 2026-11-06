@@ -1,0 +1,13 @@
+# /etc/systemd/system/homelab-backup.timer: hourly at :30, around the clock (03:30 is the one the
+# nightly photo jobs follow); backup-watch.sh adds runs after changes. Catches up after downtime.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Hourly homelab backup
+
+[Timer]
+OnCalendar=*-*-* *:30:00
+Persistent=true
+RandomizedDelaySec=2m
+
+[Install]
+WantedBy=timers.target

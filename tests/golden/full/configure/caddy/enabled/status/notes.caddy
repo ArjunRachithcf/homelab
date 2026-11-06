@@ -1,0 +1,2 @@
+# caddy/components/notes/status.caddy (component notes; copied into caddy/enabled/ by ./homelab configure)
+import status notes memos:5230 /healthz

@@ -1,0 +1,20 @@
+# /etc/systemd/system/homelab-backup.service (RUNBOOK.md step 9)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab encrypted backup (Paperless, Authentik, Immich, Jellyfin, NetBird, Plex, config)
+OnFailure=homelab-notify@%n.service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=alex
+WorkingDirectory=/home/alex/homelab
+# Root-only files (NetBird identity, Plex DBs) are staged here by backup-stage.sh, as root ("+")
+RuntimeDirectory=homelab-backup
+RuntimeDirectoryMode=0700
+ExecStartPre=+/usr/bin/bash /home/alex/homelab/backup-stage.sh
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash /home/alex/homelab/backup.sh
+Nice=10
+IOSchedulingClass=idle

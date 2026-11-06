@@ -1,0 +1,69 @@
+title = "Photos (Immich)"
+description = "Everyone's photos and videos, phone backup, faces and search; sign-in with Authentik only."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["second-disk", "offsite"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["immich-server", "immich-machine-learning", "immich-redis", "immich-db"]
+public_names = ["photos"]
+peer_names = ["photos"]
+blueprints = ["photos.yaml"]
+jobs = ["photos-local", "photos-copy"]
+ansible = ""
+stages = ["immich:start", "immich:zones", "immich:services", "immich:browser", "immich:phone", "immich:sso_only", "immich:local"]
+
+
+[[tiles]]
+order = 60
+id = "photos"
+name = "Photos"
+desc = "Photos and videos from your phone"
+url = "https://photos.%s/"
+icon = "/apps/immich.svg"
+status = "photos"
+group = "watch"
+audience = "family"
+
+[options.IMMICH_TAG]
+help = "Immich version"
+type = "tag"
+default = "v3.3.5"
+advanced = true
+[options.IMMICH_UPLOAD_DIR]
+help = "The photo library (on the second disk: its photos/ folder, bind-mounted here)"
+type = "path"
+default = "/srv/photos"
+macos_default = "~/homelab-data/photos"
+required = true
+[options.IMMICH_DB_PASSWORD]
+help = "Immich's database password (letters and digits only)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc A-Za-z0-9"
+[options.IMMICH_OIDC_CLIENT_SECRET]
+help = "Immich's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.IMMICH_ADMIN_EMAIL]
+help = "Local break-glass admin of Immich (an address of yours)"
+type = "email"
+required = true
+[options.IMMICH_ADMIN_PASSWORD]
+help = "Its password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 24 | tr -d '\\n/+='"
+[options.IMMICH_API_KEY]
+help = "API key of that admin (written by immich/setup.sh)"
+type = "secret"
+set_by = "immich:start"
+[options.PHOTOS_COPY_DIR]
+help = "Second copy of the photos (a btrfs subvolume on the primary SSD)"
+type = "path"
+default = "/srv/photos-copy"
+macos_default = "~/homelab-data/photos-copy"
+advanced = true

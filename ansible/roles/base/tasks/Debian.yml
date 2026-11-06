@@ -1,0 +1,20 @@
+# Debian/Ubuntu: the packages, and unattended-upgrades (its default: security updates only, no reboot)
+- name: Packages used by the homelab scripts
+  ansible.builtin.apt:
+    name: "{{ distro_packages }}"   # ansible/distro/Debian.yml
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Security updates daily, applied, no reboot (the package's own defaults otherwise)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"

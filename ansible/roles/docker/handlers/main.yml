@@ -1,0 +1,10 @@
+- name: Docker config changed
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  notify: Docker restart is up to you
+
+- name: Docker restart is up to you
+  ansible.builtin.debug:
+    msg: >-
+      Docker's config changed. It takes effect at the next Docker restart, which restarts every
+      container: do it outside 02:00–05:30 with `sudo systemctl restart docker`.

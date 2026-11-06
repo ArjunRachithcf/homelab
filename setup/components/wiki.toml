@@ -1,0 +1,60 @@
+title = "Wiki (Outline)"
+description = "How-tos and family plans, edited together. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["outline", "outline-db", "outline-redis"]
+public_names = ["wiki"]
+peer_names = ["wiki"]
+blueprints = ["wiki.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 132
+id = "wiki"
+name = "Wiki"
+desc = "How-tos and family plans"
+url = "https://wiki.%s/"
+icon = "/apps/outline.svg"
+status = "wiki"
+group = "life"
+audience = "family"
+
+[options.OUTLINE_TAG]
+help = "Outline version (Wiki)"
+type = "tag"
+default = "1.12.0"
+advanced = true
+[options.OUTLINE_PG_TAG]
+help = "Its Postgres"
+type = "tag"
+default = "18-alpine"
+advanced = true
+[options.OUTLINE_OIDC_CLIENT_SECRET]
+help = "Outline's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.OUTLINE_SECRET_KEY]
+help = "Outline's secret key (64 hex characters)"
+type = "secret"
+required = true
+generate = "openssl rand -hex 32"
+[options.OUTLINE_UTILS_SECRET]
+help = "Outline's utils secret (64 hex characters)"
+type = "secret"
+required = true
+generate = "openssl rand -hex 32"
+[options.OUTLINE_DB_PASSWORD]
+help = "Outline's database password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc A-Za-z0-9"

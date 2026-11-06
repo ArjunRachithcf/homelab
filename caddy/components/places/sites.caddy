@@ -1,0 +1,25 @@
+# caddy/components/places/sites.caddy (component places; copied into caddy/enabled/ by ./homelab configure)
+# Places (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+(dawarich) {
+	reverse_proxy dawarich:3000
+}
+
+places.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import dawarich
+}
+
+places.{$DOMAIN}, places.{$DOMAIN_ALIAS}, places.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical places
+}
+
+places.{$DOMAIN}:8444 {
+	import headers
+	import dawarich
+}
+
+places.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://places.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

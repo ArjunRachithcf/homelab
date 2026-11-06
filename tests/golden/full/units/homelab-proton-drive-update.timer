@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-proton-drive-update.timer: Sundays 02:30, before the nightly jobs
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Weekly Proton Drive CLI update check
+
+[Timer]
+OnCalendar=Sun *-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

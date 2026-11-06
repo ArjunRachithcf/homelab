@@ -1,0 +1,215 @@
+# ~/homelab/setup/components/core.toml: what every instance has (setup engine, plan Phase 2b).
+# Fields of a component (lib/setup/engine.py; tests/unit/test_components.py checks them):
+#   title, description, category        for people (the setup app's catalogue, ./homelab components)
+#   core                                 always on
+#   requires / suggests / conflicts      other components (ids = file names)
+#   gpu                                  "none" | "nvidia" (needs an NVIDIA card with CDI)
+#   platforms                            where it runs: fedora, debian, ubuntu, arch, macos
+#   services                             its docker compose services (they get profiles: [<id>])
+#   public_names / peer_names            NetBird reverse proxy services / private DNS names
+#   blueprints                           authentik/*.yaml it needs
+#   jobs                                 jobs/jobs.toml ids
+#   ansible                              the vars.yml flag it switches on, if any
+#   stages                               wizard stages it brings, "wizard:stage" (lib/wizard.sh ids)
+#   [options.KEY]                        each .env key it reads: help, type (text|secret|path|port|
+#                                        email|domain|bool|int|ip|tag), default, required, generate
+#                                        (a shell command), advanced (only in Advanced), macos_default (the
+#                                        default on macOS, ~ = the home folder), set_by
+#                                        (a wizard or script fills it in; not asked up front)
+#   [authentik]                          what Authentik needs beyond the blueprint (lib/authentik.py, list
+#                                        additions a blueprint would replace): outpost = providers onto
+#                                        the embedded outpost, admin_groups = groups you're put in
+title = "Core: sign-in, home page, HTTPS"
+description = "Caddy (HTTPS on your mesh address), Authentik (one sign-in with passkeys and MFA), the home page and its admin sheets."
+category = "core"
+core = true
+requires = ["mesh"]
+suggests = ["backups", "public-access"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["caddy", "authentik-db", "authentik-server", "authentik-worker", "ops"]
+public_names = ["home", "auth"]
+peer_names = ["home", "auth"]
+blueprints = ["hardening.yaml", "family.yaml", "family-app.yaml"]
+jobs = ["notify", "drift", "storage-report", "ops"]
+ansible = ""
+stages = ["wizard:dns", "wizard:authentik_setup", "public:email", "public:mfa", "public:recovery",
+          "public:enrollment", "public:family", "public:forward_auth", "public:zones", "hardening:prereq",
+          "hardening:authentik", "hardening:passkey", "hardening:dnssec", "hardening:caa", "files:home",
+          "hardening:verify", "wizard:always_on", "wizard:verify"]
+
+
+[[tiles]]
+order = 140
+id = "account"
+name = "My account"
+desc = "Password and authenticator"
+url = "https://auth.%s/if/user/"
+icon = "/mark.png"
+status = "auth"
+group = "account"
+audience = "signed-in"
+
+[[tiles]]
+order = 150
+id = "passkey"
+name = "Add a passkey"
+desc = "For this device or a new phone"
+url = "https://auth.%s/if/flow/default-authenticator-webauthn-setup/"
+icon = "/mark.png"
+status = "auth"
+group = "account"
+audience = "signed-in"
+comment = "Authentik's passkey setup flow. On a signed-in computer the browser can save it to a phone (QR code) or a security key: that's how a new phone gets a passkey."
+
+[[tiles]]
+order = 160
+id = "admin"
+name = "Accounts admin"
+desc = "People, groups and sign-in rules"
+url = "https://auth.%s/if/admin/"
+icon = "/apps/authentik.svg"
+status = "auth"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[[tiles]]
+order = 165
+id = "console"
+name = "Console"
+desc = "Jobs, apps, logs and what to do"
+url = "https://home.%s/console/"
+icon = "/apps/console.svg"
+status = "ops"
+group = "admin"
+audience = "operators"
+comment = "The console (site/console/): admins and the operators group; restarts and runs only over NetBird."
+
+[options.DOMAIN]
+help = "Your domain, no subdomain (the sites become home.<domain>, auth.<domain>, …)"
+type = "domain"
+required = true
+[options.DOMAIN_ALIAS]
+help = "A second domain serving the same sites (DOMAIN stays the canonical one)"
+type = "domain"
+required = true
+[options.NETBIRD_IP]
+help = "This machine's mesh (NetBird) address: ip -4 -o addr show wt0"
+type = "ip"
+required = true
+[options.HOST_UID]
+help = "Your user's id (id -u): files the apps write belong to you"
+type = "int"
+default = "1000"
+advanced = true
+[options.HOST_GID]
+help = "Your user's group id (id -g)"
+type = "int"
+default = "1000"
+advanced = true
+[options.ADMIN_USER]
+help = "Your login on this machine, also your admin username in Authentik (lowercase)"
+type = "text"
+required = true
+[options.ADMIN_LOGIN]
+help = "Your username in Authentik exactly as written there (capitals matter); empty = ADMIN_USER"
+type = "text"
+advanced = true
+[options.ADMIN_NAME]
+help = "Your name, as the sign-in pages and mails show it"
+type = "text"
+required = true
+[options.NOTIFY_TO]
+help = "Where the homelab's own mails go: failed jobs, drift, the outside heartbeat"
+type = "email"
+required = true
+[options.BRAND]
+help = "How pages, mails and apps name this homelab (e.g. Smith)"
+type = "text"
+default = "Home"
+required = true
+[options.BRAND_SLUG]
+help = "The same as a short lowercase id (e.g. smith); keep it once set"
+type = "text"
+default = "home"
+required = true
+[options.SIGNIN_TITLE]
+help = "Title of the sign-in page"
+type = "text"
+default = "Sign in to Home"
+[options.PHONE_EXAMPLE]
+help = "Example phone number on the sign-up form"
+type = "text"
+default = "+44 7700 900123"
+advanced = true
+[options.HOME_COUNTRY]
+help = "Two-letter country code: admin sign-ins from elsewhere mail the admins"
+type = "text"
+default = "GB"
+[options.HOME_COUNTRY_NAME]
+help = "That country's name, for the alert mail"
+type = "text"
+default = "the United Kingdom"
+advanced = true
+[options.BRANDING_DIR]
+help = "Logos and icons: branding/default or your own copy (branding/README.md)"
+type = "path"
+default = "branding/default"
+advanced = true
+[options.TIME_ZONE]
+help = "The containers' time zone (e.g. Europe/Zurich, America/New_York)"
+type = "text"
+default = "Europe/Zurich"
+[options.AUTHENTIK_TAG]
+help = "Authentik's version (pinned; diff the upstream compose.yml before raising it)"
+type = "tag"
+default = "2026.8.3"
+advanced = true
+[options.AK_SECRET_KEY]
+help = "Authentik's secret key"
+type = "secret"
+required = true
+generate = "openssl rand -base64 60 | tr -d '\\n'"
+[options.AK_PG_PASS]
+help = "Authentik's database password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n'"
+[options.INFOMANIAK_API_TOKEN]
+help = "DNS API token for Let's Encrypt (scopes domain:read dns:read dns:write; only _acme-challenge records)"
+type = "secret"
+required = true
+[options.AUTHENTIK_EMAIL__HOST]
+help = "Mail server for sign-up, password reset and alerts"
+type = "text"
+default = "smtp.protonmail.ch"
+[options.AUTHENTIK_EMAIL__PORT]
+help = "Its port"
+type = "port"
+default = "587"
+advanced = true
+[options.AUTHENTIK_EMAIL__USE_TLS]
+help = "STARTTLS"
+type = "bool"
+default = "true"
+advanced = true
+[options.AUTHENTIK_EMAIL__USE_SSL]
+help = "TLS from the start (port 465)"
+type = "bool"
+default = "false"
+advanced = true
+[options.AUTHENTIK_EMAIL__USERNAME]
+help = "Mail account (also the sender)"
+type = "email"
+required = true
+[options.AUTHENTIK_EMAIL__PASSWORD]
+help = "Its SMTP password or token"
+type = "secret"
+required = true
+set_by = "public:email"
+[options.AUTHENTIK_EMAIL__FROM]
+help = "Sender name and address, e.g. \"Smith <noreply@example.org>\""
+type = "text"
+set_by = "public:email"

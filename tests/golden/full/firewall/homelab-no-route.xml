@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- /etc/firewalld/policies/homelab-no-route.xml. Written by Ansible from ansible/roles/firewall/templates. -->
+<policy target="REJECT" priority="-100">
+  <short>Homelab: the LAN isn't routed</short>
+  <description>New connections from the LAN zone through this machine (into Docker's networks, NetBird, anywhere) are refused, before docker-forwarding (priority -1) accepts them; replies pass. Docker's published ports never get here, since firewalld accepts DNAT'd packets first: homelab-mesh-guard keeps the LAN off those.</description>
+  <ingress-zone name="homelab-lan"/>
+  <egress-zone name="ANY"/>
+</policy>

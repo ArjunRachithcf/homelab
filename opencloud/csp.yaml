@@ -1,0 +1,8 @@
+# Added to OpenCloud's built-in Content-Security-Policy (PROXY_CSP_CONFIG_FILE_LOCATION: OpenCloud
+# merges this into its defaults, lists concatenated; only PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION
+# would replace them, so upgrades keep their new defaults). The web client fetches the OIDC
+# discovery and token from auth.<domain> in the browser; the default connect-src allows only 'self'.
+# ${VAR|default} is expanded by OpenCloud.
+directives:
+  connect-src:
+    - 'https://${IDP_DOMAIN|auth.example.com}/'

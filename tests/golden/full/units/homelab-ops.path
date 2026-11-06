@@ -1,0 +1,12 @@
+# /etc/systemd/system/homelab-ops.path (RUNBOOK.md 7e, "Details"): a job request from the home page
+# (a file named after the job, dropped by the ops container) starts homelab-ops.service.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: watch for job requests from the home page
+
+[Path]
+PathExistsGlob=/home/alex/homelab/ops/requests/*
+Unit=homelab-ops.service
+
+[Install]
+WantedBy=paths.target

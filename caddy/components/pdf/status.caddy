@@ -1,0 +1,2 @@
+# caddy/components/pdf/status.caddy (component pdf; copied into caddy/enabled/ by ./homelab configure)
+import status pdf bentopdf:8080 /

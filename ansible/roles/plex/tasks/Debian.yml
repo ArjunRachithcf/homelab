@@ -1,0 +1,26 @@
+# Debian/Ubuntu: Plex's apt repo (support.plex.tv: "Enable repository updating for supported Linux server distributions")
+- name: /etc/apt/keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Plex signing key (v2, ed25519)
+  ansible.builtin.get_url:
+    url: https://downloads.plex.tv/plex-keys/PlexSign.v2.key
+    dest: /etc/apt/keyrings/plex.asc
+    mode: "0644"
+
+- name: Plex repo
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/plexmediaserver.list
+    content: "deb [signed-by=/etc/apt/keyrings/plex.asc] https://repo.plex.tv/deb/ public main\n"
+    mode: "0644"
+  register: plex_repo
+
+- name: plexmediaserver
+  ansible.builtin.apt:
+    name: plexmediaserver
+    state: present
+    update_cache: "{{ plex_repo is changed }}"
+  when: not (ansible_check_mode and plex_repo is changed)

@@ -1,0 +1,133 @@
+# SSH for the admin (ADMIN_USER) only, through Authentik: SSSD → LDAP outpost ldap-ssh (172.21.1.10:6636) for keys
+# and password;TOTP, only on the NetBird IP. RUNBOOK.md step 10. Console login, sudo, nsswitch and
+# authselect stay untouched; PAM changes only /etc/pam.d/sshd (tag pam, ask the owner first).
+# Needs ./authentik/setup-ssh.sh first (ldap-ssh.pem + SSH_LDAP_BIND_PASSWORD).
+# Fedora only for now: the PAM change below is written for Fedora's /etc/pam.d/sshd, and a wrong one
+# locks people out (setup/components/ssh-sso.toml says so; other distros keep their own sshd).
+- name: SSH via Authentik is Fedora-only
+  ansible.builtin.debug:
+    msg: "Skipping SSH via Authentik on {{ distro_name }}: it changes PAM, and only Fedora's layout is tested."
+  when: ansible_distribution != "Fedora"
+
+- name: Outpost CA from authentik/setup-ssh.sh
+  ansible.builtin.stat:
+    path: "{{ homelab_dir }}/ssh/ldap-ssh.pem"
+  register: ssh_ldap_ca
+
+- name: Bind password from authentik/setup-ssh.sh
+  ansible.builtin.set_fact:
+    ssh_bind_pw: >-
+      {{ lookup('ansible.builtin.ini', 'SSH_LDAP_BIND_PASSWORD', file=homelab_env, type='properties', default='')
+         | regex_replace("^'(.*)'$", '\\1') }}
+  no_log: true
+
+- name: Not ready yet
+  ansible.builtin.debug:
+    msg: "Skipping SSH: run ./authentik/setup-ssh.sh (after restore.sh on a rebuild), then --tags ssh again."
+  when: not ssh_ldap_ca.stat.exists or ssh_bind_pw == ''
+
+- name: SSH via Authentik
+  when: ssh_ldap_ca.stat.exists and ssh_bind_pw != '' and ansible_distribution == "Fedora"
+  block:
+    - name: SSSD and sshd packages
+      ansible.builtin.dnf5:
+        name: [sssd-ldap, sssd-client, sssd-tools, openssh-server]
+        state: present
+
+    - name: "SELinux: sssd may connect to 6636 (stays enforcing)"
+      community.general.seport:
+        ports: "6636"
+        proto: tcp
+        setype: ldap_port_t
+        state: present
+      when: homelab_selinux
+
+    - name: Outpost name in /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^172\.21\.1\.10\s'
+        line: "172.21.1.10 ldap.homelab.internal   # homelab: Authentik LDAP outpost for SSH"
+
+    - name: /etc/sssd/pki
+      ansible.builtin.file:
+        path: /etc/sssd/pki
+        state: directory
+        mode: "0755"
+
+    - name: Outpost CA
+      ansible.builtin.copy:
+        src: "{{ homelab_dir }}/ssh/ldap-ssh.pem"
+        dest: /etc/sssd/pki/ldap-ssh.pem
+        remote_src: true
+        mode: "0644"
+      notify: Restart sssd
+
+    - name: sssd.conf
+      ansible.builtin.copy:
+        dest: /etc/sssd/sssd.conf
+        content: "{{ lookup('ansible.builtin.file', homelab_dir + '/ssh/sssd.conf', rstrip=false) | replace('__SSH_LDAP_BIND_PASSWORD__', ssh_bind_pw) }}"
+        owner: root
+        group: sssd
+        mode: "0640"
+        validate: sssctl config-check -c %s
+      no_log: true
+      notify: Restart sssd
+
+    - name: sssd enabled and running
+      ansible.builtin.systemd_service:
+        name: sssd
+        enabled: true
+        state: started
+
+    - name: "PAM: keep a copy of Fedora's /etc/pam.d/sshd"
+      ansible.builtin.command: cp -a /etc/pam.d/sshd /etc/pam.d/sshd.homelab-bak
+      args:
+        creates: /etc/pam.d/sshd.homelab-bak
+      tags: pam
+
+    # Undo: sudo cp /etc/pam.d/sshd.homelab-bak /etc/pam.d/sshd
+    - name: "PAM: sshd's auth via pam_sss (password;TOTP from Authentik)"
+      ansible.builtin.replace:
+        path: /etc/pam.d/sshd
+        regexp: '^auth\s+substack\s+password-auth$'
+        replace: "auth       required     pam_sss.so"
+      tags: pam
+
+    - name: "PAM: pam_sss is in sshd's auth"
+      ansible.builtin.command: grep -q '^auth.*pam_sss.so' /etc/pam.d/sshd
+      check_mode: false
+      changed_when: false
+      tags: pam
+
+    - name: sshd host keys
+      ansible.builtin.command: ssh-keygen -A
+      args:
+        creates: /etc/ssh/ssh_host_ed25519_key
+
+    - name: sshd drop-in (NetBird IP only, the admin only, key + password;TOTP)
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/10-homelab.conf
+        content: >-
+          {{ lookup('ansible.builtin.file', homelab_dir + '/ssh/10-homelab.conf', rstrip=false)
+             | replace('__NETBIRD_IP__', netbird_ip) | replace('__SSH_USER__', homelab_user) }}
+        mode: "0600"
+        validate: /usr/sbin/sshd -t -f %s
+      notify: Check sshd config
+
+    - name: sshd enabled and running
+      ansible.builtin.systemd_service:
+        name: sshd
+        enabled: true
+        state: started
+
+    - name: Flush handlers (sshd restarts only after sshd -t passes)
+      ansible.builtin.meta: flush_handlers
+
+    - name: sshd listens on the NetBird IP only
+      ansible.builtin.shell: |
+        set -o pipefail
+        ss -tlnH 'sport = :22' | awk '{print $4}' | sort -u
+      register: ssh_listen
+      check_mode: false
+      changed_when: false
+      failed_when: ssh_listen.stdout_lines != [netbird_ip + ':22']

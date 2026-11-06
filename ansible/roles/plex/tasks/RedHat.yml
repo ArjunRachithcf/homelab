@@ -1,0 +1,24 @@
+# Fedora: Plex's rpm repo and package
+- name: Plex signing key (v2, ed25519)
+  ansible.builtin.rpm_key:
+    key: https://downloads.plex.tv/plex-keys/PlexSign.v2.key
+    fingerprint: 6EFFEB478A6559D75C7C4FE706C521790B9CFFDE
+    state: present
+
+- name: Plex repo
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/plex.repo
+    content: |
+      [PlexRepo]
+      name=PlexRepo
+      baseurl=https://repo.plex.tv/rpm/
+      enabled=1
+      gpgcheck=1
+      repo_gpgcheck=1
+      gpgkey=https://downloads.plex.tv/plex-keys/PlexSign.v2.key
+    mode: "0644"
+
+- name: plexmediaserver
+  ansible.builtin.dnf5:
+    name: plexmediaserver
+    state: present

@@ -1,0 +1,54 @@
+title = "Family tree (Gramps Web)"
+description = "Relatives and their stories; owners and editors come from the sign-in groups. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["gramps", "gramps-celery", "gramps-redis"]
+public_names = ["tree"]
+peer_names = ["tree"]
+blueprints = ["family-tree.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 135
+id = "tree"
+name = "Family tree"
+desc = "Relatives and their stories"
+url = "https://tree.%s/"
+icon = "/apps/gramps-web.svg"
+status = "tree"
+group = "life"
+audience = "family"
+
+[options.GRAMPS_TAG]
+help = "Gramps Web version (Family tree)"
+type = "tag"
+default = "26.10.2"
+advanced = true
+[options.GRAMPS_TREE]
+help = "The family tree's name in Gramps Web: created when missing, so keep it once set; empty = BRAND"
+type = "text"
+set_by = "family:secrets"
+[options.VALKEY_TAG]
+help = "Valkey (Redis) for Gramps Web, Outline and Dawarich (without Family tree they take this default)"
+type = "tag"
+default = "9.0-alpine"
+advanced = true
+[options.GRAMPS_OIDC_CLIENT_SECRET]
+help = "Gramps Web's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.GRAMPS_SECRET_KEY]
+help = "Gramps Web's secret key"
+type = "secret"
+required = true
+generate = "python3 -c \"import secrets; print(secrets.token_urlsafe(32))\""

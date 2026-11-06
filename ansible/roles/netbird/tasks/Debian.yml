@@ -1,0 +1,26 @@
+# Debian/Ubuntu: NetBird's apt repo (docs.netbird.io: Linux, apt)
+- name: /etc/apt/keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: NetBird signing key
+  ansible.builtin.get_url:
+    url: https://pkgs.netbird.io/debian/public.key
+    dest: /etc/apt/keyrings/netbird.asc
+    mode: "0644"
+
+- name: NetBird repo
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/netbird.list
+    content: "deb [signed-by=/etc/apt/keyrings/netbird.asc] https://pkgs.netbird.io/debian stable main\n"
+    mode: "0644"
+  register: netbird_repo
+
+- name: NetBird package
+  ansible.builtin.apt:
+    name: netbird
+    state: present
+    update_cache: "{{ netbird_repo is changed }}"
+  when: not (ansible_check_mode and netbird_repo is changed)

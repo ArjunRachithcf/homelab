@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-heartbeat.timer: every 5 minutes (healthchecks.io: period 5 min, grace 15)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab heartbeat
+
+[Timer]
+OnCalendar=*:2/5
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

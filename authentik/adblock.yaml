@@ -1,0 +1,43 @@
+# ~/homelab/authentik/adblock.yaml
+# Ad blocking (AdGuard Home's UI, dns.<domain>, RUNBOOK.md 7d): forward-auth through Caddy and
+# the embedded outpost; authentik Admins only. setup-ssh.sh then adds the provider to the embedded
+# outpost (a list addition a blueprint would replace).
+#
+# Applied by `authentik/setup-ssh.sh component adblock` when adblock is chosen (also part of
+# `hardening`, so it's re-applied after upgrades).
+version: 1
+metadata:
+  name: homelab - Ad blocking
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # Forward-auth (single application per host), like Home. External hosts carry the public port:
+  # Caddy serves these sites only there (Caddyfile `canonical`).
+  - model: authentik_providers_proxy.proxyprovider
+    id: dns-provider
+    identifiers:
+      name: Provider for Ad blocking
+    attrs:
+      mode: forward_single
+      external_host: https://dns.__DOMAIN__:__PUBLIC_PORT__
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+  - model: authentik_core.application
+    id: dns-app
+    identifiers:
+      slug: adguard
+    attrs:
+      name: Ad blocking
+      provider: !KeyOf dns-provider
+      meta_launch_url: https://dns.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf dns-app
+      group: !Find [authentik_core.group, [name, authentik Admins]]
+      order: 0

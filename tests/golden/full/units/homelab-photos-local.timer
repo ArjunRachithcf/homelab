@@ -1,0 +1,12 @@
+# /etc/systemd/system/homelab-photos-local.timer: daily 04:00 (after homelab-backup at 03:30,
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+# before the Proton copy at 04:30), catches up after downtime
+[Unit]
+Description=Daily homelab photo dedupe + local copy
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

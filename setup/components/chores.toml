@@ -1,0 +1,46 @@
+title = "Chores (Donetick)"
+description = "Who does which chore and when, with phone apps; kids use it too. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["donetick"]
+public_names = ["chores"]
+peer_names = ["chores"]
+blueprints = ["chores.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 131
+id = "chores"
+name = "Chores"
+kids = "Chores"
+desc = "Who does what, and when"
+url = "https://chores.%s/"
+icon = "/apps/donetick.svg"
+status = "chores"
+group = "life"
+audience = "family-and-kids"
+
+[options.DONETICK_TAG]
+help = "Donetick version (Chores)"
+type = "tag"
+default = "v0.1.83"
+advanced = true
+[options.DONETICK_OIDC_CLIENT_SECRET]
+help = "Donetick's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.DONETICK_JWT_SECRET]
+help = "Signs Donetick's sessions"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n'"

@@ -1,0 +1,55 @@
+title = "Places (Dawarich)"
+description = "Where you've been, from your phone's location history. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["dawarich", "dawarich-db", "dawarich-redis"]
+public_names = ["places"]
+peer_names = ["places"]
+blueprints = ["places.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 137
+id = "places"
+name = "Places"
+desc = "Where you've been"
+url = "https://places.%s/"
+icon = "/apps/dawarich.svg"
+status = "places"
+group = "life"
+audience = "family"
+
+[options.DAWARICH_TAG]
+help = "Dawarich version (Places)"
+type = "tag"
+default = "1.17.0"
+advanced = true
+[options.DAWARICH_PG_TAG]
+help = "Its PostGIS"
+type = "tag"
+default = "17-3.5-alpine"
+advanced = true
+[options.DAWARICH_OIDC_CLIENT_SECRET]
+help = "Dawarich's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.DAWARICH_SECRET_KEY_BASE]
+help = "Dawarich's secret key base"
+type = "secret"
+required = true
+generate = "openssl rand -hex 64"
+[options.DAWARICH_DB_PASSWORD]
+help = "Dawarich's database password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc A-Za-z0-9"

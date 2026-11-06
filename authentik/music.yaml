@@ -1,0 +1,40 @@
+# ~/homelab/authentik/music.yaml
+# Music (Navidrome, music.<domain>, RUNBOOK.md 7d): forward-auth for the web UI; family.
+# setup-ssh.sh then adds the provider to the embedded outpost (a list addition a blueprint would replace).
+#
+# Applied by `authentik/setup-ssh.sh component music` when music is chosen (also part of
+# `hardening`, so it's re-applied after upgrades).
+version: 1
+metadata:
+  name: homelab - Music
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # ── Music (Navidrome, music.<domain>): forward-auth for the web UI ─────
+  # Like "Provider for Home" above. Caddy passes X-Authentik-Username, Navidrome creates
+  # the user on first visit (the very first one becomes its admin). setup-ssh.sh family adds the
+  # provider to the embedded outpost (a blueprint would replace that outpost's provider list).
+  - model: authentik_providers_proxy.proxyprovider
+    id: music-provider
+    identifiers:
+      name: Provider for Music
+    attrs:
+      mode: forward_single
+      external_host: https://music.__DOMAIN__:__PUBLIC_PORT__
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    id: music-app
+    identifiers:
+      slug: music
+    attrs:
+      name: Music
+      provider: !KeyOf music-provider
+      meta_launch_url: https://music.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf music-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0

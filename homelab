@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# ~/homelab/homelab: one entry point for running this homelab (plan Phases 1b, 2).
+#   ./homelab status              every job: state, last finished, next run (failed ones in red; exit 1)
+#   ./homelab list                every job and when it runs (jobs/jobs.toml)
+#   ./homelab run JOB             start a job now (sudo only for jobs the homelab user may not start)
+#   ./homelab logs JOB [-f]       a job's last 200 log lines (-f: follow)
+#   ./homelab check               every wizard's --check, then one summary
+#   ./homelab configure [--check] write the files that come from .env (mail templates, logos, icons);
+#                                 run after git pull and after changing "Your instance" in .env
+#   ./homelab doctor              what this machine has and lacks for the homelab
+#   ./homelab selftest            the repo's own tests (tests/unit; changes nothing on the host)
+#   ./homelab components [--json] every component (setup/components/), on or off (--json: with options, presets)
+#   ./homelab setup [WIZARD…] [--check] [--protocol]
+#                                 the chosen components' wizard stages in order (or the named wizards);
+#                                 --protocol: JSON lines for the setup app and the MCP server
+#   ./homelab setup --plan|--apply|--export-answers [--preset P] [--answers F] [--add a,b] [--remove c]
+#                                 choose components and options; --plan changes nothing
+#   ./homelab mcp                 the setup as an MCP server on stdin/stdout (lib/setup/mcp.py; the setup app's assistant)
+set -euo pipefail
+here=$(dirname "$0"); [[ -L $0 ]] && here=$(dirname "$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$0")")
+# shellcheck source=lib/need-bash.sh
+source "$here/lib/need-bash.sh"   # bash 4.4+ (macOS: Homebrew's)
+cd "$here"
+# shellcheck source=lib/portable.sh
+source lib/portable.sh
+if [[ $HOMELAB_OS == Darwin ]]; then
+  # shellcheck source=lib/platform/launchd.sh
+  source lib/platform/launchd.sh
+else
+  # shellcheck source=lib/platform/systemd.sh
+  source lib/platform/systemd.sh
+fi
+
+usage() { sed -n '2,/^set /p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; }
+job_unit() { python3 lib/jobs.py unit "$1"; }
+job_field() { python3 -c 'import sys, tomllib; print(str(tomllib.load(open("jobs/jobs.toml", "rb"))["jobs"][sys.argv[1]][sys.argv[2]]).lower())' "$1" "$2"; }
+
+cmd_check() {
+  local w failed=()
+  for w in wizard public-wizard hardening-wizard immich-wizard apps-wizard music-wizard files-wizard family-wizard; do
+    [[ -x ./$w.sh ]] || continue
+    printf '\n== %s.sh --check\n' "$w"
+    ./"$w".sh --check || failed+=("$w")
+  done
+  printf '\n'
+  if (( ${#failed[@]} )); then echo "✗ checks failed in: ${failed[*]}"; return 1; fi
+  echo "✓ every wizard's checks pass"
+}
+
+cmd_doctor() {
+  local bad=0 c v
+  local g="" r="" n=""; [[ -t 1 ]] && { g=$'\033[32m'; r=$'\033[31m'; n=$'\033[0m'; }
+  ok()   { printf '  %s✓%s %s\n' "$g" "$n" "$1"; }
+  miss() { printf '  %s✗%s %s\n' "$r" "$n" "$1"; bad=1; }
+  info() { printf '  · %s\n' "$1"; }
+  if [[ -f /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    info "system: $(. /etc/os-release; echo "$PRETTY_NAME")"
+  else
+    info "system: $HOMELAB_OS $(uname -r)"
+  fi
+  v=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)
+  python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null && ok "python3 $v" || miss "python3 3.11 or newer (have $v)"
+  # The bash that `#!/usr/bin/env bash` finds (the jobs on macOS see the same: Homebrew before /bin)
+  v=$(bash -c 'echo "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"' 2>/dev/null || echo 0)
+  bash -c '(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) ))' 2>/dev/null \
+    && ok "bash $v" || miss "bash 4.4 or newer (have $v; macOS: brew install bash)"
+  for c in git curl jq dig age zstd rsync flock openssl; do
+    p_have "$c" && ok "$c" || miss "$c"
+  done
+  p_have docker && docker compose version >/dev/null 2>&1 && ok "docker compose ($(docker compose version --short 2>/dev/null))" || miss "docker with the compose plugin (Docker CE)"
+  p_have ansible-playbook && ok "ansible-playbook" || miss "ansible-playbook (ansible-core) for the host layer"
+  if [[ $HOMELAB_OS == Linux ]]; then
+    p_have systemctl && ok "systemd" || miss "systemd"
+    p_have getenforce && info "SELinux: $(getenforce)"
+  fi
+  if [[ -f .env ]]; then
+    ok ".env"
+    [[ "$(stat -c %a .env 2>/dev/null || stat -f %Lp .env)" == 600 ]] || miss ".env should be chmod 600"
+    for c in ADMIN_USER NOTIFY_TO DOMAIN DOMAIN_ALIAS NETBIRD_IP BRAND BRAND_SLUG; do
+      [[ -n "$(sed -n "s/^$c=//p" .env | tail -n1)" ]] || miss "$c empty in .env (see .env.example)"
+    done
+    python3 lib/configure.py --check >/dev/null 2>&1 && ok "rendered files up to date" || miss "./homelab configure needed"
+  else
+    miss ".env (cp .env.example .env && chmod 600 .env)"
+  fi
+  return $bad
+}
+
+cmd_selftest() {
+  local f bad=0
+  for f in homelab ./*.sh lib/*.sh lib/platform/*.sh ansible/*.sh authentik/*.sh n8n/*.sh ntfy/*.sh tests/*.sh; do
+    [[ -f $f ]] || continue
+    bash -n "$f" || { echo "✗ bash -n $f"; bad=1; }
+  done
+  python3 -m unittest discover -s tests/unit -t . "$@" || bad=1
+  return $bad
+}
+
+case "${1:-}" in
+  status) plat_status ;;
+  list) python3 lib/jobs.py list ;;
+  run)
+    [[ -n "${2:-}" ]] || { echo "usage: ./homelab run JOB   (./homelab list)" >&2; exit 2; }
+    unit=$(job_unit "$2"); plat_run "$unit" "$(job_field "$2" polkit_start)"
+    echo "started $unit; ./homelab logs $2 -f" ;;
+  logs)
+    [[ -n "${2:-}" ]] || { echo "usage: ./homelab logs JOB [-f]" >&2; exit 2; }
+    unit=$(job_unit "$2"); plat_logs "$unit" "$([[ ${3:-} == -f ]] && echo 1 || echo 0)" ;;
+  check) cmd_check ;;
+  configure) shift; exec python3 lib/configure.py "$@" ;;
+  doctor) cmd_doctor ;;
+  selftest) shift; cmd_selftest "$@" ;;
+  setup) shift; exec python3 lib/setup/run.py "$@" ;;
+  components) shift; exec python3 lib/setup/engine.py components "$@" ;;
+  mcp) shift; exec python3 lib/setup/mcp.py "$@" ;;
+  -h|--help|help|"") usage ;;
+  *) echo "homelab: unknown command \"$1\"" >&2; usage >&2; exit 2 ;;
+esac

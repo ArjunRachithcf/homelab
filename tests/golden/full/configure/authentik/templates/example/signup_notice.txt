@@ -1,0 +1,11 @@
+{% autoescape off %}{{ member.name }} joined
+
+A new Example account was created, its email confirmed and MFA set up. It was added to {{ member.groups }} automatically.
+
+Name:     {{ member.name }}
+Username: {{ member.username }}
+Email:    {{ member.email }}
+Phone:    {{ member.phone|default:"-" }}
+
+Their page in the admin interface (over NetBird): {{ member.admin_url }}
+{% endautoescape %}

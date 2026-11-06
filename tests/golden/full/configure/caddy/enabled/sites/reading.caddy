@@ -1,0 +1,26 @@
+# caddy/components/reading/sites.caddy (component reading; copied into caddy/enabled/ by ./homelab configure)
+# Kavita: its own OIDC login (OPDS readers use the Auth Key in their URL, so no forward-auth)
+(kavita) {
+	reverse_proxy kavita:5000
+}
+
+# Since 2026-10-26 (RUNBOOK.md 7e). It only allows its own Authentik login.
+read.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import kavita
+}
+
+read.{$DOMAIN}, read.{$DOMAIN_ALIAS}, read.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical read
+}
+
+read.{$DOMAIN}:8444 {
+	import headers
+	import kavita
+}
+
+read.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://read.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

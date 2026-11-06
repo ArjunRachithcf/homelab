@@ -1,0 +1,41 @@
+# caddy/components/files/sites.caddy (component files; copied into caddy/enabled/ by ./homelab configure)
+# OpenCloud: its own OIDC login; the sync clients need the API without forward-auth. Public links
+# are off (RUNBOOK.md 7e): they can't be forced to expire, and OpenCloud 7.2 has no switch for
+# them, so creating one (web, Graph) and opening one are refused here. Family members share through
+# accounts. Opening means every route OpenCloud's proxy takes a link's token on (public_share_auth.go:
+# public-files, /archiver, /app/open, /app/new, a public-token query parameter or header) and tokeninfo,
+# which describes a link to anyone. The apps' OCS API can still create one (its type is in the body,
+# which Caddy can't read): such a link never opens.
+(opencloud) {
+	@public_links {
+		path /s/* /dav/public-files/* /remote.php/dav/public-files/* /ocs/v1.php/apps/files_sharing/api/v1/tokeninfo/* /ocs/v2.php/apps/files_sharing/api/v1/tokeninfo/* /graph/v1beta1/drives/*/items/*/createLink /graph/v1beta1/drives/*/root/createLink /graph/v1.0/drives/*/items/*/createLink /graph/v1.0/drives/*/root/createLink
+	}
+	respond @public_links "Public links are switched off. Share with a family member's account, or use Share." 403
+	@public_token query public-token=*
+	respond @public_token "Public links are switched off. Share with a family member's account, or use Share." 403
+	@public_token_header header public-token *
+	respond @public_token_header "Public links are switched off. Share with a family member's account, or use Share." 403
+	reverse_proxy opencloud:9200 {
+		flush_interval -1
+	}
+}
+
+files.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import opencloud
+}
+
+files.{$DOMAIN}, files.{$DOMAIN_ALIAS}, files.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical files
+}
+
+files.{$DOMAIN}:8444 {
+	import headers
+	import opencloud
+}
+
+files.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://files.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

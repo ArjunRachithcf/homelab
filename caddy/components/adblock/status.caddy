@@ -1,0 +1,2 @@
+# caddy/components/adblock/status.caddy (component adblock; copied into caddy/enabled/ by ./homelab configure)
+import status dns adguard:3000 /

@@ -1,0 +1,24 @@
+# caddy/components/bookmarks/sites.caddy (component bookmarks; copied into caddy/enabled/ by ./homelab configure)
+(karakeep) {
+	reverse_proxy karakeep:3000
+}
+
+links.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import karakeep
+}
+
+links.{$DOMAIN}, links.{$DOMAIN_ALIAS}, links.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical links
+}
+
+links.{$DOMAIN}:8444 {
+	import headers
+	import karakeep
+}
+
+links.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://links.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

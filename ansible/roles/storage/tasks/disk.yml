@@ -1,0 +1,113 @@
+# The second NVMe for photos and files (component second-disk; storage role, imported by main.yml)
+- name: The photos disk is present
+  ansible.builtin.stat:
+    path: /dev/disk/by-uuid/{{ photos_uuid }}
+  register: storage_photos_disk
+
+- name: Stop if it isn't
+  ansible.builtin.assert:
+    that: storage_photos_disk.stat.exists
+    fail_msg: "No disk with UUID {{ photos_uuid }}: format one with immich-wizard.sh stage 1, then set PHOTOS_UUID in .env"
+    quiet: true
+
+# ── Once (7e): the disk moves from photos_dir to nvme1_dir ──────────────
+# Before 7e the whole disk was Immich's library at photos_dir. Its entries move into photos/ on
+# the same filesystem (a rename, instant), then the disk is remounted at nvme1_dir and photos/ is
+# bind-mounted back at photos_dir. files-wizard.sh stops Immich first and checks the asset count after.
+- name: Where the disk is mounted now
+  ansible.builtin.command: findmnt -rno TARGET --source UUID={{ photos_uuid }}
+  register: storage_disk_targets
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Old layout (disk at {{ photos_dir }}, nothing at {{ nvme1_dir }})
+  ansible.builtin.set_fact:
+    storage_old_layout: "{{ photos_dir in storage_disk_targets.stdout_lines and nvme1_dir not in storage_disk_targets.stdout_lines }}"
+
+- name: Move to the new layout
+  when: storage_old_layout | bool
+  block:
+    - name: Immich is stopped (files-wizard.sh stops it; Ansible never touches compose)
+      ansible.builtin.command: docker ps -q --filter name=^homelab-immich-server-1$
+      register: storage_immich_running
+      changed_when: false
+      check_mode: false
+      # The wizard's dry run comes before it stops Immich: only the real run must find it stopped
+      failed_when: storage_immich_running.stdout | length > 0 and not ansible_check_mode
+
+    - name: "Dry run: Immich is still running (the real run stops if it still is)"
+      ansible.builtin.debug:
+        msg: "Immich is running now; files-wizard.sh stops it before the real run."
+      when: ansible_check_mode and storage_immich_running.stdout | length > 0
+
+    - name: "Immich's entries into {{ photos_dir }}/photos (same filesystem: a rename)"
+      ansible.builtin.shell: |
+        set -euo pipefail
+        install -d -o {{ homelab_user }} -g {{ homelab_user }} -m 0755 {{ photos_dir }}/photos
+        find {{ photos_dir }} -mindepth 1 -maxdepth 1 ! -name photos -exec mv -t {{ photos_dir }}/photos -- {} +
+      args:
+        executable: /usr/bin/bash
+      changed_when: true
+
+    - name: "Unmount {{ photos_dir }} (remounted at {{ nvme1_dir }} below)"
+      ansible.builtin.command: umount {{ photos_dir }}
+      changed_when: true
+
+- name: "{{ nvme1_dir }} mounted by UUID (nofail: a missing disk doesn't stop the boot)"
+  ansible.posix.mount:
+    path: "{{ nvme1_dir }}"
+    src: UUID={{ photos_uuid }}
+    fstype: xfs
+    opts: defaults,nofail
+    dump: "0"
+    passno: "2"
+    state: mounted
+
+- name: "{{ nvme1_dir }}/photos, files, files-snap owned by {{ homelab_user }}"
+  ansible.builtin.file:
+    path: "{{ nvme1_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0755"
+  loop: [photos, files, files-snap]
+  # In --check before the move, nvme1_dir isn't mounted yet
+  when: not ansible_check_mode or not storage_old_layout | bool
+
+- name: "Bind mounts: {{ photos_dir }} (Immich) and {{ files_dir }} (OpenCloud), after {{ nvme1_dir }}"
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ nvme1_dir }}/{{ item.sub }}"
+    fstype: none
+    opts: bind,nofail,x-systemd.requires-mounts-for={{ nvme1_dir }}
+    dump: "0"
+    passno: "0"
+    state: mounted
+  loop:
+    - { path: "{{ photos_dir }}", sub: photos }
+    - { path: "{{ files_dir }}", sub: files }
+
+- name: "{{ photos_dir }} and {{ files_dir }} owned by {{ homelab_user }} (Immich and OpenCloud run as HOST_UID)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0755"
+  loop: ["{{ photos_dir }}", "{{ files_dir }}"]
+
+- name: "{{ photos_copy_dir }} and {{ files_copy_dir }} are btrfs subvolumes"
+  ansible.builtin.command: btrfs subvolume create {{ item }}
+  args:
+    creates: "{{ item }}"
+  loop: ["{{ photos_copy_dir }}", "{{ files_copy_dir }}"]
+
+- name: "{{ photos_copy_dir }} and {{ files_copy_dir }} owned by {{ homelab_user }}"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ homelab_user }}"
+    group: "{{ homelab_user }}"
+    mode: "0755"
+  loop: ["{{ photos_copy_dir }}", "{{ files_copy_dir }}"]

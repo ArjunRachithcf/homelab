@@ -1,0 +1,221 @@
+# ~/homelab/Caddyfile
+# HTTPS with Let's Encrypt via DNS-01 at Infomaniak (HTTP-01 can't work: nothing listens
+# publicly). Port 80 only redirects to https. See RUNBOOK.md "HTTPS".
+#
+# Two ways in, both bound to the NetBird IP only (docker-compose.yml):
+#   :443   NetBird peers, direct (private DNS zone → NETBIRD_IP).
+#   :{$PUBLIC_PORT} (9443) the same sites as :443. Public URLs carry NetBird's listen port, and
+#          peers use the same URLs. home on :443 redirects there (forward-auth is per host:port).
+#   :8444  the public internet, via the NetBird reverse proxy in TLS passthrough mode.
+#          Each connection starts with a PROXY v2 header (real client IP); TLS ends here,
+#          NetBird never sees plaintext. Stricter rule: no Authentik admin UI.
+#          See RUNBOOK.md "Public access".
+#
+# This file: global options, the shared snippets and the core sites (auth, home). Every other app's
+# site, its home-page status check and anything it adds to Authentik's site live with its component,
+# caddy/components/<id>/{sites,status,authentik}.caddy; ./homelab configure copies the chosen ones
+# (COMPONENTS in .env) into caddy/enabled/, imported below. tests/caddy/matrix.py checks the result.
+{
+	# Let's Encrypt, DNS-01 at Infomaniak. No local propagation check: Caddy follows CNAMEs on
+	# _acme-challenge.<name>, and the * CNAME (→ NetBird cluster, public access) sends that check to
+	# the cluster, where the record never shows up (photos.* failed this way 2026-10-21). Let's
+	# Encrypt itself sees the TXT record, since an existing name beats the wildcard.
+	cert_issuer acme {
+		dns infomaniak {env.INFOMANIAK_API_TOKEN}
+		propagation_delay 90s
+		propagation_timeout -1
+	}
+	# Explicit http:// block below; automatic redirects would also point :80 at :8444.
+	auto_https disable_redirects
+	servers :8444 {
+		listener_wrappers {
+			# Every connection must start with a PROXY header, or it's dropped. (`allow` would
+			# make the header optional for those sources; `reject` only refuses connections
+			# that DO send one.) Only the NetBird proxy can reach :8444 (NetBird policy).
+			proxy_protocol {
+				timeout 5s
+				fallback_policy require
+			}
+			tls
+		}
+		protocols h1 h2
+	}
+	servers {
+		# Only TCP is published, so don't advertise HTTP/3.
+		protocols h1 h2
+	}
+}
+
+http:// {
+	redir https://{host}{uri} 308
+}
+
+# Security headers on every HTTPS site, both listeners. `defer` so they also apply to (and
+# can strip from) upstream responses. `?` only sets X-Frame-Options if the app sent none.
+# And no client picks its own IP: apps that trust Caddy read True-Client-IP and X-Real-IP before
+# X-Forwarded-For (Navidrome 0.64 keys its login limiter on them), which Caddy sets itself. A site
+# that needs X-Real-IP sets it from {remote_host} (Homebox).
+(headers) {
+	request_header -True-Client-IP
+	request_header -X-Real-IP
+	header {
+		defer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		?X-Frame-Options SAMEORIGIN
+		-Server
+	}
+}
+
+(authentik) {
+	# A sign-in with no destination ends on "/", which Authentik turns into its own app page.
+	# Send people to our home page instead; /if/user/ ("My account") stays reachable.
+	@root path /
+	redir @root https://home.{$DOMAIN}:{$PUBLIC_PORT}/ 302
+	# The chosen components' additions (caddy/components/<id>/authentik.caddy, ./homelab configure)
+	import enabled/authentik/*.caddy
+	# The home page's font for Authentik's pages (brand CSS in authentik/hardening.yaml): no sign-in needed
+	handle_path /{$BRAND_SLUG}/fonts/* {
+		root * /srv/site/fonts
+		file_server
+	}
+	reverse_proxy authentik-server:9000
+}
+
+# Sites with one canonical address, https://<name>.<domain>:<public port>: forward-auth is per
+# host:port (the Authentik provider's external host), and the OIDC apps build their callbacks
+# from one fixed URL. Every other name for them redirects there.
+(canonical) {
+	redir https://{args[0]}.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}
+
+# Authentik embedded outpost, forward-auth (single application per host).
+# Client-sent X-Authentik-* headers are dropped first so they can't be forged.
+(forward_auth) {
+	request_header -X-Authentik-Username
+	request_header -X-Authentik-Groups
+	request_header -X-Authentik-Email
+	request_header -X-Authentik-Name
+	request_header -X-Authentik-Uid
+	reverse_proxy /outpost.goauthentik.io/* authentik-server:9000
+	forward_auth authentik-server:9000 {
+		uri /outpost.goauthentik.io/auth/caddy
+		copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Email X-Authentik-Name
+	}
+}
+
+# /status/<name> → 204 if the upstream answers below 500, else 502. Args: name, upstream, path.
+(status) {
+	handle /status/{args[0]} {
+		rewrite * {args[2]}
+		reverse_proxy {args[1]} {
+			@up status 2xx 3xx 4xx
+			handle_response @up {
+				respond 204
+			}
+		}
+	}
+}
+
+# Landing page: Authentik login on both listeners, then site/index.html via templates.
+(home) {
+	root * /srv/site
+	route {
+		# Logo files are public: Authentik's brand (login page) links to them. logo-light = dark
+		# artwork for the light theme, logo-dark = white artwork (brand logo URL uses %(theme)s).
+		# The web app manifest and its icons too: browsers fetch them without cookies (PWA, RUNBOOK.md 7e).
+		@brand path /logo.png /logo-white.png /logo-light.png /logo-dark.png /mark.png /favicon.png /apple-touch-icon.png /manifest.webmanifest /icon-192.png /icon-512.png
+		file_server @brand
+		import forward_auth
+		# The detail sheets and the console (ops/server.py, RUNBOOK.md 7e "Details" and "Console"):
+		# admins and operators only. The groups header comes from forward-auth (client-sent copies
+		# are stripped in (forward_auth)).
+		@console_other {
+			path /console /console/*
+			not header_regexp X-Authentik-Groups "(^|\|)(authentik Admins|operators)(\||$)"
+		}
+		respond @console_other 403
+		# Restarts and job runs only from NetBird peers (on :8444 the PROXY header gives the real
+		# client, never a mesh address): from outside the console is a read-only view. 172.21.0.1 is
+		# this machine itself (a browser on the PC comes in through Docker's userland proxy).
+		@ops_mesh_only {
+			method POST
+			path /ops/run/restart-* /ops/run/run-*
+			not remote_ip 100.64.0.0/10 172.21.0.1/32
+		}
+		respond @ops_mesh_only "Restarts and runs only over NetBird." 403
+		# The registry's actions (backup, cleanups: clean-bins empties the copies' deleted/ folders) stay
+		# with the admins; operators get logs, and over NetBird the runs and restarts above
+		@ops_actions_admins {
+			method POST
+			path /ops/run/*
+			not path /ops/run/restart-* /ops/run/run-* /ops/run/logs-*
+			not header_regexp X-Authentik-Groups "(^|\|)authentik Admins(\||$)"
+		}
+		respond @ops_actions_admins "Admins only." 403
+		@ops_admin {
+			path /ops/*
+			header_regexp X-Authentik-Groups "(^|\|)(authentik Admins|operators)(\||$)"
+		}
+		reverse_proxy @ops_admin ops:8080
+		@ops path /ops/*
+		respond @ops 403
+		# heartbeat.sh's file: index.html and apps.json read it from disk; admins-only detail stays there
+		@heartbeat path /status/heartbeat.json
+		respond @heartbeat 404
+		import status auth authentik-server:9000 /-/health/live/
+		import status ops ops:8080 /ops/data/console.json
+		# The chosen components' status checks (caddy/components/<id>/status.caddy, ./homelab configure)
+		import enabled/status/*.caddy
+		# apps.json is a template too: the family app (RUNBOOK.md step 8) reads the same list
+		templates {
+			mime text/html application/json
+		}
+		file_server
+	}
+}
+
+# ── NetBird peers (:443) ────────────────────────────────────────────────
+
+auth.{$DOMAIN}, auth.{$DOMAIN_ALIAS}, auth.{$DOMAIN}:{$PUBLIC_PORT}, auth.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import authentik
+}
+
+# The Authentik provider's external host is https://home.<domain>:<public port>, so that's
+# the one place home is served; plain :443 and the alias redirect to it.
+home.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import home
+}
+
+home.{$DOMAIN}, home.{$DOMAIN_ALIAS}, home.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	redir https://home.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}
+
+# ── Public, via the NetBird reverse proxy (:8444) ───────────────────────
+
+auth.{$DOMAIN}:8444, auth.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	handle /if/admin* {
+		respond "The admin interface is only reachable over NetBird." 403
+	}
+	handle {
+		import authentik
+	}
+}
+
+home.{$DOMAIN}:8444 {
+	import headers
+	import home
+}
+
+home.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://home.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}
+
+# ── The chosen components' sites (caddy/components/<id>/sites.caddy, copied by ./homelab configure) ──
+import enabled/sites/*.caddy

@@ -1,0 +1,2 @@
+# caddy/components/games/status.caddy (component games; copied into caddy/enabled/ by ./homelab configure)
+import status games romm:8080 /api/heartbeat

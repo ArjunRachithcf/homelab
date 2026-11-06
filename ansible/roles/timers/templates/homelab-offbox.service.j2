@@ -1,0 +1,18 @@
+# /etc/systemd/system/homelab-offbox.service (RUNBOOK.md step 9): backup-photos.sh quick, the newest
+# archive + new photos to Proton; every 4 h and after changes (backup-watch.sh)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: newest archive + new photos to Proton (quick)
+OnFailure=homelab-notify@%n.service
+Wants=network-online.target
+After=network-online.target homelab-backup.service homelab-photos-copy.service
+RequiresMountsFor={{ photos_dir }}
+
+[Service]
+Type=oneshot
+User={{ homelab_user }}
+WorkingDirectory={{ homelab_dir }}
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash {{ homelab_dir }}/backup-photos.sh quick
+Nice=10
+IOSchedulingClass=idle

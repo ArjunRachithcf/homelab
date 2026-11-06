@@ -1,0 +1,20 @@
+# caddy/components/n8n/sites.caddy (component n8n; copied into caddy/enabled/ by ./homelab configure)
+# n8n keeps its own owner login too: the compose network can reach n8n:5678 without Caddy.
+(n8n) {
+	route {
+		import forward_auth
+		reverse_proxy n8n:5678
+	}
+}
+
+# n8n: NetBird only (no :8444 site, no NetBird service, DNS zone for the Admin group only),
+# admins only (Authentik app bound to authentik Admins). No webhooks come in: nothing of it is public.
+n8n.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import n8n
+}
+
+n8n.{$DOMAIN}, n8n.{$DOMAIN_ALIAS}, n8n.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical n8n
+}

@@ -1,0 +1,31 @@
+title = "Media folder"
+description = "One folder with Movies, Shows, Music, Books and audiobooks; the players only read it."
+category = "media"
+core = false
+requires = []
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = ""
+stages = []
+
+[options.MEDIA_DIR]
+help = "The media folder (it gets a shared SELinux label once; only media in it)"
+type = "path"
+default = "/srv/media"
+macos_default = "~/homelab-data/media"
+required = true
+[options.RENDER_DEVICE]
+help = "GPU for video transcoding (VAAPI): ls -l /dev/dri/by-path/"
+type = "path"
+default = "/dev/dri/renderD128"
+advanced = true
+[options.RENDER_GID]
+help = "Its group: getent group render | cut -d: -f3"
+type = "int"

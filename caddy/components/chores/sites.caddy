@@ -1,0 +1,25 @@
+# caddy/components/chores/sites.caddy (component chores; copied into caddy/enabled/ by ./homelab configure)
+# Chores (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+(donetick) {
+	reverse_proxy donetick:2021
+}
+
+chores.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import donetick
+}
+
+chores.{$DOMAIN}, chores.{$DOMAIN_ALIAS}, chores.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical chores
+}
+
+chores.{$DOMAIN}:8444 {
+	import headers
+	import donetick
+}
+
+chores.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://chores.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

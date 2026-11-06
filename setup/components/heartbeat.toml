@@ -1,0 +1,25 @@
+title = "Outside heartbeat"
+description = "Every 5 minutes a check from the internet's side (healthchecks.io): a mail when the machine goes quiet."
+category = "backup"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = ["heartbeat"]
+ansible = ""
+stages = ["apps:heartbeat", "files:secrets"]
+
+[options.HEARTBEAT_URL]
+help = "Ping URL of a healthchecks.io check (period 5 min, grace 15 min)"
+type = "secret"
+set_by = "apps:heartbeat"
+[options.HEARTBEAT_API_KEY_RO]
+help = "Read-only API key of that project (the home page shows its view)"
+type = "secret"
+set_by = "files:secrets"

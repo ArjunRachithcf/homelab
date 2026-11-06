@@ -1,0 +1,21 @@
+title = "Encrypted backups"
+description = "Hourly and after every change: every app's data, encrypted to a key that never lives on this machine."
+category = "backup"
+core = false
+requires = ["core"]
+suggests = ["offsite"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = ["backup", "backup-watch"]
+ansible = ""
+stages = ["hardening:backups", "apps:backup", "wizard:backups"]
+
+[options.BACKUP_AGE_RECIPIENT]
+help = "The age PUBLIC key (age1…) from age-keygen on your laptop; the private key stays there"
+type = "text"
+required = true

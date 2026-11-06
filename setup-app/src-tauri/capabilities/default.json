@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "The bundled window: events, the save dialog and the app's own commands.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:default",
+    "dialog:allow-save",
+    "allow-info", "allow-host-key", "allow-connect-local", "allow-connect-ssh", "allow-disconnect", "allow-set-sudo",
+    "allow-probe", "allow-catalogue", "allow-plan", "allow-apply", "allow-set-secret", "allow-export-answers", "allow-save-text",
+    "allow-bootstrap", "allow-start-setup", "allow-answer", "allow-stop", "allow-open-url",
+    "allow-assistant-status", "allow-assistant-settings", "allow-assistant-reset", "allow-assistant-decide", "allow-assistant-send"
+  ]
+}

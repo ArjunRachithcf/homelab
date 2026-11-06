@@ -1,0 +1,54 @@
+title = "Share links (Sharry)"
+description = "Send files to anyone with a password and an expiry of at most 30 days; recipients need no account."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["sharry", "sharry-db"]
+public_names = ["share"]
+peer_names = ["share"]
+blueprints = ["share.yaml"]
+jobs = []
+ansible = ""
+stages = ["files:secrets", "files:authentik", "files:start", "files:zones", "files:proxy", "files:sharry"]
+
+
+[[tiles]]
+order = 90
+id = "share"
+name = "Share"
+desc = "Send a file with a link that expires"
+url = "https://share.%s/"
+icon = "/apps/sharry.svg"
+status = "share"
+group = "docs"
+audience = "family"
+
+[options.SHARRY_TAG]
+help = "Sharry version"
+type = "tag"
+default = "v1.17.0"
+advanced = true
+[options.SHARRY_PG_TAG]
+help = "Its Postgres"
+type = "tag"
+default = "18-alpine"
+advanced = true
+[options.SHARRY_DB_PASSWORD]
+help = "Sharry's database password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc A-Za-z0-9"
+[options.SHARRY_SERVER_SECRET]
+help = "Signs Sharry's session cookies"
+type = "secret"
+required = true
+generate = "echo \"b64:$(openssl rand -base64 32 | tr -d '\\n')\""
+[options.SHARRY_OIDC_CLIENT_SECRET]
+help = "Sharry's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

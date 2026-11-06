@@ -1,0 +1,24 @@
+# Weekly: the actions the workflows pin by commit, and the two apps' crates (one pull request each)
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: cargo
+    directory: /setup-app/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      setup-app:
+        patterns: ["*"]
+  - package-ecosystem: cargo
+    directory: /family-app/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      family-app:
+        patterns: ["*"]

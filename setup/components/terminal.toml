@@ -1,0 +1,40 @@
+title = "Terminal in the browser (Termix)"
+description = "An SSH client in the browser for admins, mesh only; it still needs the SSH key and code."
+category = "access"
+core = false
+requires = ["core", "ssh-sso"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["termix"]
+public_names = []
+peer_names = ["term"]
+blueprints = ["terminal.yaml"]
+jobs = []
+ansible = ""
+stages = ["files:terminal"]
+
+
+[[tiles]]
+order = 180
+id = "term"
+name = "Terminal"
+desc = "SSH into this PC from the browser"
+url = "https://term.%s/"
+icon = "/apps/termix.svg"
+status = "term"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.TERMIX_TAG]
+help = "Termix version"
+type = "tag"
+default = "26.10.5"
+advanced = true
+[options.TERMIX_OIDC_CLIENT_SECRET]
+help = "Termix's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

@@ -1,0 +1,72 @@
+title = "Documents (Paperless-ngx)"
+description = "Scan, OCR and find every letter and bill; sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["local-ai"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["paperless", "paperless-redis", "paperless-gotenberg", "paperless-tika"]
+public_names = ["paperless"]
+peer_names = ["paperless"]
+blueprints = []
+jobs = []
+ansible = ""
+stages = ["wizard:oidc", "wizard:paperless_sso"]
+
+
+[[tiles]]
+order = 70
+id = "paperless"
+name = "Paperless"
+desc = "Scanned letters and documents"
+url = "https://paperless.%s/"
+icon = "/apps/paperless-ngx.svg"
+status = "paperless"
+group = "docs"
+audience = "paperless"
+
+[options.PAPERLESS_TAG]
+help = "Paperless-ngx version"
+type = "tag"
+default = "3.3.0"
+advanced = true
+[options.PAPERLESS_GOTENBERG_TAG]
+help = "Gotenberg version (Office files and e-mails into PDFs); keep the one Paperless' own compose file names"
+type = "tag"
+default = "8.37.0"
+advanced = true
+[options.PAPERLESS_TIKA_TAG]
+help = "Apache Tika version (the text of Office files and e-mails); keep the one Paperless' own compose file names"
+type = "tag"
+default = "3.3.1.0"
+advanced = true
+[options.PAPERLESS_SECRET_KEY]
+help = "Paperless's secret key"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n'"
+[options.PAPERLESS_ADMIN_USER]
+help = "Local break-glass admin of Paperless"
+type = "text"
+default = "admin"
+advanced = true
+[options.PAPERLESS_ADMIN_PASSWORD]
+help = "Its password"
+type = "secret"
+required = true
+generate = "openssl rand -base64 24 | tr -d '\\n/+='"
+[options.PAPERLESS_OIDC_JSON]
+help = "Paperless's Authentik client (written by the wizard)"
+type = "secret"
+set_by = "wizard:oidc"
+[options.PAPERLESS_SSO_ONLY]
+help = "Only Authentik sign-in (after linking your account)"
+type = "bool"
+default = "false"
+set_by = "wizard:paperless_sso"
+[options.OCR_LANGUAGES]
+help = "OCR languages, Tesseract codes joined with + (deu, fra, eng, ita, spa, …)"
+type = "text"
+default = "deu+fra+eng"

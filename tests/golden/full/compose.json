@@ -1,0 +1,2382 @@
+{
+  "name": "homelab",
+  "networks": {
+    "internal": {
+      "ipam": {
+        "config": [
+          {
+            "ip_range": "172.21.0.0/24",
+            "subnet": "172.21.0.0/16"
+          }
+        ]
+      },
+      "name": "homelab_internal"
+    },
+    "karakeep": {
+      "name": "homelab_karakeep"
+    },
+    "paperless-convert": {
+      "internal": true,
+      "name": "homelab_paperless-convert"
+    }
+  },
+  "services": {
+    "actual": {
+      "environment": {
+        "ACTUAL_LOGIN_METHOD": "openid",
+        "ACTUAL_OPENID_CLIENT_ID": "actual",
+        "ACTUAL_OPENID_CLIENT_SECRET": "golden-actual-oidc-client-secret",
+        "ACTUAL_OPENID_DISCOVERY_URL": "https://auth.example.com:9443/application/o/actual/.well-known/openid-configuration",
+        "ACTUAL_OPENID_ENFORCE": "true",
+        "ACTUAL_OPENID_SERVER_HOSTNAME": "https://budget.example.com:9443",
+        "ACTUAL_TOKEN_EXPIRATION": "604800"
+      },
+      "image": "docker.io/actualbudget/actual-server:26.10.0",
+      "networks": {},
+      "profiles": [
+        "budget"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "actual-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "adguard": {
+      "cap_add": [
+        "NET_BIND_SERVICE"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "image": "docker.io/adguard/adguardhome:v0.107.79",
+      "networks": {},
+      "ports": [
+        {
+          "host_ip": "100.64.0.10",
+          "mode": "ingress",
+          "protocol": "udp",
+          "published": "53",
+          "target": 53
+        },
+        {
+          "host_ip": "100.64.0.10",
+          "mode": "ingress",
+          "protocol": "tcp",
+          "published": "53",
+          "target": 53
+        }
+      ],
+      "profiles": [
+        "adblock"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "adguard-work",
+          "target": "/opt/adguardhome/work",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "source": "adguard-conf",
+          "target": "/opt/adguardhome/conf",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        }
+      ]
+    },
+    "audiobookshelf": {
+      "environment": {
+        "TZ": "Europe/Zurich"
+      },
+      "image": "ghcr.io/advplyr/audiobookshelf:2.37.2",
+      "networks": {},
+      "profiles": [
+        "audiobooks"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "abs-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "abs-metadata",
+          "target": "/metadata",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "abs-podcasts",
+          "target": "/podcasts",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "/srv/media/audiobooks",
+          "target": "/audiobooks",
+          "type": "bind"
+        }
+      ]
+    },
+    "authentik-db": {
+      "environment": {
+        "POSTGRES_DB": "authentik",
+        "POSTGRES_PASSWORD": "golden-ak-pg-pass",
+        "POSTGRES_USER": "authentik"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 5,
+        "start_period": "20s",
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -d authentik -U authentik"
+        ],
+        "timeout": "5s"
+      },
+      "image": "docker.io/library/postgres:16-alpine",
+      "networks": {},
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "authentik-db",
+          "target": "/var/lib/postgresql/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "authentik-ldap": {
+      "depends_on": {
+        "authentik-server": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "AUTHENTIK_HOST": "http://authentik-server:9000",
+        "AUTHENTIK_INSECURE": "false",
+        "AUTHENTIK_TOKEN": "golden-ak-ldap-outpost-token"
+      },
+      "image": "ghcr.io/goauthentik/ldap:2026.8.3",
+      "networks": {},
+      "profiles": [
+        "jellyfin"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "authentik-ldap-ssh": {
+      "depends_on": {
+        "authentik-server": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "AUTHENTIK_HOST": "http://authentik-server:9000",
+        "AUTHENTIK_INSECURE": "false",
+        "AUTHENTIK_TOKEN": "golden-ak-ldap-ssh-outpost-token"
+      },
+      "image": "ghcr.io/goauthentik/ldap:2026.8.3",
+      "networks": {
+        "internal": {
+          "ipv4_address": "172.21.1.10"
+        }
+      },
+      "profiles": [
+        "ssh-sso"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "authentik-server": {
+      "command": [
+        "server"
+      ],
+      "depends_on": {
+        "authentik-db": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "environment": {
+        "AUTHENTIK_EMAIL__FROM": "Example <noreply@example.org>",
+        "AUTHENTIK_EMAIL__HOST": "smtp.protonmail.ch",
+        "AUTHENTIK_EMAIL__PASSWORD": "golden-authentik-email--password",
+        "AUTHENTIK_EMAIL__PORT": "587",
+        "AUTHENTIK_EMAIL__USERNAME": "noreply@example.org",
+        "AUTHENTIK_EMAIL__USE_SSL": "false",
+        "AUTHENTIK_EMAIL__USE_TLS": "true",
+        "AUTHENTIK_ERROR_REPORTING__ENABLED": "false",
+        "AUTHENTIK_POSTGRESQL__HOST": "authentik-db",
+        "AUTHENTIK_POSTGRESQL__NAME": "authentik",
+        "AUTHENTIK_POSTGRESQL__PASSWORD": "golden-ak-pg-pass",
+        "AUTHENTIK_POSTGRESQL__USER": "authentik",
+        "AUTHENTIK_SECRET_KEY": "golden-ak-secret-key"
+      },
+      "image": "ghcr.io/goauthentik/server:2026.8.3",
+      "networks": {},
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "authentik-media",
+          "target": "/media",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/authentik/templates",
+          "target": "/templates",
+          "type": "bind"
+        }
+      ]
+    },
+    "authentik-worker": {
+      "command": [
+        "worker"
+      ],
+      "depends_on": {
+        "authentik-db": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "environment": {
+        "AUTHENTIK_EMAIL__FROM": "Example <noreply@example.org>",
+        "AUTHENTIK_EMAIL__HOST": "smtp.protonmail.ch",
+        "AUTHENTIK_EMAIL__PASSWORD": "golden-authentik-email--password",
+        "AUTHENTIK_EMAIL__PORT": "587",
+        "AUTHENTIK_EMAIL__USERNAME": "noreply@example.org",
+        "AUTHENTIK_EMAIL__USE_SSL": "false",
+        "AUTHENTIK_EMAIL__USE_TLS": "true",
+        "AUTHENTIK_ERROR_REPORTING__ENABLED": "false",
+        "AUTHENTIK_POSTGRESQL__HOST": "authentik-db",
+        "AUTHENTIK_POSTGRESQL__NAME": "authentik",
+        "AUTHENTIK_POSTGRESQL__PASSWORD": "golden-ak-pg-pass",
+        "AUTHENTIK_POSTGRESQL__USER": "authentik",
+        "AUTHENTIK_SECRET_KEY": "golden-ak-secret-key"
+      },
+      "image": "ghcr.io/goauthentik/server:2026.8.3",
+      "networks": {},
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "authentik-media",
+          "target": "/media",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/authentik/templates",
+          "target": "/templates",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/authentik/mail-logo.png",
+          "target": "/web/dist/assets/icons/icon_left_brand.png",
+          "type": "bind"
+        }
+      ]
+    },
+    "bentopdf": {
+      "image": "ghcr.io/alam00000/bentopdf-simple:2.8.10",
+      "networks": {},
+      "profiles": [
+        "pdf"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "caddy": {
+      "build": {
+        "context": "$REPO/caddy",
+        "dockerfile": "Dockerfile"
+      },
+      "cap_add": [
+        "NET_BIND_SERVICE"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "depends_on": {
+        "authentik-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "dawarich": {
+          "condition": "service_started",
+          "required": false
+        },
+        "donetick": {
+          "condition": "service_started",
+          "required": false
+        },
+        "freshrss": {
+          "condition": "service_started",
+          "required": false
+        },
+        "gramps": {
+          "condition": "service_started",
+          "required": false
+        },
+        "immich-server": {
+          "condition": "service_started",
+          "required": false
+        },
+        "jellyfin": {
+          "condition": "service_started",
+          "required": false
+        },
+        "kavita": {
+          "condition": "service_started",
+          "required": false
+        },
+        "memos": {
+          "condition": "service_started",
+          "required": false
+        },
+        "n8n": {
+          "condition": "service_started",
+          "required": false
+        },
+        "navidrome": {
+          "condition": "service_started",
+          "required": false
+        },
+        "ntfy": {
+          "condition": "service_started",
+          "required": false
+        },
+        "opencloud": {
+          "condition": "service_started",
+          "required": false
+        },
+        "ops": {
+          "condition": "service_started",
+          "required": true
+        },
+        "outline": {
+          "condition": "service_started",
+          "required": false
+        },
+        "paperless": {
+          "condition": "service_started",
+          "required": false
+        },
+        "romm": {
+          "condition": "service_started",
+          "required": false
+        },
+        "sharry": {
+          "condition": "service_started",
+          "required": false
+        },
+        "termix": {
+          "condition": "service_started",
+          "required": false
+        }
+      },
+      "environment": {
+        "ADMIN_NAME": "Alex Example",
+        "BRAND": "Example",
+        "BRAND_SLUG": "example",
+        "DOMAIN": "example.com",
+        "DOMAIN_ALIAS": "example.org",
+        "INFOMANIAK_API_TOKEN": "CHANGE_ME",
+        "PUBLIC_PORT": "9443"
+      },
+      "extra_hosts": [
+        "host.docker.internal=host-gateway"
+      ],
+      "image": "homelab-caddy:2.11.7-infomaniak",
+      "networks": {
+        "internal": {
+          "aliases": [
+            "auth.example.com"
+          ],
+          "ipv4_address": "172.21.1.11"
+        }
+      },
+      "ports": [
+        {
+          "host_ip": "100.64.0.10",
+          "mode": "ingress",
+          "protocol": "tcp",
+          "published": "80",
+          "target": 80
+        },
+        {
+          "host_ip": "100.64.0.10",
+          "mode": "ingress",
+          "protocol": "tcp",
+          "published": "443",
+          "target": 443
+        },
+        {
+          "host_ip": "100.64.0.10",
+          "mode": "ingress",
+          "protocol": "tcp",
+          "published": "8444",
+          "target": 8444
+        },
+        {
+          "host_ip": "100.64.0.10",
+          "mode": "ingress",
+          "protocol": "tcp",
+          "published": "9443",
+          "target": 9443
+        }
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/Caddyfile",
+          "target": "/etc/caddy/Caddyfile",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/caddy/enabled",
+          "target": "/etc/caddy/enabled",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/site",
+          "target": "/srv/site",
+          "type": "bind"
+        },
+        {
+          "source": "caddy-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "caddy-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "dawarich": {
+      "command": [
+        "bin/rails",
+        "server",
+        "-p",
+        "3000",
+        "-b",
+        "::"
+      ],
+      "depends_on": {
+        "dawarich-db": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "dawarich-redis": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "entrypoint": [
+        "web-entrypoint.sh"
+      ],
+      "environment": {
+        "ALLOW_EMAIL_PASSWORD_LOGIN": "false",
+        "ALLOW_EMAIL_PASSWORD_REGISTRATION": "false",
+        "APPLICATION_HOSTS": "places.example.com",
+        "APPLICATION_PROTOCOL": "https",
+        "BACKGROUND_PROCESSING_CONCURRENCY": "2",
+        "DATABASE_HOST": "dawarich-db",
+        "DATABASE_NAME": "dawarich",
+        "DATABASE_PASSWORD": "golden-dawarich-db-password",
+        "DATABASE_PORT": "5432",
+        "DATABASE_USERNAME": "dawarich",
+        "DOMAIN": "places.example.com:9443",
+        "OIDC_AUTO_REGISTER": "true",
+        "OIDC_CLIENT_ID": "dawarich",
+        "OIDC_CLIENT_SECRET": "golden-dawarich-oidc-client-secret",
+        "OIDC_ISSUER": "https://auth.example.com:9443/application/o/dawarich/",
+        "OIDC_PKCE_ENABLED": "true",
+        "OIDC_PROVIDER_NAME": "Example",
+        "OIDC_REDIRECT_URI": "https://places.example.com:9443/users/auth/openid_connect/callback",
+        "PROMETHEUS_EXPORTER_ENABLED": "false",
+        "RAILS_ENV": "production",
+        "REDIS_URL": "redis://dawarich-redis:6379",
+        "SECRET_KEY_BASE": "golden-dawarich-secret-key-base",
+        "SELF_HOSTED": "true",
+        "SIDEKIQ_EMBEDDED": "true",
+        "STORE_GEODATA": "false",
+        "TIME_ZONE": "Europe/Zurich",
+        "WEB_CONCURRENCY": "0"
+      },
+      "image": "docker.io/freikin/dawarich:1.17.0",
+      "networks": {},
+      "profiles": [
+        "places"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "stop_grace_period": "1m0s",
+      "tmpfs": [
+        "/tmp",
+        "/var/app/tmp:uid=1000,gid=1000"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "dawarich-public",
+          "target": "/var/app/public",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "dawarich-storage",
+          "target": "/var/app/storage",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "dawarich-watched",
+          "target": "/var/app/tmp/imports/watched",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "dawarich-db": {
+      "environment": {
+        "POSTGRES_DB": "dawarich",
+        "POSTGRES_PASSWORD": "golden-dawarich-db-password",
+        "POSTGRES_USER": "dawarich"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 5,
+        "start_period": "20s",
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -d dawarich -U dawarich"
+        ],
+        "timeout": "5s"
+      },
+      "image": "docker.io/postgis/postgis:17-3.5-alpine",
+      "networks": {},
+      "profiles": [
+        "places"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "shm_size": "1073741824",
+      "volumes": [
+        {
+          "source": "dawarich-db",
+          "target": "/var/lib/postgresql/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "dawarich-redis": {
+      "image": "docker.io/valkey/valkey:9.0-alpine",
+      "networks": {},
+      "profiles": [
+        "places"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "donetick": {
+      "environment": {
+        "DT_DISABLE_PASSWORD_AUTH": "true",
+        "DT_ENV": "selfhosted",
+        "DT_IS_USER_CREATION_DISABLED": "true",
+        "DT_JWT_SECRET": "golden-donetick-jwt-secret",
+        "DT_OAUTH2_ADMIN_GROUPS": "authentik Admins",
+        "DT_OAUTH2_AUTH_URL": "https://auth.example.com:9443/application/o/authorize/",
+        "DT_OAUTH2_CLIENT_ID": "donetick",
+        "DT_OAUTH2_CLIENT_SECRET": "golden-donetick-oidc-client-secret",
+        "DT_OAUTH2_NAME": "Example",
+        "DT_OAUTH2_PKCE": "true",
+        "DT_OAUTH2_REDIRECT_URL": "https://chores.example.com:9443/auth/oauth2",
+        "DT_OAUTH2_SCOPES": "openid,profile,email",
+        "DT_OAUTH2_TOKEN_URL": "https://auth.example.com:9443/application/o/token/",
+        "DT_OAUTH2_USER_INFO_URL": "https://auth.example.com:9443/application/o/userinfo/",
+        "DT_REALTIME_ALLOWED_ORIGINS": "https://chores.example.com:9443",
+        "DT_SERVER_CORS_ALLOW_ORIGINS": "https://chores.example.com:9443,capacitor://localhost,https://localhost,http://localhost",
+        "DT_SERVER_PUBLIC_HOST": "https://chores.example.com:9443",
+        "DT_SERVER_READ_TIMEOUT": "10s",
+        "DT_SERVER_SERVE_FRONTEND": "true",
+        "DT_SERVER_SERVE_SWAGGER": "false",
+        "DT_SERVER_WRITE_TIMEOUT": "10s",
+        "DT_SINGLE_CIRCLE_INSTANCE": "true",
+        "DT_SQLITE_PATH": "/data/donetick.db"
+      },
+      "image": "docker.io/donetick/donetick:v0.1.83",
+      "networks": {},
+      "profiles": [
+        "chores"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "donetick-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "freshrss": {
+      "environment": {
+        "CRON_MIN": "7,37",
+        "ENABLE_ACCESS_LOG": "0",
+        "FRESHRSS_INSTALL": "--auth-type http_auth\n--default-user Alex\n--base-url https://news.example.com:9443\n--api-enabled\n--disable-update\n--language en",
+        "FRESHRSS_USER": "--user Alex\n--language en",
+        "OIDC_CLIENT_CRYPTO_KEY": "golden-freshrss-oidc-crypto-key",
+        "OIDC_CLIENT_ID": "freshrss",
+        "OIDC_CLIENT_SECRET": "golden-freshrss-oidc-client-secret",
+        "OIDC_ENABLED": "1",
+        "OIDC_PROVIDER_METADATA_URL": "https://auth.example.com:9443/application/o/freshrss/.well-known/openid-configuration",
+        "OIDC_REMOTE_USER_CLAIM": "preferred_username",
+        "OIDC_SCOPES": "openid email profile",
+        "OIDC_SESSION_INACTIVITY_TIMEOUT": "86400",
+        "OIDC_SESSION_MAX_DURATION": "2592000",
+        "OIDC_X_FORWARDED_HEADERS": "X-Forwarded-Host X-Forwarded-Port X-Forwarded-Proto",
+        "TRUSTED_PROXY": "172.21.1.11/32",
+        "TZ": "Europe/Zurich"
+      },
+      "image": "docker.io/freshrss/freshrss:1.30.4",
+      "networks": {},
+      "profiles": [
+        "news"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "freshrss-data",
+          "target": "/var/www/FreshRSS/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "gramps": {
+      "depends_on": {
+        "gramps-redis": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "GRAMPSWEB_BASE_URL": "https://tree.example.com:9443",
+        "GRAMPSWEB_CELERY_CONFIG__broker_url": "redis://gramps-redis:6379/0",
+        "GRAMPSWEB_CELERY_CONFIG__result_backend": "redis://gramps-redis:6379/0",
+        "GRAMPSWEB_DISABLE_TELEMETRY": "true",
+        "GRAMPSWEB_OIDC_AUTO_REDIRECT": "true",
+        "GRAMPSWEB_OIDC_CLIENT_ID": "gramps",
+        "GRAMPSWEB_OIDC_CLIENT_SECRET": "golden-gramps-oidc-client-secret",
+        "GRAMPSWEB_OIDC_DISABLE_LOCAL_AUTH": "true",
+        "GRAMPSWEB_OIDC_ENABLED": "true",
+        "GRAMPSWEB_OIDC_GROUP_ADMIN": "authentik Admins",
+        "GRAMPSWEB_OIDC_GROUP_EDITOR": "family",
+        "GRAMPSWEB_OIDC_ISSUER": "https://auth.example.com:9443/application/o/gramps/",
+        "GRAMPSWEB_OIDC_NAME": "Example",
+        "GRAMPSWEB_OIDC_OPENID_CONFIG_URL": "https://auth.example.com:9443/application/o/gramps/.well-known/openid-configuration",
+        "GRAMPSWEB_OIDC_ROLE_CLAIM": "groups",
+        "GRAMPSWEB_RATELIMIT_STORAGE_URI": "redis://gramps-redis:6379/1",
+        "GRAMPSWEB_REGISTRATION_DISABLED": "true",
+        "GRAMPSWEB_SECRET_KEY": "golden-gramps-secret-key",
+        "GRAMPSWEB_TREE": "Example",
+        "GUNICORN_NUM_WORKERS": "2"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 3,
+        "start_period": "2m0s",
+        "test": [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/ready', timeout=5)"
+        ],
+        "timeout": "10s"
+      },
+      "image": "ghcr.io/gramps-project/grampsweb:26.10.2",
+      "networks": {},
+      "profiles": [
+        "family-tree"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp",
+        "/root/.gunicorn"
+      ],
+      "volumes": [
+        {
+          "source": "gramps-users",
+          "target": "/app/users",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-index",
+          "target": "/app/indexdir",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-thumbs",
+          "target": "/app/thumbnail_cache",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-cache",
+          "target": "/app/cache",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-tree",
+          "target": "/root/.gramps/grampsdb",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-media",
+          "target": "/app/media",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "gramps-celery": {
+      "command": [
+        "celery",
+        "-A",
+        "gramps_webapi.celery",
+        "worker",
+        "--loglevel=WARNING",
+        "--concurrency=2"
+      ],
+      "depends_on": {
+        "gramps": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "gramps-redis": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "GRAMPSWEB_BASE_URL": "https://tree.example.com:9443",
+        "GRAMPSWEB_CELERY_CONFIG__broker_url": "redis://gramps-redis:6379/0",
+        "GRAMPSWEB_CELERY_CONFIG__result_backend": "redis://gramps-redis:6379/0",
+        "GRAMPSWEB_DISABLE_TELEMETRY": "true",
+        "GRAMPSWEB_OIDC_AUTO_REDIRECT": "true",
+        "GRAMPSWEB_OIDC_CLIENT_ID": "gramps",
+        "GRAMPSWEB_OIDC_CLIENT_SECRET": "golden-gramps-oidc-client-secret",
+        "GRAMPSWEB_OIDC_DISABLE_LOCAL_AUTH": "true",
+        "GRAMPSWEB_OIDC_ENABLED": "true",
+        "GRAMPSWEB_OIDC_GROUP_ADMIN": "authentik Admins",
+        "GRAMPSWEB_OIDC_GROUP_EDITOR": "family",
+        "GRAMPSWEB_OIDC_ISSUER": "https://auth.example.com:9443/application/o/gramps/",
+        "GRAMPSWEB_OIDC_NAME": "Example",
+        "GRAMPSWEB_OIDC_OPENID_CONFIG_URL": "https://auth.example.com:9443/application/o/gramps/.well-known/openid-configuration",
+        "GRAMPSWEB_OIDC_ROLE_CLAIM": "groups",
+        "GRAMPSWEB_RATELIMIT_STORAGE_URI": "redis://gramps-redis:6379/1",
+        "GRAMPSWEB_REGISTRATION_DISABLED": "true",
+        "GRAMPSWEB_SECRET_KEY": "golden-gramps-secret-key",
+        "GRAMPSWEB_TREE": "Example",
+        "GUNICORN_NUM_WORKERS": "2"
+      },
+      "healthcheck": {
+        "disable": true
+      },
+      "image": "ghcr.io/gramps-project/grampsweb:26.10.2",
+      "networks": {},
+      "profiles": [
+        "family-tree"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp",
+        "/root/.gunicorn"
+      ],
+      "volumes": [
+        {
+          "source": "gramps-users",
+          "target": "/app/users",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-index",
+          "target": "/app/indexdir",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-thumbs",
+          "target": "/app/thumbnail_cache",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-cache",
+          "target": "/app/cache",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-tree",
+          "target": "/root/.gramps/grampsdb",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "gramps-media",
+          "target": "/app/media",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "gramps-redis": {
+      "image": "docker.io/valkey/valkey:9.0-alpine",
+      "networks": {},
+      "profiles": [
+        "family-tree"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "homeassistant": {
+      "depends_on": {
+        "matter-server": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "TZ": "Europe/Zurich"
+      },
+      "image": "ghcr.io/home-assistant/home-assistant:2026.10.4",
+      "network_mode": "host",
+      "profiles": [
+        "home-assistant"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "homeassistant-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {},
+          "read_only": true,
+          "source": "/etc/localtime",
+          "target": "/etc/localtime",
+          "type": "bind"
+        }
+      ]
+    },
+    "homebox": {
+      "depends_on": {
+        "caddy": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "HBOX_AUTH_API_KEY_PEPPER": "golden-homebox-api-key-pepper",
+        "HBOX_OIDC_ALLOWED_GROUPS": "family",
+        "HBOX_OIDC_AUTO_REDIRECT": "true",
+        "HBOX_OIDC_BUTTON_TEXT": "Sign in",
+        "HBOX_OIDC_CLIENT_ID": "homebox",
+        "HBOX_OIDC_CLIENT_SECRET": "golden-homebox-oidc-client-secret",
+        "HBOX_OIDC_ENABLED": "true",
+        "HBOX_OIDC_ISSUER_URL": "https://auth.example.com:9443/application/o/homebox/",
+        "HBOX_OIDC_VERIFY_EMAIL": "true",
+        "HBOX_OPTIONS_ALLOW_ANALYTICS": "false",
+        "HBOX_OPTIONS_ALLOW_LOCAL_LOGIN": "false",
+        "HBOX_OPTIONS_ALLOW_REGISTRATION": "false",
+        "HBOX_OPTIONS_GITHUB_RELEASE_CHECK": "false",
+        "HBOX_OPTIONS_HOSTNAME": "stuff.example.com:9443",
+        "HBOX_OPTIONS_TRUST_PROXY": "true"
+      },
+      "image": "ghcr.io/sysadminsmedia/homebox:0.27.1",
+      "networks": {},
+      "profiles": [
+        "things"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "homebox-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "immich-db": {
+      "environment": {
+        "POSTGRES_DB": "immich",
+        "POSTGRES_INITDB_ARGS": "--data-checksums",
+        "POSTGRES_PASSWORD": "golden-immich-db-password",
+        "POSTGRES_USER": "postgres"
+      },
+      "healthcheck": {},
+      "image": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+      "networks": {},
+      "profiles": [
+        "photos"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "shm_size": "134217728",
+      "volumes": [
+        {
+          "source": "immich-db",
+          "target": "/var/lib/postgresql/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "immich-machine-learning": {
+      "environment": {
+        "TZ": "Europe/Zurich"
+      },
+      "image": "ghcr.io/immich-app/immich-machine-learning:v3.3.5",
+      "networks": {},
+      "profiles": [
+        "photos"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "immich-model-cache",
+          "target": "/cache",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "immich-redis": {
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "redis-cli ping | grep -q PONG || exit 1"
+        ]
+      },
+      "image": "docker.io/valkey/valkey:9@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d",
+      "networks": {},
+      "profiles": [
+        "photos"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "immich-server": {
+      "depends_on": {
+        "immich-db": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "immich-redis": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "devices": [
+        {
+          "permissions": "rwm",
+          "source": "/dev/dri/renderD128",
+          "target": "/dev/dri/renderD128"
+        }
+      ],
+      "environment": {
+        "DB_DATABASE_NAME": "immich",
+        "DB_HOSTNAME": "immich-db",
+        "DB_PASSWORD": "golden-immich-db-password",
+        "DB_USERNAME": "postgres",
+        "IMMICH_TRUSTED_PROXIES": "172.21.0.0/16",
+        "REDIS_HOSTNAME": "immich-redis",
+        "TZ": "Europe/Zurich"
+      },
+      "group_add": [
+        "golden-render-gid"
+      ],
+      "image": "ghcr.io/immich-app/immich-server:v3.3.5",
+      "networks": {},
+      "profiles": [
+        "photos"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "source": "/srv/photos",
+          "target": "/data",
+          "type": "bind"
+        },
+        {
+          "bind": {},
+          "read_only": true,
+          "source": "/etc/localtime",
+          "target": "/etc/localtime",
+          "type": "bind"
+        }
+      ]
+    },
+    "jellyfin": {
+      "devices": [
+        {
+          "permissions": "rwm",
+          "source": "/dev/dri/renderD128",
+          "target": "/dev/dri/renderD128"
+        }
+      ],
+      "environment": {
+        "JELLYFIN_PublishedServerUrl": "https://jellyfin.example.com:9443"
+      },
+      "group_add": [
+        "golden-render-gid"
+      ],
+      "image": "docker.io/jellyfin/jellyfin:12.2",
+      "networks": {},
+      "profiles": [
+        "jellyfin"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "jellyfin-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "jellyfin-cache",
+          "target": "/cache",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "/srv/media",
+          "target": "/media",
+          "type": "bind"
+        }
+      ]
+    },
+    "karakeep": {
+      "depends_on": {
+        "karakeep-chrome": {
+          "condition": "service_started",
+          "required": true
+        },
+        "karakeep-meili": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "BROWSER_WEB_URL": "http://karakeep-chrome:9222",
+        "CRAWLER_BROWSER_TIMEZONE": "Europe/Zurich",
+        "DATA_DIR": "/data",
+        "DISABLE_NEW_RELEASE_CHECK": "true",
+        "DISABLE_PASSWORD_AUTH": "true",
+        "INFERENCE_CONTEXT_LENGTH": "8192",
+        "INFERENCE_IMAGE_MODEL": "gemma4:12b",
+        "INFERENCE_JOB_TIMEOUT_SEC": "300",
+        "INFERENCE_TEXT_MODEL": "gemma4:12b",
+        "MEILI_ADDR": "http://karakeep-meili:7700",
+        "MEILI_MASTER_KEY": "golden-karakeep-meili-key",
+        "NEXTAUTH_SECRET": "golden-karakeep-nextauth-secret",
+        "NEXTAUTH_URL": "https://links.example.com:9443",
+        "OAUTH_AUTO_REDIRECT": "true",
+        "OAUTH_CLIENT_ID": "karakeep",
+        "OAUTH_CLIENT_SECRET": "golden-karakeep-oidc-client-secret",
+        "OAUTH_PROVIDER_NAME": "Example account",
+        "OAUTH_WELLKNOWN_URL": "https://auth.example.com:9443/application/o/karakeep/.well-known/openid-configuration",
+        "OLLAMA_BASE_URL": "http://ollama:11434",
+        "OLLAMA_KEEP_ALIVE": "10m"
+      },
+      "image": "ghcr.io/karakeep-app/karakeep:0.34.1",
+      "networks": {},
+      "profiles": [
+        "bookmarks"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "karakeep-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "karakeep-chrome": {
+      "command": [
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--hide-scrollbars",
+        "--disable-blink-features=AutomationControlled",
+        "--window-size=1440,900"
+      ],
+      "image": "ghcr.io/karakeep-app/karakeep-chrome:156.0.8078.47-r1",
+      "init": true,
+      "networks": {},
+      "profiles": [
+        "bookmarks"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "karakeep-meili": {
+      "environment": {
+        "MEILI_MASTER_KEY": "golden-karakeep-meili-key",
+        "MEILI_NO_ANALYTICS": "true"
+      },
+      "image": "docker.io/getmeili/meilisearch:v1.41.0",
+      "networks": {},
+      "profiles": [
+        "bookmarks"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "karakeep-meili",
+          "target": "/meili_data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "kavita": {
+      "environment": {
+        "TZ": "Europe/Zurich"
+      },
+      "image": "docker.io/jvmilazz0/kavita:0.9.1",
+      "networks": {},
+      "profiles": [
+        "reading"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "kavita-config",
+          "target": "/kavita/config",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "/srv/media/Books",
+          "target": "/books",
+          "type": "bind"
+        }
+      ]
+    },
+    "matter-server": {
+      "environment": {
+        "LISTEN_ADDRESS": "127.0.0.1"
+      },
+      "image": "ghcr.io/matter-js/matterjs-server:1.5.5",
+      "network_mode": "host",
+      "profiles": [
+        "home-assistant"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "matter-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "memos": {
+      "command": [
+        "cp /config/*.json /etc/secrets/\nsed -e \"s|__SECRET__|$$MEMOS_OIDC_CLIENT_SECRET|\" -e \"s|__AUTH__|$$MEMOS_AUTH|g\" -e \"s|__BRAND__|$$MEMOS_BRAND|\" \\\n  /config/idp-authentik.json.in > /etc/secrets/memos-idp-authentik.json\nchmod 644 /etc/secrets/*.json\nexec /usr/local/memos/entrypoint.sh /usr/local/memos/memos\n"
+      ],
+      "entrypoint": [
+        "/bin/sh",
+        "-c"
+      ],
+      "environment": {
+        "MEMOS_AUTH": "https://auth.example.com:9443",
+        "MEMOS_BRAND": "Example",
+        "MEMOS_INSTANCE_URL": "https://notes.example.com:9443",
+        "MEMOS_OIDC_CLIENT_SECRET": "golden-memos-oidc-client-secret",
+        "MEMOS_SSO_ADMIN_GROUP": "authentik Admins",
+        "MEMOS_TRUSTED_PROXIES": "172.21.1.11"
+      },
+      "image": "homelab-memos:0.31.0-sso",
+      "networks": {},
+      "profiles": [
+        "notes"
+      ],
+      "pull_policy": "never",
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/etc/secrets"
+      ],
+      "volumes": [
+        {
+          "source": "memos-data",
+          "target": "/var/opt/memos",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/memos",
+          "target": "/config",
+          "type": "bind"
+        }
+      ]
+    },
+    "n8n": {
+      "environment": {
+        "EXECUTIONS_DATA_MAX_AGE": "168",
+        "EXECUTIONS_DATA_PRUNE": "true",
+        "GENERIC_TIMEZONE": "Europe/Zurich",
+        "N8N_DIAGNOSTICS_ENABLED": "false",
+        "N8N_EDITOR_BASE_URL": "https://n8n.example.com:9443/",
+        "N8N_ENCRYPTION_KEY": "golden-n8n-encryption-key",
+        "N8N_HOST": "n8n.example.com",
+        "N8N_LISTEN_ADDRESS": "0.0.0.0",
+        "N8N_PERSONALIZATION_ENABLED": "false",
+        "N8N_PROTOCOL": "https",
+        "N8N_PROXY_HOPS": "1",
+        "N8N_TEMPLATES_ENABLED": "false",
+        "N8N_VERSION_NOTIFICATIONS_ENABLED": "false",
+        "TZ": "Europe/Zurich",
+        "WEBHOOK_URL": "https://n8n.example.com:9443/"
+      },
+      "image": "docker.io/n8nio/n8n:2.45.6",
+      "networks": {},
+      "profiles": [
+        "n8n"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "n8n-data",
+          "target": "/home/node/.n8n",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "navidrome": {
+      "environment": {
+        "ND_AUTHREQUESTLIMIT": "5",
+        "ND_AUTHWINDOWLENGTH": "60s",
+        "ND_DATAFOLDER": "/data",
+        "ND_ENABLEINSIGHTSCOLLECTOR": "false",
+        "ND_ENABLESHARING": "false",
+        "ND_EXTAUTH_LOGOUTURL": "https://music.example.com:9443/outpost.goauthentik.io/sign_out",
+        "ND_EXTAUTH_TRUSTEDSOURCES": "172.21.1.11/32",
+        "ND_EXTAUTH_USERHEADER": "X-Authentik-Username",
+        "ND_MUSICFOLDER": "/music",
+        "ND_PASSWORDENCRYPTIONKEY": "golden-navidrome-password-key",
+        "ND_SCANNER_SCHEDULE": "@every 24h"
+      },
+      "image": "docker.io/deluan/navidrome:0.64.2",
+      "networks": {},
+      "profiles": [
+        "music"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "navidrome-data",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "/srv/media/Music",
+          "target": "/music",
+          "type": "bind"
+        }
+      ]
+    },
+    "ntfy": {
+      "command": [
+        "serve"
+      ],
+      "environment": {
+        "NTFY_AUTH_DEFAULT_ACCESS": "deny-all",
+        "NTFY_AUTH_FILE": "/var/lib/ntfy/user.db",
+        "NTFY_BASE_URL": "https://ntfy.example.com:9443",
+        "NTFY_BEHIND_PROXY": "true",
+        "NTFY_CACHE_DURATION": "72h",
+        "NTFY_CACHE_FILE": "/var/lib/ntfy/cache.db",
+        "NTFY_ENABLE_LOGIN": "true",
+        "NTFY_ENABLE_SIGNUP": "false",
+        "NTFY_LOG_LEVEL": "warn",
+        "NTFY_UPSTREAM_BASE_URL": "https://ntfy.sh",
+        "TZ": "Europe/Zurich"
+      },
+      "image": "docker.io/binwiederhier/ntfy:v2.34.0",
+      "networks": {},
+      "profiles": [
+        "ntfy"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "ntfy-data",
+          "target": "/var/lib/ntfy",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "ollama": {
+      "devices": [
+        {
+          "permissions": "rwm",
+          "source": "nvidia.com/gpu=all",
+          "target": "nvidia.com/gpu=all"
+        }
+      ],
+      "environment": {
+        "OLLAMA_KEEP_ALIVE": "10m",
+        "OLLAMA_NO_CLOUD": "true",
+        "TZ": "Europe/Zurich"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "ollama",
+          "list"
+        ]
+      },
+      "image": "docker.io/ollama/ollama:0.40.7",
+      "networks": {},
+      "profiles": [
+        "local-ai"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "ollama-models",
+          "target": "/root/.ollama",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "opencloud": {
+      "command": [
+        "-c",
+        "opencloud init --insecure no || true; opencloud server"
+      ],
+      "entrypoint": [
+        "/bin/sh"
+      ],
+      "environment": {
+        "GRAPH_ASSIGN_DEFAULT_USER_ROLE": "false",
+        "GRAPH_USERNAME_MATCH": "none",
+        "IDP_DOMAIN": "auth.example.com:9443",
+        "OC_ADMIN_USER_ID": "",
+        "OC_EXCLUDE_RUN_SERVICES": "idp",
+        "OC_INSECURE": "false",
+        "OC_LOG_LEVEL": "warn",
+        "OC_OIDC_ISSUER": "https://auth.example.com:9443/",
+        "OC_SPACES_MAX_QUOTA": "100000000000",
+        "OC_URL": "https://files.example.com:9443",
+        "PROXY_AUTOPROVISION_ACCOUNTS": "true",
+        "PROXY_AUTOPROVISION_CLAIM_USERNAME": "preferred_username",
+        "PROXY_CSP_CONFIG_FILE_LOCATION": "/etc/opencloud-csp.yaml",
+        "PROXY_ENABLE_BASIC_AUTH": "false",
+        "PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD": "jwt",
+        "PROXY_OIDC_REWRITE_WELLKNOWN": "true",
+        "PROXY_ROLE_ASSIGNMENT_DRIVER": "oidc",
+        "PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM": "roles",
+        "PROXY_TLS": "false",
+        "PROXY_USER_CS3_CLAIM": "username",
+        "PROXY_USER_OIDC_CLAIM": "preferred_username",
+        "SETTINGS_SETUP_DEFAULT_ASSIGNMENTS": "false"
+      },
+      "image": "docker.io/opencloudeu/opencloud:7.2.4",
+      "networks": {},
+      "profiles": [
+        "files"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "opencloud-config",
+          "target": "/etc/opencloud",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/opencloud/csp.yaml",
+          "target": "/etc/opencloud-csp.yaml",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "source": "/srv/files",
+          "target": "/var/lib/opencloud",
+          "type": "bind"
+        }
+      ]
+    },
+    "ops": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "python3",
+        "-I",
+        "/app/server.py"
+      ],
+      "environment": {
+        "OPS_COMPONENTS": "core,mesh,public-access,paperless,local-ai,media-library,jellyfin,plex,music,photos,second-disk,backups,offsite,heartbeat,audiobooks,budget,bookmarks,pdf,reading,files,share,ssh-sso,terminal,home-assistant,adblock,chores,things,family-tree,notes,wiki,news,games,places,ntfy,n8n",
+        "OPS_ORIGINS": "https://home.example.com:9443 https://home.example.com",
+        "OPS_TRUSTED_PROXY": "172.21.1.11"
+      },
+      "image": "docker.io/library/python:3.13.9-alpine3.22",
+      "networks": {},
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/ops/server.py",
+          "target": "/app/server.py",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/ops/access.py",
+          "target": "/app/access.py",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/jobs/jobs.toml",
+          "target": "/app/jobs.toml",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/setup/components",
+          "target": "/app/components",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/ops/data",
+          "target": "/data",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "source": "$REPO/ops/requests",
+          "target": "/requests",
+          "type": "bind"
+        }
+      ]
+    },
+    "outline": {
+      "depends_on": {
+        "outline-db": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "outline-redis": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "APP_NAME": "Example",
+        "DATABASE_URL": "postgres://outline:golden-outline-db-password@outline-db:5432/outline",
+        "ENABLE_UPDATES": "false",
+        "FILE_STORAGE": "local",
+        "FILE_STORAGE_LOCAL_ROOT_DIR": "/var/lib/outline/data",
+        "OIDC_AUTH_URI": "https://auth.example.com:9443/application/o/authorize/",
+        "OIDC_CLIENT_ID": "outline",
+        "OIDC_CLIENT_SECRET": "golden-outline-oidc-client-secret",
+        "OIDC_DISPLAY_NAME": "Example",
+        "OIDC_LOGOUT_URI": "https://auth.example.com:9443/application/o/outline/end-session/",
+        "OIDC_SCOPES": "openid profile email",
+        "OIDC_TOKEN_URI": "https://auth.example.com:9443/application/o/token/",
+        "OIDC_USERINFO_URI": "https://auth.example.com:9443/application/o/userinfo/",
+        "OIDC_USERNAME_CLAIM": "preferred_username",
+        "PGSSLMODE": "disable",
+        "REDIS_URL": "redis://outline-redis:6379",
+        "SECRET_KEY": "golden-outline-secret-key",
+        "TELEMETRY": "false",
+        "URL": "https://wiki.example.com:9443",
+        "UTILS_SECRET": "golden-outline-utils-secret"
+      },
+      "image": "docker.getoutline.com/outlinewiki/outline:1.12.0",
+      "networks": {},
+      "profiles": [
+        "wiki"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "volumes": [
+        {
+          "source": "outline-data",
+          "target": "/var/lib/outline/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "outline-db": {
+      "environment": {
+        "POSTGRES_DB": "outline",
+        "POSTGRES_PASSWORD": "golden-outline-db-password",
+        "POSTGRES_USER": "outline"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 5,
+        "start_period": "20s",
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -d outline -U outline"
+        ],
+        "timeout": "5s"
+      },
+      "image": "docker.io/library/postgres:18-alpine",
+      "networks": {},
+      "profiles": [
+        "wiki"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "outline-db",
+          "target": "/var/lib/postgresql",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "outline-redis": {
+      "image": "docker.io/valkey/valkey:9.0-alpine",
+      "networks": {},
+      "profiles": [
+        "wiki"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "paperless": {
+      "depends_on": {
+        "paperless-gotenberg": {
+          "condition": "service_started",
+          "required": true
+        },
+        "paperless-redis": {
+          "condition": "service_started",
+          "required": true
+        },
+        "paperless-tika": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "environment": {
+        "PAPERLESS_ADMIN_PASSWORD": "golden-paperless-admin-password",
+        "PAPERLESS_ADMIN_USER": "admin",
+        "PAPERLESS_AI_ENABLED": "true",
+        "PAPERLESS_AI_LLM_BACKEND": "ollama",
+        "PAPERLESS_AI_LLM_EMBEDDING_BACKEND": "ollama",
+        "PAPERLESS_AI_LLM_EMBEDDING_MODEL": "bge-m3",
+        "PAPERLESS_AI_LLM_ENDPOINT": "http://ollama:11434",
+        "PAPERLESS_AI_LLM_MODEL": "gemma4:12b",
+        "PAPERLESS_AI_LLM_REQUEST_TIMEOUT": "300",
+        "PAPERLESS_APPS": "allauth.socialaccount.providers.openid_connect",
+        "PAPERLESS_CSRF_TRUSTED_ORIGINS": "https://paperless.example.com,https://paperless.example.org,https://paperless.example.com:9443,https://paperless.example.org:9443",
+        "PAPERLESS_DISABLE_REGULAR_LOGIN": "false",
+        "PAPERLESS_OCR_LANGUAGE": "deu+fra+eng",
+        "PAPERLESS_REDIRECT_LOGIN_TO_SSO": "false",
+        "PAPERLESS_REDIS": "redis://paperless-redis:6379",
+        "PAPERLESS_SECRET_KEY": "golden-paperless-secret-key",
+        "PAPERLESS_SOCIALACCOUNT_PROVIDERS": "{\"openid_connect\":{\"OAUTH_PKCE_ENABLED\":true,\"APPS\":[{\"provider_id\":\"authentik\",\"name\":\"Example account\",\"client_id\":\"CHANGE_ME\",\"secret\":\"CHANGE_ME\",\"settings\":{\"server_url\":\"http://auth.example.com/application/o/paperless/.well-known/openid-configuration\"}}]}}",
+        "PAPERLESS_SOCIAL_AUTO_SIGNUP": "true",
+        "PAPERLESS_TIKA_ENABLED": "true",
+        "PAPERLESS_TIKA_ENDPOINT": "http://paperless-tika:9998",
+        "PAPERLESS_TIKA_GOTENBERG_ENDPOINT": "http://paperless-gotenberg:3000",
+        "PAPERLESS_TIME_ZONE": "Europe/Zurich",
+        "PAPERLESS_URL": "https://paperless.example.com",
+        "USERMAP_GID": "1000",
+        "USERMAP_UID": "1000"
+      },
+      "image": "ghcr.io/paperless-ngx/paperless-ngx:3.3.0",
+      "networks": {},
+      "profiles": [
+        "paperless"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "paperless-data",
+          "target": "/usr/src/paperless/data",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "paperless-media",
+          "target": "/usr/src/paperless/media",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "source": "$REPO/consume",
+          "target": "/usr/src/paperless/consume",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "source": "$REPO/export",
+          "target": "/usr/src/paperless/export",
+          "type": "bind"
+        }
+      ]
+    },
+    "paperless-gotenberg": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "gotenberg",
+        "--chromium-disable-javascript=true",
+        "--chromium-allow-list=file:///tmp/.*",
+        "--api-timeout=300s",
+        "--api-disable-download-from=true",
+        "--webhook-disable=true",
+        "--libreoffice-deny-private-ips=true",
+        "--libreoffice-deny-public-ips=true"
+      ],
+      "healthcheck": {
+        "interval": "1m0s",
+        "start_period": "30s",
+        "test": [
+          "CMD",
+          "curl",
+          "-fsS",
+          "-o",
+          "/dev/null",
+          "http://127.0.0.1:3000/health"
+        ],
+        "timeout": "10s"
+      },
+      "image": "docker.io/gotenberg/gotenberg:8.37.0",
+      "networks": {},
+      "profiles": [
+        "paperless"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "paperless-redis": {
+      "image": "docker.io/library/redis:7-alpine",
+      "networks": {},
+      "profiles": [
+        "paperless"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "paperless-redis",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "paperless-tika": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "environment": {
+        "JAVA_TOOL_OPTIONS": "-Xmx1g"
+      },
+      "healthcheck": {
+        "interval": "1m0s",
+        "start_period": "1m0s",
+        "test": [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/9998 && printf 'GET /version HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q Tika <&3"
+        ],
+        "timeout": "10s"
+      },
+      "image": "docker.io/apache/tika:3.3.1.0",
+      "networks": {},
+      "profiles": [
+        "paperless"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ]
+    },
+    "romm": {
+      "depends_on": {
+        "romm-db": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "environment": {
+        "DB_HOST": "romm-db",
+        "DB_NAME": "romm",
+        "DB_PASSWD": "golden-romm-db-password",
+        "DB_USER": "romm",
+        "DISABLE_SETUP_WIZARD": "true",
+        "DISABLE_USERPASS_LOGIN": "true",
+        "HASHEOUS_API_ENABLED": "true",
+        "IGDB_CLIENT_ID": "",
+        "IGDB_CLIENT_SECRET": "",
+        "OIDC_AUTOLOGIN": "true",
+        "OIDC_CLAIM_ROLES": "groups",
+        "OIDC_CLIENT_ID": "romm",
+        "OIDC_CLIENT_SECRET": "golden-romm-oidc-client-secret",
+        "OIDC_ENABLED": "true",
+        "OIDC_END_SESSION_ENDPOINT": "https://auth.example.com:9443/application/o/romm/end-session/",
+        "OIDC_PROVIDER": "authentik",
+        "OIDC_REDIRECT_URI": "https://games.example.com:9443/api/oauth/openid",
+        "OIDC_ROLE_ADMIN": "authentik Admins",
+        "OIDC_ROLE_VIEWER": "family",
+        "OIDC_RP_INITIATED_LOGOUT": "true",
+        "OIDC_SERVER_APPLICATION_URL": "https://auth.example.com:9443/application/o/romm/",
+        "OIDC_USERNAME_ATTRIBUTE": "preferred_username",
+        "ROMM_AUTH_SECRET_KEY": "golden-romm-auth-secret-key",
+        "ROMM_BASE_URL": "https://games.example.com:9443",
+        "ROMM_SESSION_SECURE_COOKIE": "true",
+        "SCAN_WORKERS": "2",
+        "UPC_LOOKUP_ENABLED": "false",
+        "WEB_SERVER_CONCURRENCY": "2"
+      },
+      "image": "docker.io/rommapp/romm:5.4.1",
+      "networks": {},
+      "profiles": [
+        "games"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp",
+        "/etc/nginx/conf.d"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "romm-resources",
+          "target": "/romm/resources",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "romm-assets",
+          "target": "/romm/assets",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "romm-config",
+          "target": "/romm/config",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "romm-redis",
+          "target": "/redis-data",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "source": "/srv/media/Games",
+          "target": "/romm/library",
+          "type": "bind"
+        }
+      ]
+    },
+    "romm-db": {
+      "environment": {
+        "MARIADB_DATABASE": "romm",
+        "MARIADB_PASSWORD": "golden-romm-db-password",
+        "MARIADB_ROOT_PASSWORD": "golden-romm-db-root-password",
+        "MARIADB_USER": "romm"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 5,
+        "start_period": "30s",
+        "test": [
+          "CMD",
+          "healthcheck.sh",
+          "--connect",
+          "--innodb_initialized"
+        ],
+        "timeout": "5s"
+      },
+      "image": "docker.io/library/mariadb:11.8",
+      "networks": {},
+      "profiles": [
+        "games"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "romm-db",
+          "target": "/var/lib/mysql",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "sharry": {
+      "command": [
+        "/opt/sharry/sharry.conf"
+      ],
+      "depends_on": {
+        "sharry-db": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "environment": {
+        "BRAND_ACCOUNT": "Example account",
+        "SHARRY_AUTH": "https://auth.example.com:9443",
+        "SHARRY_DB_PASSWORD": "golden-sharry-db-password",
+        "SHARRY_OIDC_CLIENT_SECRET": "golden-sharry-oidc-client-secret",
+        "SHARRY_SERVER_SECRET": "golden-sharry-server-secret",
+        "SHARRY_URL": "https://share.example.com:9443"
+      },
+      "image": "docker.io/eikek0/sharry:v1.17.0",
+      "networks": {},
+      "profiles": [
+        "share"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/sharry/sharry.conf",
+          "target": "/opt/sharry/sharry.conf",
+          "type": "bind"
+        },
+        {
+          "source": "sharry-files",
+          "target": "/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "sharry-db": {
+      "environment": {
+        "POSTGRES_DB": "sharry",
+        "POSTGRES_PASSWORD": "golden-sharry-db-password",
+        "POSTGRES_USER": "sharry"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 5,
+        "start_period": "20s",
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -d sharry -U sharry"
+        ],
+        "timeout": "5s"
+      },
+      "image": "docker.io/library/postgres:18-alpine",
+      "networks": {},
+      "profiles": [
+        "share"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "sharry-db",
+          "target": "/var/lib/postgresql",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "termix": {
+      "environment": {
+        "ALLOW_PASSWORD_LOGIN": "false",
+        "ALLOW_PASSWORD_RESET": "false",
+        "ALLOW_REGISTRATION": "false",
+        "ENABLE_TELEMETRY": "false",
+        "EXTERNAL_ALLOW_REGISTRATION": "true",
+        "EXTERNAL_FORCE_HTTPS": "true",
+        "LOG_LEVEL": "warn",
+        "OIDC_ADMIN_GROUP": "authentik Admins",
+        "OIDC_AUTHORIZATION_URL": "https://auth.example.com:9443/application/o/authorize/",
+        "OIDC_CLIENT_ID": "termix",
+        "OIDC_CLIENT_SECRET": "golden-termix-oidc-client-secret",
+        "OIDC_ENV_OVERRIDE": "true",
+        "OIDC_GROUP_CLAIM": "groups",
+        "OIDC_ISSUER_URL": "https://auth.example.com:9443/application/o/termix/",
+        "OIDC_SCOPES": "openid email profile groups",
+        "OIDC_SILENT_LOGIN_DEFAULT": "true",
+        "OIDC_TOKEN_URL": "https://auth.example.com:9443/application/o/token/",
+        "PGID": "1000",
+        "PUID": "1000",
+        "TRUSTED_PROXIES": "172.21.1.11"
+      },
+      "image": "ghcr.io/termix-ssh/termix:26.10.5",
+      "networks": {},
+      "profiles": [
+        "terminal"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "volumes": [
+        {
+          "source": "termix-data",
+          "target": "/app/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "abs-config": {
+      "name": "homelab_abs-config"
+    },
+    "abs-metadata": {
+      "name": "homelab_abs-metadata"
+    },
+    "abs-podcasts": {
+      "name": "homelab_abs-podcasts"
+    },
+    "actual-data": {
+      "name": "homelab_actual-data"
+    },
+    "adguard-conf": {
+      "name": "homelab_adguard-conf"
+    },
+    "adguard-work": {
+      "name": "homelab_adguard-work"
+    },
+    "authentik-db": {
+      "name": "homelab_authentik-db"
+    },
+    "authentik-media": {
+      "name": "homelab_authentik-media"
+    },
+    "caddy-config": {
+      "name": "homelab_caddy-config"
+    },
+    "caddy-data": {
+      "name": "homelab_caddy-data"
+    },
+    "dawarich-db": {
+      "name": "homelab_dawarich-db"
+    },
+    "dawarich-public": {
+      "name": "homelab_dawarich-public"
+    },
+    "dawarich-storage": {
+      "name": "homelab_dawarich-storage"
+    },
+    "dawarich-watched": {
+      "name": "homelab_dawarich-watched"
+    },
+    "donetick-data": {
+      "name": "homelab_donetick-data"
+    },
+    "freshrss-data": {
+      "name": "homelab_freshrss-data"
+    },
+    "gramps-cache": {
+      "name": "homelab_gramps-cache"
+    },
+    "gramps-index": {
+      "name": "homelab_gramps-index"
+    },
+    "gramps-media": {
+      "name": "homelab_gramps-media"
+    },
+    "gramps-thumbs": {
+      "name": "homelab_gramps-thumbs"
+    },
+    "gramps-tree": {
+      "name": "homelab_gramps-tree"
+    },
+    "gramps-users": {
+      "name": "homelab_gramps-users"
+    },
+    "homeassistant-config": {
+      "name": "homelab_homeassistant-config"
+    },
+    "homebox-data": {
+      "name": "homelab_homebox-data"
+    },
+    "immich-db": {
+      "name": "homelab_immich-db"
+    },
+    "immich-model-cache": {
+      "name": "homelab_immich-model-cache"
+    },
+    "jellyfin-cache": {
+      "name": "homelab_jellyfin-cache"
+    },
+    "jellyfin-config": {
+      "name": "homelab_jellyfin-config"
+    },
+    "karakeep-data": {
+      "name": "homelab_karakeep-data"
+    },
+    "karakeep-meili": {
+      "name": "homelab_karakeep-meili"
+    },
+    "kavita-config": {
+      "name": "homelab_kavita-config"
+    },
+    "matter-data": {
+      "name": "homelab_matter-data"
+    },
+    "memos-data": {
+      "name": "homelab_memos-data"
+    },
+    "n8n-data": {
+      "name": "homelab_n8n-data"
+    },
+    "navidrome-data": {
+      "name": "homelab_navidrome-data"
+    },
+    "ntfy-data": {
+      "name": "homelab_ntfy-data"
+    },
+    "ollama-models": {
+      "name": "homelab_ollama-models"
+    },
+    "opencloud-config": {
+      "name": "homelab_opencloud-config"
+    },
+    "outline-data": {
+      "name": "homelab_outline-data"
+    },
+    "outline-db": {
+      "name": "homelab_outline-db"
+    },
+    "paperless-data": {
+      "name": "homelab_paperless-data"
+    },
+    "paperless-media": {
+      "name": "homelab_paperless-media"
+    },
+    "paperless-redis": {
+      "name": "homelab_paperless-redis"
+    },
+    "romm-assets": {
+      "name": "homelab_romm-assets"
+    },
+    "romm-config": {
+      "name": "homelab_romm-config"
+    },
+    "romm-db": {
+      "name": "homelab_romm-db"
+    },
+    "romm-redis": {
+      "name": "homelab_romm-redis"
+    },
+    "romm-resources": {
+      "name": "homelab_romm-resources"
+    },
+    "sharry-db": {
+      "name": "homelab_sharry-db"
+    },
+    "sharry-files": {
+      "name": "homelab_sharry-files"
+    },
+    "termix-data": {
+      "name": "homelab_termix-data"
+    }
+  },
+  "x-authentik-env": {
+    "AUTHENTIK_EMAIL__FROM": "Example <noreply@example.org>",
+    "AUTHENTIK_EMAIL__HOST": "smtp.protonmail.ch",
+    "AUTHENTIK_EMAIL__PASSWORD": "golden-authentik-email--password",
+    "AUTHENTIK_EMAIL__PORT": "587",
+    "AUTHENTIK_EMAIL__USERNAME": "noreply@example.org",
+    "AUTHENTIK_EMAIL__USE_SSL": "false",
+    "AUTHENTIK_EMAIL__USE_TLS": "true",
+    "AUTHENTIK_ERROR_REPORTING__ENABLED": "false",
+    "AUTHENTIK_POSTGRESQL__HOST": "authentik-db",
+    "AUTHENTIK_POSTGRESQL__NAME": "authentik",
+    "AUTHENTIK_POSTGRESQL__PASSWORD": "golden-ak-pg-pass",
+    "AUTHENTIK_POSTGRESQL__USER": "authentik",
+    "AUTHENTIK_SECRET_KEY": "golden-ak-secret-key"
+  },
+  "x-hardening": {
+    "security_opt": [
+      "no-new-privileges:true"
+    ]
+  }
+}

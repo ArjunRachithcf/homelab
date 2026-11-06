@@ -1,0 +1,45 @@
+title = "Audiobooks (Audiobookshelf)"
+description = "Audiobooks and podcasts with progress sync and phone apps."
+category = "media"
+core = false
+requires = ["core", "media-library"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["audiobookshelf"]
+public_names = ["books"]
+peer_names = ["books"]
+blueprints = ["audiobooks.yaml"]
+jobs = []
+ansible = ""
+stages = ["apps:host", "apps:authentik", "apps:start", "apps:netbird", "apps:proxy", "apps:media"]
+
+
+[[tiles]]
+order = 40
+id = "books"
+name = "Audiobooks"
+kids = "Audiobooks"
+desc = "Audiobooks and podcasts"
+url = "https://books.%s/"
+icon = "/apps/audiobookshelf.svg"
+status = "books"
+group = "watch"
+audience = "family-and-kids"
+
+[options.ABS_TAG]
+help = "Audiobookshelf version"
+type = "tag"
+default = "2.37.2"
+advanced = true
+[options.AUDIOBOOKS_DIR]
+help = "The audiobooks, inside the media folder (read-only)"
+type = "path"
+default = "/srv/media/audiobooks"
+macos_default = "~/homelab-data/media/audiobooks"
+[options.ABS_OIDC_CLIENT_SECRET]
+help = "Audiobookshelf's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

@@ -1,0 +1,220 @@
+From 98dcf2b30b67ae7499c92a2b0f752f21d3648119 Mon Sep 17 00:00:00 2001
+From: Arjun Rachith <106335968+ArjunRachithcf@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:06:15 +0200
+Subject: [PATCH] homelab: --live-photos pairing and Immich-preview thumbnails
+ on photo upload, own credentials path
+
+---
+ cli/src/commands/photos/commandPhotoUpload.ts | 110 +++++++++++++++++-
+ cli/src/credentials/constants.ts              |   3 +-
+ 2 files changed, 106 insertions(+), 7 deletions(-)
+
+diff --git a/cli/src/commands/photos/commandPhotoUpload.ts b/cli/src/commands/photos/commandPhotoUpload.ts
+index 0ca3e9a..ac0ca49 100644
+--- a/cli/src/commands/photos/commandPhotoUpload.ts
++++ b/cli/src/commands/photos/commandPhotoUpload.ts
+@@ -1,6 +1,11 @@
++import { existsSync } from 'node:fs';
++import path from 'node:path';
++
+ import {
+     Logger,
+     NodeEntity,
++    PhotoTag,
++    Thumbnail,
+     ValidationError,
+ } from '@protontech/drive-sdk';
+ import { generateAdditionalPhotoNodeMetadata } from '@protontech/drive-sdk/additionalNodeMetadata';
+@@ -18,6 +23,7 @@ import {
+     TransferConflictResolver,
+ } from '../fileSystem/transferConflictResolver';
+ import { createTransferProgress, TransferProgressInterface } from '../fileSystem/transferProgress';
++import { generateThumbnails } from '../fileSystem/generateThumbnails';
+ import { type QueueItemFile, UploadQueue } from '../fileSystem/transferQueue';
+ import { TransferSummary } from '../fileSystem/transferSummary';
+ 
+@@ -31,8 +37,39 @@ type PhotosUploadContext = {
+     uploadQueue: UploadQueue;
+     conflictResolver: TransferConflictResolver;
+     metrics?: CliMetrics;
++    livePhotos: boolean;
+ };
+ 
++// homelab: an iPhone Live Photo is IMG_1234.HEIC (or .JPG) + IMG_1234.MOV in the same folder.
++const LIVE_STILL_EXTENSIONS = ['.heic', '.jpg', '.jpeg'];
++const LIVE_VIDEO_EXTENSIONS = ['.mov'];
++
++function findSibling(localPath: string, extensions: string[]): string | undefined {
++    const dir = path.dirname(localPath);
++    const stem = path.basename(localPath, path.extname(localPath));
++    for (const ext of extensions) {
++        for (const candidate of [ext, ext.toUpperCase()]) {
++            const sibling = path.join(dir, stem + candidate);
++            if (existsSync(sibling)) {
++                return sibling;
++            }
++        }
++    }
++    return undefined;
++}
++
++// homelab: the CLI only makes thumbnails for JPEG/PNG/…, not HEIC or videos. With
++// HOMELAB_PREVIEW_DIR set, <dir>/<sha1 of the original>.jpg (Immich's preview) is used instead.
++async function previewThumbnails(sha1: string): Promise<Thumbnail[]> {
++    const dir = process.env.HOMELAB_PREVIEW_DIR;
++    const preview = dir ? path.join(dir, `${sha1.toLowerCase()}.jpg`) : '';
++    return preview && existsSync(preview) ? await generateThumbnails('image/jpeg', preview) : [];
++}
++
++function isExtension(localPath: string, extensions: string[]): boolean {
++    return extensions.includes(path.extname(localPath).toLowerCase());
++}
++
+ const PHOTO_FILE_CONFLICT_STRATEGIES = [ConflictChoice.Rename, ConflictChoice.Skip];
+ 
+ export class CommandPhotoUpload implements Command {
+@@ -49,6 +86,12 @@ export class CommandPhotoUpload implements Command {
+             allowedValues: getConflictChoicesHelp(PHOTO_FILE_CONFLICT_STRATEGIES),
+             help: 'Conflict strategy applied to duplicate photos.',
+         },
++        'live-photos': {
++            type: 'boolean',
++            short: 'l',
++            default: false,
++            help: 'Upload IMG_x.HEIC/JPG + IMG_x.MOV in one folder as one Live Photo (homelab build).',
++        },
+     };
+ 
+     async action({
+@@ -57,7 +100,7 @@ export class CommandPhotoUpload implements Command {
+         photosSdk,
+         metrics,
+         args: localSources,
+-        options: { json, 'conflict-strategy': conflictStrategy },
++        options: { json, 'conflict-strategy': conflictStrategy, 'live-photos': livePhotos },
+     }: ActionArgs) {
+         if (localSources.length === 0) {
+             throw new ValidationError('At least one local source path is required');
+@@ -91,6 +134,18 @@ export class CommandPhotoUpload implements Command {
+                 if (!isPhotoMediaType(mediaType)) {
+                     return false;
+                 }
++                if (ctx.livePhotos) {
++                    // The still uploads the pair; its video on its own is a no-op.
++                    if (isExtension(item.localPath, LIVE_VIDEO_EXTENSIONS) && findSibling(item.localPath, LIVE_STILL_EXTENSIONS)) {
++                        return false;
++                    }
++                    const video = isExtension(item.localPath, LIVE_STILL_EXTENSIONS)
++                        ? findSibling(item.localPath, LIVE_VIDEO_EXTENSIONS)
++                        : undefined;
++                    if (video) {
++                        return await this.uploadLivePhoto(ctx, item, mediaType, video);
++                    }
++                }
+                 return await this.uploadPhoto(ctx, item, mediaType);
+             },
+         });
+@@ -106,6 +161,7 @@ export class CommandPhotoUpload implements Command {
+             uploadQueue,
+             conflictResolver,
+             metrics,
++            livePhotos: Boolean(livePhotos),
+         };
+ 
+         try {
+@@ -122,14 +178,54 @@ export class CommandPhotoUpload implements Command {
+         }
+     }
+ 
++    // homelab: the still first (or the one already in the timeline), then the video linked to it.
++    // Each half is skipped on its own if Proton already has it, so a still uploaded earlier without
++    // its video gets the video attached on a later run.
++    private async uploadLivePhoto(
++        ctx: PhotosUploadContext,
++        item: QueueItemFile<{ parentNode: NodeEntity }>,
++        mediaType: string,
++        videoPath: string,
++    ): Promise<number | false> {
++        const still = await this.uploadPhotoNode(ctx, item, mediaType, { extraTags: [PhotoTag.LivePhotos] });
++        const videoItem = { ...item, localPath: videoPath, baseName: path.basename(videoPath) };
++        const videoMediaType = getLocalFileMediaType(ctx.logger, videoPath);
++        const video = await this.uploadPhotoNode(ctx, videoItem, videoMediaType, {
++            mainPhotoNodeUid: still.nodeUid,
++            skipOnDuplicate: true,
++            previewSha1: still.sha1,
++        });
++        const size = (still.size || 0) + (video.size || 0);
++        return size > 0 ? size : false;
++    }
++
+     private async uploadPhoto(
+         ctx: PhotosUploadContext,
+         item: QueueItemFile<{ parentNode: NodeEntity }>,
+         mediaType: string,
+     ): Promise<number | false> {
+-        const { file, metadata, thumbnails } = await getFileMetadata(ctx, item, mediaType, (file) =>
++        const { size } = await this.uploadPhotoNode(ctx, item, mediaType, {});
++        return size || false;
++    }
++
++    private async uploadPhotoNode(
++        ctx: PhotosUploadContext,
++        item: QueueItemFile<{ parentNode: NodeEntity }>,
++        mediaType: string,
++        extra: { mainPhotoNodeUid?: string; extraTags?: PhotoTag[]; skipOnDuplicate?: boolean; previewSha1?: string },
++    ): Promise<{ size: number; nodeUid?: string; sha1: string }> {
++        const { file, metadata: baseMetadata, thumbnails: ownThumbnails } = await getFileMetadata(ctx, item, mediaType, (file) =>
+             generateAdditionalPhotoNodeMetadata(file, mediaType, undefined, ctx.logger),
+         );
++        const sha1 = baseMetadata.expectedSha1;
++        const thumbnails = ownThumbnails.length > 0 ? ownThumbnails : await previewThumbnails(extra.previewSha1 || sha1);
++        const metadata = {
++            ...baseMetadata,
++            ...(extra.mainPhotoNodeUid ? { mainPhotoNodeUid: extra.mainPhotoNodeUid } : {}),
++            ...(extra.extraTags
++                ? { tags: [...new Set([...((baseMetadata as { tags?: PhotoTag[] }).tags || []), ...extra.extraTags])] }
++                : {}),
++        };
+ 
+         let name = item.baseName;
+ 
+@@ -138,10 +234,12 @@ export class CommandPhotoUpload implements Command {
+                 Promise.resolve(metadata.expectedSha1),
+             );
+             if (duplicateNodeUids.length > 0) {
+-                const choice = await ctx.conflictResolver.resolve(item.baseName, ConflictTargetKind.File);
++                const choice = extra.skipOnDuplicate || extra.extraTags
++                    ? ConflictChoice.Skip
++                    : await ctx.conflictResolver.resolve(item.baseName, ConflictTargetKind.File);
+                 switch (choice) {
+                     case ConflictChoice.Skip:
+-                        return false;
++                        return { size: 0, nodeUid: duplicateNodeUids[0], sha1 };
+                     case ConflictChoice.Rename:
+                         name = await ctx.photosSdk.getAvailableName(ctx.volumeRootFolder, name);
+                         continue;
+@@ -160,9 +258,9 @@ export class CommandPhotoUpload implements Command {
+                     createUploadProgressCallback(file.size, progressTracker),
+                 );
+ 
+-                await controller.completion();
++                const { nodeUid } = await controller.completion();
+                 ctx.metrics?.reportUploadVerifierAttempt();
+-                return file.size;
++                return { size: file.size, nodeUid, sha1 };
+             } finally {
+                 progressTracker?.onFinished();
+             }
+diff --git a/cli/src/credentials/constants.ts b/cli/src/credentials/constants.ts
+index c5e8458..a81b1e4 100644
+--- a/cli/src/credentials/constants.ts
++++ b/cli/src/credentials/constants.ts
+@@ -1,3 +1,4 @@
+-export const CREDENTIALS_SERVICE = 'ch.proton.drive/drive-sdk-cli';
++// homelab build: own session, separate from the official CLI's (revocable on its own)
++export const CREDENTIALS_SERVICE = 'homelab/proton-photos';
+ export const CREDENTIALS_NAME = 'auth-session';
+ export const PASS_CREDENTIALS_PATH = `${CREDENTIALS_SERVICE}/${CREDENTIALS_NAME}`;
+-- 
+2.55.0
+

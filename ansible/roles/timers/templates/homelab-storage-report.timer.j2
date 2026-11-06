@@ -1,0 +1,12 @@
+# /etc/systemd/system/homelab-storage-report.timer: hourly (du on the photo library is slow)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab disk usage report
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

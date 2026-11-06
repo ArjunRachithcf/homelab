@@ -1,0 +1,63 @@
+title = "Bookmarks (Karakeep)"
+description = "Links, notes and pages kept forever, tagged by the local AI when it's there."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["local-ai"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["karakeep", "karakeep-chrome", "karakeep-meili"]
+public_names = ["links"]
+peer_names = ["links"]
+blueprints = ["bookmarks.yaml"]
+jobs = []
+ansible = ""
+stages = ["apps:authentik", "apps:start", "apps:netbird", "apps:proxy", "apps:media"]
+
+
+[[tiles]]
+order = 100
+id = "links"
+name = "Bookmarks"
+desc = "Saved links, tagged for you"
+url = "https://links.%s/"
+icon = "/apps/karakeep.svg"
+status = "links"
+group = "docs"
+audience = "family"
+
+[options.KARAKEEP_TAG]
+help = "Karakeep version"
+type = "tag"
+default = "0.34.1"
+advanced = true
+[options.KARAKEEP_CHROME_TAG]
+help = "Its headless Chrome"
+type = "tag"
+default = "156.0.8078.47-r1"
+advanced = true
+[options.KARAKEEP_MEILI_TAG]
+help = "Its Meilisearch"
+type = "tag"
+default = "v1.41.0"
+advanced = true
+[options.KARAKEEP_AI_MODEL]
+help = "Model for tags (the same Ollama as Documents; pull it first)"
+type = "text"
+default = "gemma4:12b"
+[options.KARAKEEP_NEXTAUTH_SECRET]
+help = "Karakeep's session secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n'"
+[options.KARAKEEP_MEILI_KEY]
+help = "Meilisearch's key"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -dc 'A-Za-z0-9'"
+[options.KARAKEEP_OIDC_CLIENT_SECRET]
+help = "Karakeep's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"

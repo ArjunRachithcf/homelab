@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "homelab-setup": {
+      "type": "stdio",
+      "command": "./homelab",
+      "args": ["mcp"]
+    }
+  }
+}

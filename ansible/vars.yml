@@ -1,0 +1,47 @@
+# Facts about this box, read from ../.env ("Your instance" in .env.example), so nothing is set twice.
+# Secrets stay in .env too (no_log). lookup('homelab_env'): ansible/lookup_plugins/homelab_env.py, reads
+# .env like the scripts do. site.yml stops when a required key is empty.
+homelab_repo: "{{ playbook_dir | dirname }}"
+homelab_env: "{{ homelab_repo }}/.env"
+homelab_user: "{{ lookup('homelab_env', 'ADMIN_USER', file=homelab_env) }}"
+homelab_home: "/home/{{ homelab_user }}"
+homelab_dir: "{{ homelab_home }}/homelab"
+# Where restore.sh --config-only puts root-owned files from the backup (netbird/, plex/)
+restore_dir: "{{ homelab_dir }}/restore"
+notify_to: "{{ lookup('homelab_env', 'NOTIFY_TO', file=homelab_env) }}"
+
+# The second NVMe (XFS reflink=1), formatted by immich-wizard.sh stage 1 only. Mounted at
+# nvme1_dir since 7e; its photos/ and files/ are bind-mounted where the apps expect them, so
+# Immich's :Z label never reaches OpenCloud's files (RUNBOOK.md 7e "Disk layout").
+nvme1_dir: "{{ lookup('homelab_env', 'NVME1_DIR', file=homelab_env, default='/srv/nvme1') }}"
+photos_uuid: "{{ lookup('homelab_env', 'PHOTOS_UUID', file=homelab_env) }}"
+# Immich library (nvme1_dir/photos)
+photos_dir: "{{ lookup('homelab_env', 'IMMICH_UPLOAD_DIR', file=homelab_env) }}"
+# OpenCloud's storage (nvme1_dir/files); files-local.sh snapshots it into nvme1_dir/files-snap
+files_dir: "{{ lookup('homelab_env', 'FILES_DIR', file=homelab_env, default='/srv/files') }}"
+# Second copy of the files (files-local.sh): btrfs subvolume on the primary SSD, like photos_copy_dir
+files_copy_dir: "{{ lookup('homelab_env', 'FILES_COPY_DIR', file=homelab_env, default='/srv/files-copy') }}"
+# Second copy (photos-local.sh): btrfs subvolume on the primary SSD
+photos_copy_dir: "{{ lookup('homelab_env', 'PHOTOS_COPY_DIR', file=homelab_env, default='/srv/photos-copy') }}"
+media_dir: "{{ lookup('homelab_env', 'MEDIA_DIR', file=homelab_env) }}"
+# Inside media_dir, read-only for Audiobookshelf; Navidrome uses media_dir/Music
+audiobooks_dir: "{{ lookup('homelab_env', 'AUDIOBOOKS_DIR', file=homelab_env, default=media_dir ~ '/audiobooks') }}"
+# Kavita's libraries, read-only (RUNBOOK.md 7e)
+books_dir: "{{ media_dir }}/Books"
+# VAAPI for Jellyfin + Immich (docker-compose.yml reads the same key)
+render_device: "{{ lookup('homelab_env', 'RENDER_DEVICE', file=homelab_env, default='/dev/dri/renderD128') }}"
+
+# Which components run (COMPONENTS in .env, setup/components/*.toml); empty = an install from before
+# the setup engine, where everything is on
+homelab_components: "{{ lookup('homelab_env', 'COMPONENTS', file=homelab_env, default='all').split(',') }}"
+plex_enabled: "{{ 'all' in homelab_components or 'plex' in homelab_components }}"
+# NVIDIA card for Ollama (component local-ai: Paperless AI, Karakeep's tags)
+gpu_enabled: "{{ 'all' in homelab_components or 'local-ai' in homelab_components }}"
+# Home Assistant + Matter on this PC (RUNBOOK.md 7d): conntrack timeout for sleepy Matter devices
+smarthome_enabled: "{{ 'all' in homelab_components or 'home-assistant' in homelab_components }}"
+# AdGuard Home on NETBIRD_IP:53: NetBird's own resolver moves to 127.0.0.153:53 (netbird role)
+adguard_enabled: "{{ 'all' in homelab_components or 'adblock' in homelab_components }}"
+# The second NVMe for photos and files (storage role, PHOTOS_UUID)
+second_disk_enabled: "{{ 'all' in homelab_components or 'second-disk' in homelab_components }}"
+# What the LAN may reach on this machine itself (firewall role): firewalld services or PORT/PROTO
+lan_allow: "{{ lookup('homelab_env', 'LAN_ALLOW', file=homelab_env, default='').split() }}"

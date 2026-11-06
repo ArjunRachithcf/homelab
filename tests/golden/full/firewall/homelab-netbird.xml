@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- /etc/firewalld/services/homelab-netbird.xml. Written by Ansible from ansible/roles/firewall/templates. -->
+<service>
+  <short>NetBird (WireGuard)</short>
+  <description>NetBird's WireGuard port, so peers on the same LAN connect directly instead of through a relay.</description>
+  <port protocol="udp" port="51820"/>
+</service>

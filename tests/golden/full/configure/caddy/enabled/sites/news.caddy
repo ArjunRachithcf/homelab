@@ -1,0 +1,31 @@
+# caddy/components/news/sites.caddy (component news; copied into caddy/enabled/ by ./homelab configure)
+# News (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+# FreshRSS trusts Remote-User / X-WebAuth-User from Caddy's address (TRUSTED_PROXY), so nobody may
+# send them through. It drops the port from X-Forwarded-Host and takes X-Forwarded-Port: the public one.
+(freshrss) {
+	reverse_proxy freshrss:80 {
+		header_up -Remote-User
+		header_up -X-WebAuth-User
+		header_up X-Forwarded-Port {$PUBLIC_PORT}
+	}
+}
+
+news.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import freshrss
+}
+
+news.{$DOMAIN}, news.{$DOMAIN_ALIAS}, news.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical news
+}
+
+news.{$DOMAIN}:8444 {
+	import headers
+	import freshrss
+}
+
+news.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://news.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

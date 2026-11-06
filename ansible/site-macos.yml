@@ -1,0 +1,155 @@
+# ~/homelab/ansible/site-macos.yml: the host layer on a Mac (plan Phase 5, best effort; docs in RUNBOOK.md
+# "macOS"). Same .env, same components; what Linux does with systemd, dnf/apt and /srv, this does with
+# launchd, Homebrew and ~/homelab-data.
+#   ansible-playbook -K ansible/site-macos.yml --check --diff     dry run
+#   ansible-playbook -K ansible/site-macos.yml
+# Not here (setup/components/*.toml platforms): Plex, the second disk, SSH via Authentik, the terminal,
+# Home Assistant (needs the host network), AdGuard, the Proton Drive copy.
+- name: Homelab host (macOS)
+  hosts: localhost
+  connection: local
+  become: false   # Homebrew runs as you; the few root steps say become: true
+  vars_files: [vars.yml]
+  vars:
+    # vars.yml's homelab_home is Linux's /home/<user> (and vars_files win over these): the Mac's own
+    mac_home: "{{ lookup('ansible.builtin.env', 'HOME') }}"
+    local_ai_enabled: "{{ 'all' in homelab_components or 'local-ai' in homelab_components }}"
+
+  pre_tasks:
+    - name: A Mac
+      ansible.builtin.assert:
+        that: ansible_system == "Darwin"
+        fail_msg: "This is the macOS playbook; on Linux use ansible/site.yml"
+        quiet: true
+      tags: always
+
+    - name: The homelab repo and its .env exist
+      ansible.builtin.stat:
+        path: "{{ homelab_env }}"
+      register: env_file
+      failed_when: not env_file.stat.exists
+      tags: always
+
+    - name: Homebrew (brew.sh) is installed
+      ansible.builtin.command: brew --prefix
+      register: brew_prefix
+      check_mode: false
+      changed_when: false
+      tags: always
+
+  tasks:
+    # GNU tools: the jobs put them first on PATH (lib/jobs.py MAC_PATH), so the scripts read as on Linux;
+    # bash 4.4+ for the scripts (macOS's own is 3.2; lib/need-bash.sh switches to Homebrew's)
+    - name: Packages used by the homelab scripts
+      community.general.homebrew:
+        name: [age, zstd, pass, rsync, git, jq, gh, node, bind, flock, bash, coreutils, findutils, gnu-sed, grep, python@3.13]
+        state: present
+      tags: base
+
+    - name: Docker Desktop is there (the compose stack; install it from docker.com or brew install --cask docker)
+      ansible.builtin.command: docker compose version
+      register: docker_ok
+      check_mode: false
+      changed_when: false
+      failed_when: false
+      tags: docker
+
+    - name: Stop without Docker
+      ansible.builtin.fail:
+        msg: "Docker isn't installed or not running: install Docker Desktop (brew install --cask docker), start it once, then run this again."
+      when: docker_ok.rc != 0 and not ansible_check_mode
+      tags: docker
+
+    - name: NetBird (its own Homebrew tap)
+      community.general.homebrew:
+        name: netbirdio/tap/netbird
+        state: present
+      tags: netbird
+
+    - name: NetBird's service (a LaunchDaemon, as root)
+      ansible.builtin.command: netbird service install
+      args:
+        creates: /Library/LaunchDaemons/netbird.plist
+      become: true
+      tags: netbird
+
+    - name: NetBird running
+      ansible.builtin.command: netbird service start
+      become: true
+      register: nb_start
+      changed_when: "'started' in nb_start.stdout | lower"
+      failed_when: false
+      tags: netbird
+
+    # Local AI: Ollama itself (Metal), not the container; the apps reach it at OLLAMA_URL
+    - name: Ollama (native, Apple GPU)
+      community.general.homebrew:
+        name: ollama
+        state: present
+      when: local_ai_enabled | bool
+      tags: ollama
+
+    - name: Ollama started at login (brew services)
+      ansible.builtin.command: brew services start ollama
+      register: ollama_start
+      changed_when: "'Successfully started' in ollama_start.stdout"
+      when: local_ai_enabled | bool and not ansible_check_mode
+      tags: ollama
+
+    # The data folders (Linux: /srv; macOS has no writable /srv): the paths in .env (the setup engine
+    # wrote ~/homelab-data/… for this Mac)
+    - name: Data folders
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ [media_dir, media_dir ~ '/Music', audiobooks_dir, books_dir, books_dir ~ '/Books', books_dir ~ '/Comics',
+                 books_dir ~ '/Manga', books_dir ~ '/Kids'] + ([photos_dir, photos_copy_dir] if ('all' in homelab_components or 'photos' in homelab_components) else [])
+                 + ([files_dir, files_copy_dir] if ('all' in homelab_components or 'files' in homelab_components) else []) }}"
+      when: item | length > 0 and not item.startswith('/srv/')
+      tags: storage
+
+    - name: Paths in .env still point at /srv (Linux defaults)
+      ansible.builtin.debug:
+        msg: "{{ item }} is under /srv, which macOS doesn't have: set it under ~/homelab-data in .env (./homelab setup --plan --platform macos shows the defaults)"
+      loop: [media_dir, photos_dir, files_dir]
+      when: lookup('ansible.builtin.vars', item) is string and lookup('ansible.builtin.vars', item).startswith('/srv/')
+      tags: storage
+
+    # The jobs (jobs/jobs.toml): one launchd agent each, from their calendars
+    - name: ~/Library/LaunchAgents and the log folder
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ mac_home }}/Library/LaunchAgents", "{{ mac_home }}/Library/Logs/homelab", "{{ homelab_repo }}/ops/requests", "{{ homelab_repo }}/ops/data"]
+      tags: timers
+
+    - name: launchd jobs (lib/jobs.py plists)
+      ansible.builtin.command: >-
+        python3 {{ homelab_repo }}/lib/jobs.py plists --env {{ homelab_env }}
+        --out {{ mac_home }}/Library/LaunchAgents --repo {{ homelab_repo }}
+      register: plists
+      changed_when: plists.stdout | length > 0
+      check_mode: false
+      when: not ansible_check_mode
+      tags: timers
+
+    - name: (Re)load the jobs that changed
+      ansible.builtin.shell: |
+        set -e
+        uid=$(id -u)
+        for name in {{ plists.stdout_lines | map('regex_replace', '^wrote ', '') | map('quote') | join(' ') }}; do
+          launchctl bootout "gui/$uid" "$HOME/Library/LaunchAgents/$name" 2>/dev/null || true
+          launchctl bootstrap "gui/$uid" "$HOME/Library/LaunchAgents/$name"
+        done
+      when: plists is changed
+      changed_when: true
+      tags: timers
+
+    - name: Never sleep (it's a server now); the display may
+      ansible.builtin.command: pmset -a sleep 0 disksleep 0
+      become: true
+      changed_when: true
+      when: not ansible_check_mode
+      tags: sleep

@@ -1,0 +1,1170 @@
+{{- /* Rendered by Caddy `templates` behind Authentik forward-auth (see Caddyfile `(home)`).
+     Who sees which app is decided in apps.json (also the family app's list, RUNBOOK.md "Family app");
+     this file only lays it out. text/template does not escape: every value goes through `html`.
+     Design (RUNBOOK.md 7e): Apple's way, the owner's choice over the dealt tasteskill sheet. SF on
+     Apple devices, Inter elsewhere (OFL, fonts/); iOS greys, inset lists, widgets, frosted header,
+     spring presses. Centred 1100px column, 12 columns of 77px + 11 gutters of 16px = 1100.
+     Motion only under prefers-reduced-motion: no-preference; without JS everything still shows.
+     App icons: selfh.st/icons (CC BY 4.0, apps/), n8n's from Dashboard Icons (Apache-2.0); NOTICE. */ -}}
+{{- $d := include "/apps.json" | fromJson -}}
+{{- $apps := $d.apps -}}
+{{- $h := $d.health -}}
+{{- $first := index (splitList " " $d.user.name) 0 -}}
+{{- /* BRAND and ADMIN_NAME from .env, passed to Caddy (docker-compose.yml) */ -}}
+{{- $brand := env "BRAND" -}}
+{{- $owner := index (splitList " " (env "ADMIN_NAME")) 0 -}}
+{{- $Owner := $owner -}}
+{{- if not $owner }}{{ $owner = "your admin" }}{{ $Owner = "Your admin" }}{{ end -}}
+{{- /* Today's fact, from the last heartbeat (status/heartbeat.json, every 5 min); the script
+     below refines it from the live status checks. */ -}}
+{{- $fact := "" -}}
+{{- if and $h.known (eq $d.layout "adult") }}{{ if $h.ok }}{{ $fact = "Everything is up." }}{{ else if $d.user.admin }}{{ $fact = "Something needs a look." }}{{ else }}{{ $fact = printf "Something isn't working. %s knows." $Owner }}{{ end }}{{ end -}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>{{ $brand | html }}</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<script>
+  // Appearance chosen in Settings (auto | light | dark), applied before the first paint
+  try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+  document.documentElement.classList.add("js");
+</script>
+<style>
+/* Only where the system has no SF (Fedora, Windows, Android) */
+@font-face {
+  font-family: "Inter"; font-weight: 100 900; font-display: swap;
+  src: url(/fonts/inter.woff2) format("woff2");
+}
+:root {
+  --ground: #f5f5f7; --card: #ffffff; --fill: rgba(120,120,128,.12); --hover: rgba(120,120,128,.08);
+  --sep: rgba(60,60,67,.16); --text: #1d1d1f; --muted: #6e6e73; --accent: #1b6e66; --on-accent: #ffffff;
+  --green: #34c759; --red: #ff3b30; --green-text: #248a3d; --red-text: #d70015;
+  --glass: rgba(245,245,247,.72); --glass-menu: rgba(250,250,252,.82);
+  --shadow: 0 1px 3px rgba(0,0,0,.05);
+  --shadow-lift: 0 2px 4px rgba(0,0,0,.05), 0 16px 40px rgba(0,0,0,.08);
+  --radius-card: 22px; --gap: 16px; --pad: 20px;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  /* Apple-like spring (slight overshoot) and the long ease-out of apple.com reveals */
+  --spring: linear(0, .06 2.6%, .24 5.7%, .84 15.1%, 1.03 20.5%, 1.08 24.6%, 1.07 29.2%, 1.01 38.6%, .99 48%, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #000000; --card: #1c1c1e; --fill: rgba(120,120,128,.24); --hover: rgba(120,120,128,.16);
+    --sep: rgba(84,84,88,.6); --text: #f5f5f7; --muted: #98989d; --accent: #5fb3a9; --on-accent: #000000;
+    --green: #30d158; --red: #ff453a; --green-text: #30d158; --red-text: #ff6961;
+    --glass: rgba(0,0,0,.72); --glass-menu: rgba(44,44,46,.82);
+    --shadow: none; --shadow-lift: none;
+  }
+}
+:root[data-theme="dark"] {
+    --ground: #000000; --card: #1c1c1e; --fill: rgba(120,120,128,.24); --hover: rgba(120,120,128,.16);
+    --sep: rgba(84,84,88,.6); --text: #f5f5f7; --muted: #98989d; --accent: #5fb3a9; --on-accent: #000000;
+    --green: #30d158; --red: #ff453a; --green-text: #30d158; --red-text: #ff6961;
+    --glass: rgba(0,0,0,.72); --glass-menu: rgba(44,44,46,.82);
+    --shadow: none; --shadow-lift: none;
+  }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--text);
+  font: 400 15px/1.4 var(--font); letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1132px; margin: 0 auto; padding: 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); }
+
+/* Frosted header, as apple.com's nav: clear at the top, glass + hairline once scrolled */
+.top {
+  position: sticky; top: 0; z-index: 10; padding-top: env(safe-area-inset-top);
+  border-bottom: 1px solid transparent; transition: background-color .3s, border-color .3s;
+}
+.top.scrolled { background: var(--ground); border-bottom-color: var(--sep); }
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .top.scrolled { background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+}
+.bar { display: flex; align-items: center; gap: 12px; height: 52px; }
+.brand { display: flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; font-size: 17px; letter-spacing: -0.02em; min-width: 0; }
+.brand img { width: 26px; height: 26px; }
+/* The large title collapses into the bar on scroll, as in iOS: the brand's word makes room */
+.brand .names { position: relative; display: grid; min-width: 0; }
+.brand .word, .brand .mini { grid-area: 1 / 1; transition: opacity .3s var(--ease-out), transform .45s var(--spring); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand .mini { opacity: 0; transform: translateY(8px); }
+.top.titled .brand .word { opacity: 0; transform: translateY(-8px); }
+.top.titled .brand .mini { opacity: 1; transform: none; }
+.me { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--fill); color: var(--text); font-weight: 600; font-size: 14px; flex: none;
+}
+.me .name { font-size: 14px; white-space: nowrap; }
+.me .out { color: var(--accent); text-decoration: none; font-size: 14px; padding: 12px 0; white-space: nowrap; }
+.me .out:hover { text-decoration: underline; }
+.user {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 4px 12px 4px 4px; border: 0; border-radius: 999px;
+  background: none; color: var(--text); font: inherit; cursor: pointer; transition: background-color .2s, transform .45s var(--spring);
+}
+.user:hover, .user[aria-expanded="true"] { background: var(--fill); }
+.user:active { transform: scale(.96); transition-duration: .1s; }
+.gear {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--fill); color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+  transition: transform .45s var(--spring), background-color .2s;
+}
+.gear svg { width: 18px; height: 18px; transition: transform .6s var(--spring); }
+.gear[aria-expanded="true"] svg { transform: rotate(90deg); }
+.gear:active { transform: scale(.94); transition-duration: .1s; }
+
+/* Settings: an iOS-style menu that grows from the button */
+.menu {
+  position: fixed; z-index: 20; top: calc(env(safe-area-inset-top) + 56px); right: max(16px, calc((100vw - 1132px) / 2 + 16px));
+  width: 300px; max-width: calc(100vw - 32px); padding: 8px; border-radius: 18px;
+  background: var(--glass-menu); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px);
+  box-shadow: 0 0 0 .5px var(--sep), 0 12px 40px rgba(0,0,0,.18);
+  transform-origin: top right; opacity: 0; transform: scale(.85); visibility: hidden;
+  transition: opacity .2s, transform .45s var(--spring), visibility 0s .45s;
+}
+.menu .note { color: var(--muted); font-size: 12px; margin: 0 8px 4px; }
+.menu.open { opacity: 1; transform: none; visibility: visible; transition: opacity .2s, transform .45s var(--spring), visibility 0s; }
+.menu .who { display: flex; align-items: center; gap: 12px; padding: 8px 8px 12px; border-bottom: 1px solid var(--sep); margin-bottom: 8px; }
+.menu .who .avatar { width: 40px; height: 40px; font-size: 17px; }
+.menu .who b { display: block; font-weight: 600; }
+.menu .who small { color: var(--muted); font-size: 13px; }
+.menu .label { color: var(--muted); font-size: 13px; padding: 4px 8px 6px; }
+.menu a.item { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 10px; text-decoration: none; transition: background-color .15s; }
+.menu a.item:hover, .menu a.item:focus-visible { background: var(--hover); }
+.menu a.item .icon { width: 30px; height: 30px; color: var(--text); background: var(--fill); box-shadow: none; }
+.menu a.item .icon:has(img) { background: #fff; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.12); }
+.menu a.item .icon img { width: 20px; height: 20px; }
+.menu a.item small { display: block; color: var(--muted); font-size: 12px; }
+.menu hr { border: 0; border-top: 1px solid var(--sep); margin: 8px 0; }
+/* Segmented control with a sliding thumb */
+.seg { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); background: var(--fill); border-radius: 9px; padding: 2px; margin: 0 8px 8px; }
+.seg button { position: relative; z-index: 1; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; height: 32px; border-radius: 7px; cursor: pointer; }
+.seg .thumb {
+  position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / 3); border-radius: 7px;
+  background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04);
+  transform: translateX(calc(var(--pos, 0) * 100%)); transition: transform .45s var(--spring);
+}
+
+/* Large title: the greeting, then today's fact in grey (apple.com's two-tone headline) */
+.hello { padding: 56px 0 40px; }
+h1 { font-size: 40px; line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; margin: 0; max-width: 22ch; }
+h1 .fact { color: var(--muted); transition: opacity .3s, filter .3s; }
+h1 .fact.swap { opacity: 0; filter: blur(4px); }
+.sub { color: var(--muted); font-size: 17px; margin: 14px 0 0; }
+
+/* Cards */
+.card { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow); }
+
+/* Widgets (admins): 4 × span 3 */
+.tiles { margin-bottom: var(--gap); }
+.tile { grid-column: span 3; padding: 18px; min-height: 148px; display: flex; flex-direction: column; }
+.tile .label { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; }
+.tile .value { font-size: 30px; line-height: 1.1; white-space: nowrap; font-weight: 700; letter-spacing: -0.03em; margin-top: 8px; }
+.tile .value.good { color: var(--green-text); }
+.tile .value.bad { color: var(--red-text); }
+.tile .value.unknown { color: var(--muted); }
+.tile .caption { color: var(--muted); font-size: 13px; margin-top: auto; padding-top: 8px; }
+.ringrow { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+.ringrow .value { margin-top: 0; }
+.ring { width: 56px; height: 56px; flex: none; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 8; }
+.ring .track { stroke: var(--fill); }
+.ring .arc { stroke: var(--green); stroke-linecap: round; stroke-dasharray: 150.8; stroke-dashoffset: 150.8; transition: stroke-dashoffset .9s var(--ease-out), stroke .3s; }
+.ring.bad .arc { stroke: var(--red); }
+.meter { height: 8px; border-radius: 999px; background: var(--fill); overflow: hidden; margin-top: 12px; }
+.meter i { display: block; height: 100%; width: var(--used, 0%); border-radius: inherit; background: var(--accent); transition: width .9s var(--ease-out); }
+.meter.full i { background: var(--red); }
+
+/* App panels: Watch across, Documents 9 + Home 3, Admin across (Account lives in Settings) */
+.panel { padding: 16px 12px 12px; }
+.panel.s9 { grid-column: span 9; } .panel.s3 { grid-column: span 3; } .panel.s12 { grid-column: span 12; }
+.panel h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin: 0 8px 10px; display: flex; align-items: baseline; gap: 8px; }
+.count { color: var(--muted); font-size: 15px; font-weight: 400; }
+.rows { display: grid; gap: 2px 8px; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); }
+.row {
+  position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px;
+  border-radius: 14px; text-decoration: none;
+  transition: background-color .2s, transform .45s var(--spring);
+}
+/* One-column lists get iOS hairlines, inset to the text */
+.rows.list .chev { display: inline; }
+.rows.list .row + .row::before {
+  content: ""; position: absolute; top: -1px; left: 60px; right: 8px; border-top: 1px solid var(--sep);
+}
+.icon {
+  width: 40px; height: 40px; flex: none; border-radius: 22.5%; background: #fff;
+  box-shadow: inset 0 0 0 .5px rgba(0,0,0,.12); display: grid; place-items: center;
+}
+.icon img { width: 28px; height: 28px; object-fit: contain; }
+.row .txt { min-width: 0; flex: 1; }
+.row .n { font-weight: 500; font-size: 15px; display: block; }
+.row .t { color: var(--muted); font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .end { display: flex; align-items: center; gap: 8px; flex: none; }
+/* Chevrons only in lists, as on iOS: not in the multi-column grids */
+.chev { display: none; color: var(--muted); opacity: .6; font-size: 20px; line-height: 1; margin-left: 2px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fill); flex: none; }
+.dot.up { background: var(--green); }
+.dot.down { background: var(--red); }
+.down-word { display: none; color: var(--red-text); font-size: 13px; white-space: nowrap; }
+.row.is-down .down-word { display: inline; }
+
+/* Kids: an iOS home screen of big icons */
+.kids { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 32px; padding-top: 8px; }
+.kid {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  text-decoration: none; padding: 8px; border-radius: var(--radius-card);
+}
+.kid .icon { width: 112px; height: 112px; box-shadow: var(--shadow), inset 0 0 0 .5px rgba(0,0,0,.1); position: relative; transition: transform .45s var(--spring); }
+.kid .icon img { width: 76px; height: 76px; }
+.kid .n { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+.kid .badge {
+  display: none; position: absolute; top: -8px; right: -8px; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--red); color: #fff; font-weight: 700; font-size: 17px; place-items: center;
+  box-shadow: 0 0 0 3px var(--ground);
+}
+.kid .broken { display: none; color: var(--red-text); font-size: 14px; margin-top: -4px; }
+.kid.is-down .badge { display: grid; }
+.kid.is-down .broken { display: block; }
+
+/* Nobody's apps yet */
+.empty { grid-column: span 12; padding: 40px var(--pad); text-align: center; }
+.empty h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
+.empty p { margin: 0 auto 24px; font-size: 17px; max-width: 52ch; color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; height: 44px; padding: 0 22px; border-radius: 999px;
+  font-size: 15px; font-weight: 500; text-decoration: none; margin: 0 4px 8px;
+  background: var(--fill); color: var(--text); transition: transform .45s var(--spring), filter .2s;
+}
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+
+footer { color: var(--muted); font-size: 12px; padding: 48px 0 calc(32px + env(safe-area-inset-bottom)); display: flex; gap: 16px; }
+footer span:last-child { margin-left: auto; }
+
+@media (hover: hover) {
+  .row:hover { background: var(--hover); }
+  .tile { transition: transform .45s var(--spring), box-shadow .3s; }
+  .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  .kid:hover .icon { transform: scale(1.04); }
+  .btn:hover { filter: brightness(1.06); }
+}
+.row:active { transform: scale(.97); transition-duration: .1s; }
+.kid:active .icon, .btn:active { transform: scale(.94); transition-duration: .1s; }
+
+@media (max-width: 1000px) {
+  .panel.s9, .panel.s3 { grid-column: span 12; }
+  .rows { grid-template-columns: repeat(min(var(--cols, 1), 2), minmax(0, 1fr)); }
+  .panel.s3 .rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel.s3 .rows.list .row + .row::before, .panel.s3 .chev { display: none; }
+  .tile { grid-column: span 6; }
+  .kids { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .me .name { display: none; }
+  .user { padding: 4px; }
+  .me { gap: 4px; }
+  .hello { padding: 32px 0 28px; }
+  h1 { font-size: 30px; }
+  .sub { font-size: 15px; }
+  .rows, .panel.s3 .rows { grid-template-columns: minmax(0, 1fr); }
+  .chev, .panel.s3 .chev { display: inline; }
+  .rows .row + .row::before, .panel.s3 .rows.list .row + .row::before {
+    display: block; content: ""; position: absolute; top: -1px; left: 60px; right: 8px; border-top: 1px solid var(--sep);
+  }
+  .tile { min-height: 132px; padding: 16px; }
+  .tile .value { font-size: 22px; }
+  .ringrow { gap: 10px; }
+  .ring { width: 44px; height: 44px; }
+  .kids { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 24px; column-gap: 8px; }
+  .kid .icon { width: 76px; height: 76px; }
+  .kid .icon img { width: 52px; height: 52px; }
+  .kid .n { font-size: 15px; }
+}
+
+/* Motion: entrance (rise and fade, staggered by --i), dots that breathe while checking and pop
+   when the answer comes. Reduced motion: final states at once. */
+/* ── Detail sheets (admins): Outside check, Backup, Disk (RUNBOOK.md 7e "Details") ── */
+/* Chart colours: the dataviz reference palette's categorical slots (validated on our light and dark
+   cards: adjacent CVD ΔE ≥ 8.4, normal ≥ 19.3); the light slots under 3:1 always carry a labelled legend */
+:root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --grid: rgba(60,60,67,.12); --scrim: rgba(0,0,0,.28); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --grid: rgba(84,84,88,.45); --scrim: rgba(0,0,0,.55); }
+}
+:root[data-theme="dark"] { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --grid: rgba(84,84,88,.45); --scrim: rgba(0,0,0,.55); }
+button.tile { font: inherit; color: inherit; text-align: left; border: 0; cursor: pointer; width: 100%; }
+.tile .label { display: flex; align-items: center; }
+.chev-more { margin-left: auto; font-size: 18px; line-height: 1; opacity: .5; transition: transform .45s var(--spring), opacity .2s; }
+@media (hover: hover) { button.tile:hover .chev-more { opacity: .9; transform: translateX(2px); } }
+button.tile:active { transform: scale(.98); transition-duration: .1s; }
+.meter { display: block; }
+
+.scrim {
+  position: fixed; inset: 0; z-index: 30; background: var(--scrim);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s .3s;
+}
+.scrim.open { opacity: 1; visibility: visible; transition: opacity .3s, visibility 0s; }
+.sheet {
+  position: fixed; z-index: 31; left: 50%; top: 50%; width: min(760px, calc(100vw - 32px)); max-height: min(86vh, 900px);
+  display: flex; flex-direction: column; background: var(--card); border-radius: 22px;
+  box-shadow: 0 0 0 .5px var(--sep), 0 24px 80px rgba(0,0,0,.25);
+  transform: translate(-50%, -46%) scale(.96); opacity: 0; visibility: hidden;
+  transition: transform .5s var(--spring), opacity .25s, visibility 0s .5s;
+}
+.sheet.open { transform: translate(-50%, -50%); opacity: 1; visibility: visible; transition: transform .5s var(--spring), opacity .25s, visibility 0s; }
+.sheet .grab { display: none; }
+.sheet:focus { outline: none; }
+.sheet header { display: flex; align-items: center; gap: 12px; padding: 18px 20px 12px; }
+.sheet h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.sheet .close {
+  margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--fill); color: var(--muted);
+  display: grid; place-items: center; cursor: pointer; transition: transform .45s var(--spring);
+}
+.sheet .close:active { transform: scale(.9); }
+.sheet .body { overflow: auto; padding: 4px 20px 24px; overscroll-behavior: contain; }
+.sheet .seg { margin: 0 0 16px; max-width: 280px; }
+.hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
+.hero b { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.hero span { color: var(--muted); font-size: 14px; }
+.sheet h3 { font-size: 15px; font-weight: 600; margin: 22px 0 8px; }
+.sheet .muted { color: var(--muted); font-size: 13px; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart .axis { fill: var(--muted); font-size: 11px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.tip {
+  position: absolute; z-index: 2; pointer-events: none; transform: translate(-50%, calc(-100% - 10px));
+  background: var(--text); color: var(--ground); font-size: 12px; line-height: 1.35; padding: 6px 9px; border-radius: 8px;
+  white-space: nowrap; opacity: 0; transition: opacity .12s;
+}
+.tip.on { opacity: 1; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.legend .v { color: var(--muted); }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--sep); font-size: 14px; }
+.list li:first-child { border-top: 0; }
+.list .when { color: var(--muted); font-size: 13px; white-space: nowrap; min-width: 9.5em; }
+.list .what { flex: 1; min-width: 0; }
+.list .what small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.ok-word { color: var(--green-text); } .bad-word { color: var(--red-text); }
+.diskhead { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 18px 0 8px; }
+.diskhead b { font-size: 17px; font-weight: 600; }
+.stack { display: flex; gap: 2px; height: 14px; border-radius: 7px; overflow: hidden; background: var(--fill); }
+.stack i { display: block; height: 100%; min-width: 2px; transform-origin: left; }
+.job { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--sep); }
+.job:first-child { border-top: 0; }
+.job .what { flex: 1; min-width: 0; font-size: 14px; }
+.job .what small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.job .frees { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.act {
+  height: 36px; padding: 0 16px; border: 0; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 600;
+  background: var(--fill); color: var(--text); cursor: pointer; white-space: nowrap;
+  transition: transform .45s var(--spring), background-color .2s, color .2s;
+}
+.act.primary { background: var(--accent); color: var(--on-accent); }
+.act.confirm { background: var(--red); color: #fff; }
+.act:active { transform: scale(.95); transition-duration: .1s; }
+.act[disabled] { opacity: .5; cursor: default; }
+.progress { display: flex; align-items: center; gap: 10px; font-size: 14px; margin-top: 10px; min-height: 22px; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--fill); border-top-color: var(--accent); }
+.empty-note { color: var(--muted); font-size: 14px; padding: 8px 0; }
+
+@media (max-width: 600px) {
+  /* Phone: a bottom sheet that slides up, with a grab handle (swipe down closes it) */
+  .sheet { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 90vh; border-radius: 22px 22px 0 0;
+           transform: translateY(100%); padding-bottom: env(safe-area-inset-bottom); }
+  .sheet.open { transform: translateY(0); }
+  .sheet .grab { display: block; width: 36px; height: 5px; border-radius: 3px; background: var(--fill); margin: 8px auto 0; }
+  .sheet header { padding-top: 8px; }
+  .hero b { font-size: 34px; }
+  .list .when { min-width: 7.5em; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes grow { from { transform: scaleX(0); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sheet.open .stack i { animation: grow .8s var(--ease-out) both; animation-delay: calc(var(--k, 0) * 40ms + 120ms); }
+  .spinner { animation: spin .8s linear infinite; }
+  .chart .col { transition: opacity .15s; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+  @keyframes breathe { 50% { opacity: .35; } }
+  @keyframes pop { 0% { transform: scale(0); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+  .rise { animation: rise .7s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  .js .rise:not(.in) { animation-play-state: paused; }
+  .js .rise.late { animation-delay: 0ms; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .45s; }
+  .dot.checking { animation: breathe 1.2s ease-in-out infinite; }
+  .dot.up, .dot.down { animation: pop .5s var(--spring); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .row:active, .kid:active .icon, .btn:active, .tile:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+<header class="top" id="top">
+  <div class="wrap bar">
+    <a class="brand" href="/"><img src="/mark.png" alt=""><span class="names"><span class="word">{{ $brand | html }}</span><span class="mini" id="mini" aria-hidden="true">{{ $first | html }}</span></span></a>
+    <div class="me">
+      <button class="user" id="user" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu">
+        <span class="avatar" data-who="{{ $d.user.username | html }}" aria-hidden="true">{{ substr 0 1 $d.user.name | upper | html }}</span>
+        <span class="name">{{ $d.user.name | html }}</span>
+      </button>
+      <button class="gear" id="gear" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+      <a class="out" href="/outpost.goauthentik.io/sign_out">Sign out</a>
+    </div>
+  </div>
+</header>
+<div class="menu" id="user-menu" role="dialog" aria-label="Your account">
+  <div class="who">
+    <span class="avatar" data-who="{{ $d.user.username | html }}" aria-hidden="true">{{ substr 0 1 $d.user.name | upper | html }}</span>
+    <span><b>{{ $d.user.name | html }}</b><small>{{ $d.user.username | html }}</small></span>
+  </div>
+  {{- range $apps }}{{ if eq .group "account" }}
+  <a class="item" href="{{ .url | html }}"><span class="icon"><img src="{{ .icon }}" alt=""></span><span>{{ .name | html }}<small>{{ .desc | html }}</small></span></a>
+  {{- end }}{{ end }}
+  <a class="item" href="/outpost.goauthentik.io/sign_out"><span class="icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></span><span>Sign out<small>On this device</small></span></a>
+</div>
+<div class="menu" id="menu" role="dialog" aria-label="Settings">
+  <div class="label" id="appearance">Appearance</div>
+  <div class="seg" role="radiogroup" aria-labelledby="appearance">
+    <span class="thumb" aria-hidden="true"></span>
+    <button type="button" role="radio" data-theme-set="auto" aria-checked="true">Auto</button>
+    <button type="button" role="radio" data-theme-set="light" aria-checked="false">Light</button>
+    <button type="button" role="radio" data-theme-set="dark" aria-checked="false">Dark</button>
+  </div>
+  <p class="note">Auto follows this device. Remembered in this browser.</p>
+</div>
+
+<div class="wrap">
+<main>
+<section class="hello">
+  <h1 class="rise"><span id="hi">Hi</span>, {{ $first | html }}. <span class="fact" id="fact">{{ $fact | html }}</span></h1>
+  <p class="sub rise" style="--i: 2">{{ if eq $d.layout "kids" }}What would you like to do?{{ else }}Your apps at {{ $d.domain | html }}{{ end }}</p>
+</section>
+
+{{- if eq $d.layout "kids" }}
+<div class="grid kids" aria-label="Your apps">
+  {{- range $i, $_ := $apps }}
+  <a class="kid rise" style="--i: {{ add 3 $i }}" href="{{ .url | html }}" data-status="{{ .status }}">
+    <span class="icon"><img src="{{ .icon }}" alt=""><span class="badge" aria-hidden="true">!</span></span>
+    <span class="n">{{ .kids | html }}</span>
+    <span class="broken">Not working right now</span>
+  </a>
+  {{- end }}
+</div>
+
+{{- else if eq $d.layout "adult" }}
+{{- if $d.user.admin }}
+<section class="grid tiles" aria-label="Status">
+  <div class="card tile rise" style="--i: 3">
+    <span class="label">Apps</span>
+    <div class="ringrow">
+      <svg class="ring" id="ring" viewBox="0 0 64 64" aria-hidden="true"><circle class="track" cx="32" cy="32" r="24"/><circle class="arc" cx="32" cy="32" r="24"/></svg>
+      <span class="value" id="apps-up">–</span>
+    </div>
+    <span class="caption" id="apps-caption">Checking each app…</span>
+  </div>
+  {{- $o := $h.outside }}
+  {{- $stale := true }}{{ if $h.known }}{{ $stale = gt (sub (now).Unix (int64 $h.time)) 900 }}{{ end }}
+  <button type="button" class="card tile rise more" data-sheet="outside" aria-haspopup="dialog" style="--i: 4">
+    <span class="label">Outside check<span class="chev-more" aria-hidden="true">›</span></span>
+    {{- if or (not $o) $stale }}
+    <span class="value unknown">Unavailable</span>
+    <span class="caption">{{ if not $h.known }}No heartbeat yet{{ else if $stale }}Last heartbeat <time data-ago="{{ int64 $h.time }}">over 15 min ago</time>{{ else }}No read-only API key{{ end }}</span>
+    {{- else }}
+    <span class="value{{ if eq $o.status "up" }} good{{ else }} bad{{ end }}">{{ if eq $o.status "up" }}Up{{ else if eq $o.status "grace" }}Late{{ else if eq $o.status "down" }}Down{{ else }}{{ $o.status | title | html }}{{ end }}</span>
+    <span class="caption">healthchecks.io{{ if $o.last_ping }}, pinged <time data-iso="{{ $o.last_ping | html }}">{{ $o.last_ping | html }}</time>{{ end }}</span>
+    {{- end }}
+  </button>
+  <button type="button" class="card tile rise more" data-sheet="backups" aria-haspopup="dialog" style="--i: 5">
+    <span class="label">Last backup<span class="chev-more" aria-hidden="true">›</span></span>
+    {{- if and $h.known $h.backup_time }}
+    {{- $age := sub (now).Unix (int64 $h.backup_time) }}
+    <span class="value{{ if gt $age 10800 }} bad{{ end }}"><time data-ago="{{ int64 $h.backup_time }}">{{ div $age 60 }} min ago</time></span>
+    <span class="caption">Hourly, encrypted, copied to Proton</span>
+    {{- else }}
+    <span class="value unknown">–</span>
+    <span class="caption">No heartbeat yet</span>
+    {{- end }}
+  </button>
+  <button type="button" class="card tile rise more" data-sheet="disk" aria-haspopup="dialog" style="--i: 6">
+    <span class="label">Disk space<span class="chev-more" aria-hidden="true">›</span></span>
+    {{- if and $h.known $h.disks }}
+    {{- $sys := index $h.disks 0 }}
+    <span class="value" data-bytes="{{ int64 $sys.free }}">{{ div (int64 $sys.free) 1000000000 }} GB free</span>
+    {{- if $sys.total }}
+    {{- $used := sub 100 (div (mul (int64 $sys.free) 100) (int64 $sys.total)) }}
+    <span class="meter{{ if gt $used 90 }} full{{ end }}" role="img" aria-label="{{ $used }}% used"><i data-used="{{ $used }}" style="--used: {{ $used }}%"></i></span>
+    {{- end }}
+    <span class="caption">System disk{{ range $i, $x := $h.disks }}{{ if $i }} · photos disk <span data-bytes="{{ int64 $x.free }}">{{ div (int64 $x.free) 1000000000 }} GB</span>{{ end }}{{ end }}</span>
+    {{- else }}
+    <span class="value unknown">–</span>
+    <span class="caption">No heartbeat yet</span>
+    {{- end }}
+  </button>
+</section>
+{{- if and $h.known (not $h.ok) }}
+<section class="card panel rise" style="margin-bottom: var(--gap); --i: 7" aria-label="Problems">
+  <h2>Needs a look <span class="count">{{ len $h.problems }}</span></h2>
+  <div class="rows list">
+    {{- range $h.problems }}
+    <div class="row"><span class="dot down"></span><span class="txt"><span class="n">{{ . | html }}</span></span></div>
+    {{- end }}
+  </div>
+</section>
+{{- end }}
+{{- end }}
+
+<div class="grid">
+  {{- $layout := list (dict "g" "watch" "title" "Watch, listen, read" "span" "s12" "cols" 3) (dict "g" "docs" "title" "Documents and files" "span" "s9" "cols" 3) (dict "g" "home" "title" "Home and tools" "span" "s3" "cols" 1) (dict "g" "life" "title" "Family life" "span" "s12" "cols" 4) (dict "g" "admin" "title" "Admin" "span" "s12" "cols" 4) }}
+  {{- range $pi, $_ := $layout }}
+  {{- $g := .g }}
+  {{- $items := list }}
+  {{- range $apps }}{{ if eq .group $g }}{{ $items = append $items . }}{{ end }}{{ end }}
+  {{- if $items }}
+  {{- /* never more columns than rows to fill them */}}
+  {{- $cols := min .cols (len $items) }}
+  <section class="card panel {{ .span }} rise" style="--i: {{ add 7 $pi }}" aria-labelledby="g-{{ $g }}">
+    <h2 id="g-{{ $g }}">{{ .title }} <span class="count">{{ len $items }}</span></h2>
+    <div class="rows{{ if eq $cols 1 }} list{{ end }}" style="--cols: {{ $cols }}">
+      {{- range $items }}
+      <a class="row" href="{{ .url | html }}" data-status="{{ .status }}">
+        <span class="icon"><img src="{{ .icon }}" alt=""></span>
+        <span class="txt"><span class="n">{{ .name | html }}</span><span class="t">{{ if .netbird }}NetBird only · {{ end }}{{ .desc | html }}</span></span>
+        <span class="end"><span class="down-word">Not answering</span><span class="dot" aria-hidden="true"></span><span class="chev" aria-hidden="true">›</span></span>
+      </a>
+      {{- end }}
+    </div>
+  </section>
+  {{- end }}
+  {{- end }}
+</div>
+
+{{- else }}
+<div class="grid">
+  <section class="card empty rise" style="--i: 3" aria-labelledby="none">
+    <h2 id="none">Nothing here yet</h2>
+    <p>Your account has no apps yet. Ask {{ $owner | html }} if you think that's wrong. You can still add a passkey or change your password.</p>
+    {{- range $apps }}
+    <a class="btn{{ if eq .id "account" }} primary{{ end }}" href="{{ .url | html }}">{{ .name | html }}</a>
+    {{- end }}
+  </section>
+</div>
+{{- end }}
+</main>
+
+{{- if and (eq $d.layout "adult") $d.user.admin }}
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <header>
+    <h2 id="sheet-title"></h2>
+    <button class="close" type="button" id="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </header>
+  <div class="body" id="sheet-body"></div>
+</section>
+{{- end }}
+<footer><span>{{ $d.domain | html }}</span><span>Icons: selfh.st/icons, CC BY 4.0</span></footer>
+</div>
+
+<script>
+(function () {
+  var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var h = new Date().getHours();
+  document.getElementById("hi").textContent = h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+
+  // Glass header once the page moves
+  var top = document.getElementById("top");
+  function onScroll() { top.classList.toggle("scrolled", scrollY > 4); }
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+  // Each person keeps one pale hue on their initial
+  document.querySelectorAll("[data-who]").forEach(function (av) {
+    var who = av.dataset.who, hash = 0;
+    for (var i = 0; i < who.length; i++) hash = (hash * 31 + who.charCodeAt(i)) >>> 0;
+    av.style.background = "hsl(" + (hash % 360) + " 55% 86%)";
+    av.style.color = "#1d1d1f";
+  });
+
+  // The large title collapses into the bar once it scrolls away (iOS)
+  var h1 = document.querySelector("h1");
+  document.getElementById("mini").textContent = document.getElementById("hi").textContent + ", " + document.getElementById("mini").textContent;
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (e) { top.classList.toggle("titled", !e[0].isIntersecting); },
+      { rootMargin: "-52px 0px 0px 0px" }).observe(h1);
+    // Below the first screen, cards rise as they come into view
+    var t0 = performance.now();
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        if (performance.now() - t0 > 600) e.target.classList.add("late");
+        e.target.classList.add("in"); io.unobserve(e.target);
+      });
+    }, { rootMargin: "0px 0px -40px 0px" });
+    document.querySelectorAll(".rise").forEach(function (el) { io.observe(el); });
+  } else {
+    document.querySelectorAll(".rise").forEach(function (el) { el.classList.add("in"); });
+  }
+
+  // Two menus: the person's (from the name) and Settings (from the gear). One open at a time;
+  // Escape or a click outside closes it.
+  var menus = [[document.getElementById("user"), document.getElementById("user-menu")],
+               [document.getElementById("gear"), document.getElementById("menu")]];
+  var menu = menus[1][1];
+  function openMenu(pair, open) {
+    menus.forEach(function (m) {
+      var on = open && m === pair;
+      if (on) { // under its own button, kept on screen
+        var r = m[0].getBoundingClientRect();
+        m[1].style.right = Math.max(16, document.documentElement.clientWidth - r.right) + "px";
+      }
+      m[1].classList.toggle("open", on); m[0].setAttribute("aria-expanded", on);
+    });
+    if (open) { var f = pair[1].querySelector("[aria-checked=true], a"); if (f) f.focus({ preventScroll: true }); }
+  }
+  menus.forEach(function (m) {
+    m[0].addEventListener("click", function (e) { e.stopPropagation(); openMenu(m, !m[1].classList.contains("open")); });
+  });
+  document.addEventListener("click", function (e) {
+    if (!menus.some(function (m) { return m[1].contains(e.target); })) openMenu(null, false);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    menus.forEach(function (m) { if (m[1].classList.contains("open")) { openMenu(null, false); m[0].focus(); } });
+  });
+
+  // Appearance: Auto follows the system; the switch cross-fades the whole page (View Transitions)
+  var root = document.documentElement, seg = menu.querySelector(".seg");
+  var dark = matchMedia("(prefers-color-scheme: dark)");
+  function paintBar() {
+    var isDark = root.dataset.theme ? root.dataset.theme === "dark" : dark.matches;
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+      m.setAttribute("content", isDark ? "#000000" : "#f5f5f7"); m.removeAttribute("media");
+    });
+  }
+  function showChoice(t) {
+    var b = seg.querySelectorAll("button");
+    b.forEach(function (x, i) {
+      var on = x.dataset.themeSet === t;
+      x.setAttribute("aria-checked", on);
+      if (on) seg.style.setProperty("--pos", i);
+    });
+  }
+  function setTheme(t) {
+    function apply() {
+      if (t === "auto") delete root.dataset.theme; else root.dataset.theme = t;
+      paintBar();
+    }
+    try { if (t === "auto") localStorage.removeItem("theme"); else localStorage.setItem("theme", t); } catch (e) {}
+    showChoice(t);
+    if (!still && document.startViewTransition) document.startViewTransition(apply); else apply();
+  }
+  seg.addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) setTheme(b.dataset.themeSet); });
+  seg.addEventListener("keydown", function (e) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    var b = Array.prototype.slice.call(seg.querySelectorAll("button")), i = b.indexOf(document.activeElement);
+    var n = b[(i + (e.key === "ArrowRight" ? 1 : 2)) % 3]; n.focus(); setTheme(n.dataset.themeSet);
+  });
+  showChoice(root.dataset.theme || "auto"); paintBar();
+  dark.addEventListener("change", paintBar);
+
+  // Numbers count up (700 ms, ease-out), as on Apple's widgets
+  function countTo(el, to, fmt) {
+    if (still) { el.textContent = fmt(to); return; }
+    var t0 = performance.now();
+    (function step(t) {
+      var p = Math.min(1, Math.max(0, t - t0) / 700), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(to * e);
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function ago(sec) {
+    var m = Math.max(0, Math.round((Date.now() / 1000 - sec) / 60));
+    if (m < 1) return "just now";
+    if (m < 60) return m + " min ago";
+    var hrs = Math.floor(m / 60);
+    return hrs < 48 ? hrs + " h " + (m % 60) + " min ago" : Math.floor(hrs / 24) + " days ago";
+  }
+  document.querySelectorAll("[data-ago]").forEach(function (t) { t.textContent = ago(+t.dataset.ago); });
+  document.querySelectorAll("[data-iso]").forEach(function (t) {
+    var s = Date.parse(t.dataset.iso);
+    if (!isNaN(s)) t.textContent = ago(s / 1000);
+  });
+  document.querySelectorAll("[data-bytes]").forEach(function (el) {
+    var b = +el.dataset.bytes, tb = b / 1e12, big = el.classList.contains("value");
+    countTo(el, tb >= 1 ? tb : b / 1e9, function (v) {
+      var s = tb >= 1 ? v.toFixed(1) + " TB" : Math.round(v) + " GB";
+      return big ? s + " free" : s;
+    });
+  });
+  // The disk bar fills from empty
+  document.querySelectorAll("[data-used]").forEach(function (el) {
+    if (still) return;
+    el.style.setProperty("--used", "0%");
+    requestAnimationFrame(function () { requestAnimationFrame(function () { el.style.setProperty("--used", el.dataset.used + "%"); }); });
+  });
+
+  // The fact cross-fades when the live checks change it
+  var fact = document.getElementById("fact");
+  function setFact(text) {
+    if (!fact || fact.textContent === text) return;
+    if (still) { fact.textContent = text; return; }
+    fact.classList.add("swap");
+    setTimeout(function () { fact.textContent = text; fact.classList.remove("swap"); }, 300);
+  }
+
+  // Live checks: /status/<name> answers 204 when the app answers (Caddyfile `(status)`)
+  var items = Array.prototype.slice.call(document.querySelectorAll("[data-status]"));
+  items.forEach(function (el) { var d = el.querySelector(".dot"); if (d) d.classList.add("checking"); });
+  var names = items.map(function (el) { return el.dataset.status; })
+    .filter(function (n, i, a) { return a.indexOf(n) === i; });
+  var up = 0, down = [];
+  Promise.all(names.map(function (n) {
+    return fetch("/status/" + n, { cache: "no-store" })
+      .then(function (r) { return r.status === 204; }, function () { return false; })
+      .then(function (ok) {
+        if (ok) up++; else down.push(n);
+        items.forEach(function (el) {
+          if (el.dataset.status !== n) return;
+          var dot = el.querySelector(".dot");
+          if (dot) { dot.classList.remove("checking"); dot.classList.add(ok ? "up" : "down"); }
+          if (!ok) el.classList.add("is-down");
+        });
+      });
+  })).then(function () {
+    var count = document.getElementById("apps-up");
+    if (count) {
+      countTo(count, up, function (v) { return Math.round(v) + " of " + names.length; });
+      var ring = document.getElementById("ring");
+      ring.querySelector(".arc").style.strokeDashoffset = 150.8 * (1 - (names.length ? up / names.length : 0));
+      if (down.length) { count.className = "value bad"; ring.classList.add("bad"); }
+      document.getElementById("apps-caption").textContent = down.length
+        ? "Not answering: " + down.map(function (n) {
+            var el = items.filter(function (x) { return x.dataset.status === n; })[0];
+            return el.querySelector(".n").textContent;
+          }).join(", ")
+        : "Every app answered just now";
+    }
+    if (down.length) {
+      var first = items.filter(function (x) { return x.dataset.status === down[0]; })[0].querySelector(".n").textContent;
+      setFact(down.length === 1 ? first + " isn't answering." : down.length + " apps aren't answering.");
+    }
+  });
+})();
+</script>
+{{- if and (eq $d.layout "adult") $d.user.admin }}
+<script>
+// Detail sheets (admins): data from /ops/data/*.json (ops/server.py, admins only), jobs through
+// POST /ops/run/<job>. Charts are plain SVG; every value lands via textContent.
+(function () {
+  var sheet = document.getElementById("sheet");
+  if (!sheet) return;
+  var scrim = document.getElementById("scrim"), body = document.getElementById("sheet-body"), title = document.getElementById("sheet-title");
+  var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var SVG = "http://www.w3.org/2000/svg", opener = null, current = null, range = "24h", poll = null;
+  var RANGES = [["24h", "24 h"], ["7d", "7 days"], ["30d", "30 days"]];
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function svg(tag, attrs) { var e = document.createElementNS(SVG, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function bytes(b) {
+    if (b >= 1e12) return (b / 1e12).toFixed(2) + " TB";
+    if (b >= 1e9) return (b / 1e9).toFixed(b >= 1e11 ? 0 : 1) + " GB";
+    if (b >= 1e6) return Math.round(b / 1e6) + " MB";
+    return Math.round(b / 1e3) + " kB";
+  }
+  function time(t, withDay) {
+    var d = new Date(t * 1000), now = new Date();
+    var hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (!withDay && d.toDateString() === now.toDateString()) return hm;
+    return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }) + ", " + hm;
+  }
+  function dur(s) { return s < 90 ? Math.round(s) + " s" : s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h"; }
+  function ago(t) {
+    var m = Math.max(0, Math.round((Date.now() / 1000 - t) / 60));
+    return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 2880 ? Math.floor(m / 60) + " h " + (m % 60) + " min ago" : Math.floor(m / 1440) + " days ago";
+  }
+  function get(name) {
+    return fetch("/ops/data/" + name + ".json", { cache: "no-store", credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+
+  // ── The sheet: open, close, Escape, focus kept inside, swipe down on a phone ──
+  function open(kind, from) {
+    opener = from || document.activeElement; current = kind;
+    sheet.hidden = false;
+    requestAnimationFrame(function () { sheet.classList.add("open"); scrim.classList.add("open"); });
+    document.documentElement.style.overflow = "hidden";
+    render();
+    setTimeout(function () { sheet.focus({ preventScroll: true }); }, 50);
+    try { history.replaceState(null, "", "#" + kind); } catch (e) {}
+  }
+  function close() {
+    if (!current) return;
+    current = null; clearInterval(poll); poll = null;
+    sheet.classList.remove("open"); scrim.classList.remove("open");
+    document.documentElement.style.overflow = "";
+    setTimeout(function () { if (!current) { sheet.hidden = true; body.replaceChildren(); } }, still ? 0 : 450);
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    if (opener) opener.focus({ preventScroll: true });
+  }
+  document.querySelectorAll("[data-sheet]").forEach(function (b) {
+    b.addEventListener("click", function () { open(b.dataset.sheet, b); });
+  });
+  document.getElementById("sheet-close").addEventListener("click", close);
+  scrim.addEventListener("click", close);
+  document.addEventListener("keydown", function (e) {
+    if (!current) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    if (e.key === "Tab") {
+      var f = sheet.querySelectorAll("button:not([disabled]), a[href], [tabindex='0']");
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  (function swipe() {
+    var y0 = null, dy = 0, grab = sheet.querySelector("header");
+    grab.addEventListener("pointerdown", function (e) { if (innerWidth <= 600) { y0 = e.clientY; dy = 0; sheet.style.transition = "none"; } });
+    addEventListener("pointermove", function (e) {
+      if (y0 == null) return; dy = Math.max(0, e.clientY - y0); sheet.style.transform = "translateY(" + dy + "px)";
+    });
+    addEventListener("pointerup", function () {
+      if (y0 == null) return; y0 = null; sheet.style.transition = ""; sheet.style.transform = "";
+      if (dy > 110) close();
+    });
+  })();
+
+  // A range switch (24 h / 7 days / 30 days), the page's segmented control
+  function rangeSeg(onChange) {
+    var seg = el("div", "seg"); seg.setAttribute("role", "radiogroup"); seg.setAttribute("aria-label", "Range");
+    seg.appendChild(el("span", "thumb")).setAttribute("aria-hidden", "true");
+    RANGES.forEach(function (r, i) {
+      var b = el("button", null, r[1]); b.type = "button"; b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", r[0] === range);
+      if (r[0] === range) seg.style.setProperty("--pos", i);
+      b.addEventListener("click", function () {
+        range = r[0]; seg.style.setProperty("--pos", i);
+        seg.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-checked", x === b); });
+        onChange();
+      });
+      seg.appendChild(b);
+    });
+    return seg;
+  }
+
+  // A tooltip that follows the pointer over a chart
+  function tipper(box) {
+    var tip = box.appendChild(el("div", "tip"));
+    return {
+      show: function (x, y, text) { tip.textContent = text; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on"); },
+      hide: function () { tip.classList.remove("on"); }
+    };
+  }
+
+  function render() {
+    var kind = current;
+    title.textContent = { outside: "Outside check", backups: "Backups", disk: "Disk space" }[kind];
+    body.replaceChildren(el("p", "empty-note", "Loading…"));
+    var load = kind === "outside" ? get("outside").then(function (o) { return [o]; })
+             : kind === "backups" ? Promise.all([get("backups"), get("jobs")])
+             : Promise.all([get("storage"), get("disk-history"), get("jobs")]);
+    load.then(function (d) {
+      if (current !== kind) return;
+      body.replaceChildren();
+      if (d[0].missing) { body.appendChild(el("p", "empty-note", "No report yet. It appears after the next heartbeat (5 min) or hourly disk report.")); return; }
+      ({ outside: outside, backups: backups, disk: disk })[kind].apply(null, d);
+    }).catch(function (e) {
+      if (current === kind) body.replaceChildren(el("p", "empty-note", "Couldn't load the details (" + e.message + ")."));
+    });
+  }
+
+  // ── Outside check: uptime, a timeline of up / down / no data, incidents ──
+  function outside(o) {
+    var holder = el("div");
+    body.append(rangeSeg(draw), holder);
+    function draw() {
+      holder.replaceChildren();
+      var r = o.ranges[range];
+      var hero = holder.appendChild(el("div", "hero"));
+      hero.appendChild(el("b", null, (r.uptime * 100).toFixed(r.uptime >= 0.999 ? 2 : 1) + "%"));
+      hero.appendChild(el("span", null, "up, " + RANGES.filter(function (x) { return x[0] === range; })[0][1] +
+        (r.source === "healthchecks.io" ? " (healthchecks.io)" : " (this box's heartbeats)")));
+      // Timeline: one cell per bucket, adjacent cells of one state merged
+      var box = holder.appendChild(el("div", "chart")), tl = r.timeline, n = tl.length, W = 1000, H = 36;
+      var s = box.appendChild(svg("svg", { viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "none", height: H, role: "img",
+        "aria-label": "Timeline: " + tl.filter(function (c) { return c[1] === "fail"; }).length + " of " + n + " periods with a problem" }));
+      var clip = svg("clipPath", { id: "tlclip" }); clip.appendChild(svg("rect", { x: 0, y: 0, width: W, height: H, rx: 8 }));
+      s.appendChild(clip);
+      var g = s.appendChild(svg("g", { "clip-path": "url(#tlclip)" })), cw = W / n;
+      var colours = { ok: "var(--green)", fail: "var(--red)", none: "var(--fill)" };
+      for (var i = 0; i < n; ) {
+        var j = i; while (j + 1 < n && tl[j + 1][1] === tl[i][1]) j++;
+        g.appendChild(svg("rect", { x: i * cw, y: 0, width: (j - i + 1) * cw - (j + 1 < n ? 2 : 0), height: H, fill: colours[tl[i][1]] }));
+        i = j + 1;
+      }
+      var tip = tipper(box), step = n > 1 ? tl[1][0] - tl[0][0] : 300;
+      box.addEventListener("pointermove", function (e) {
+        var rect = s.getBoundingClientRect(), k = Math.min(n - 1, Math.max(0, Math.floor((e.clientX - rect.left) / rect.width * n)));
+        var word = { ok: "Up", fail: "Problem", none: "No data" }[tl[k][1]];
+        tip.show(e.clientX - box.getBoundingClientRect().left, 0, time(tl[k][0], range !== "24h") + " – " + time(tl[k][0] + step).split(", ").pop() + " · " + word);
+      });
+      box.addEventListener("pointerleave", tip.hide);
+      var ax = holder.appendChild(el("div", "muted")); ax.style.cssText = "display:flex;justify-content:space-between;margin-top:6px";
+      ax.append(el("span", null, time(tl[0][0], true)), el("span", null, "now"));
+      var lg = holder.appendChild(el("ul", "legend"));
+      [["var(--green)", "Up"], ["var(--red)", "Problem"], ["var(--fill)", "No data (box off, or before history began)"]].forEach(function (x) {
+        var li = lg.appendChild(el("li")); li.appendChild(el("i")).style.background = x[0]; li.appendChild(el("span", null, x[1]));
+      });
+      // Incidents in this range
+      holder.appendChild(el("h3", null, "Incidents"));
+      var since = Date.now() / 1000 - { "24h": 86400, "7d": 604800, "30d": 2592000 }[range];
+      var inc = o.incidents.filter(function (x) { return x.end >= since; });
+      if (!inc.length) holder.appendChild(el("p", "empty-note", "None in this range."));
+      var ul = holder.appendChild(el("ul", "list"));
+      inc.forEach(function (x) {
+        var li = ul.appendChild(el("li"));
+        li.appendChild(el("span", "when", time(x.start, true)));
+        var w = li.appendChild(el("span", "what", x.problems.join("; ")));
+        w.appendChild(el("small", null, x.ongoing ? "Still going" : (x.kind === "gap" ? "No heartbeats for " : "Lasted ") + dur(x.end - x.start)));
+      });
+      var now = o.now || {};
+      var foot = holder.appendChild(el("p", "muted"));
+      foot.style.marginTop = "18px";
+      foot.textContent = (now.last_ping ? "Last ping " + ago(Date.parse(now.last_ping) / 1000) + ". " : "") +
+        (now.next_ping ? "Next expected at " + time(Date.parse(now.next_ping) / 1000) + ". " : "") +
+        "History here since " + time(o.since, true) + ".";
+      var a = foot.appendChild(el("a", null, " healthchecks.io ↗")); a.href = "https://healthchecks.io/"; a.target = "_blank"; a.rel = "noopener";
+    }
+    draw();
+  }
+
+  // ── Backups: size per archive, runs (local, Proton), Back up now ──
+  function backups(b, jobs) {
+    var newest = b.archives[b.archives.length - 1];
+    var hero = body.appendChild(el("div", "hero"));
+    hero.appendChild(el("b", null, newest ? ago(newest.t) : "–"));
+    if (newest) hero.appendChild(el("span", null, bytes(newest.size) + ", encrypted, in backups/"));
+    // Back up now
+    var row = body.appendChild(el("div")); row.style.cssText = "display:flex;align-items:center;gap:12px;flex-wrap:wrap";
+    var btn = row.appendChild(el("button", "act primary", "Back up now")); btn.type = "button";
+    row.appendChild(el("span", "muted", "Local backup, then the copy to Proton Drive."));
+    var prog = body.appendChild(el("div", "progress"));
+    jobUi("backup", btn, prog, jobs, function () { setTimeout(render, 1500); });
+
+    var holder = el("div");
+    body.append(el("h3", null, "Size of each backup"), rangeSeg(draw), holder);
+    function draw() {
+      holder.replaceChildren();
+      var since = Date.now() / 1000 - { "24h": 86400, "7d": 604800, "30d": 2592000 }[range];
+      var pts = b.archives.filter(function (a) { return a.t >= since; });
+      if (!pts.length) { holder.appendChild(el("p", "empty-note", "No archives in this range.")); return; }
+      barChart(holder, pts, since);
+      holder.appendChild(el("p", "muted", "Older archives are thinned to one a day, kept 14 days."));
+    }
+    draw();
+
+    body.appendChild(el("h3", null, "Recent runs"));
+    var ul = body.appendChild(el("ul", "list"));
+    b.runs.slice(0, 10).forEach(function (r) {
+      var li = ul.appendChild(el("li"));
+      li.appendChild(el("span", "when", time(r.start, true)));
+      var w = li.appendChild(el("span", "what", r.kind === "local" ? "Local backup" : "Copy to Proton Drive"));
+      w.appendChild(el("small", null, r.end ? "took " + dur(r.end - r.start) : "running"));
+      li.appendChild(el("span", r.ok === false ? "bad-word" : "ok-word", r.ok === null ? "…" : r.ok ? "Done" : "Failed"));
+    });
+    var nx = body.appendChild(el("p", "muted")); nx.style.marginTop = "14px";
+    nx.textContent = "Next local backup " + (b.next.backup ? time(b.next.backup) : "–") + ", next Proton copy " + (b.next.offbox ? time(b.next.offbox) : "–") + ".";
+  }
+
+  // Bars on a time axis, one per archive; y in MB, three recessive gridlines
+  function barChart(holder, pts, since) {
+    var box = holder.appendChild(el("div", "chart")), W = Math.max(280, holder.clientWidth || 700), H = 180, L = 48, B = 22, T = 8;
+    var now = Date.now() / 1000, max = Math.max.apply(null, pts.map(function (p) { return p.size; })) * 1.1;
+    var s = box.appendChild(svg("svg", { viewBox: "0 0 " + W + " " + H, height: H, role: "img",
+      "aria-label": pts.length + " backups, " + bytes(Math.min.apply(null, pts.map(function (p) { return p.size; }))) + " to " + bytes(max / 1.1) }));
+    var x = function (t) { return L + (t - since) / (now - since) * (W - L - 6); }, y = function (v) { return T + (1 - v / max) * (H - T - B); };
+    [0, 0.5, 1].forEach(function (f) {
+      var v = max / 1.1 * f, yy = y(v);
+      s.appendChild(svg("line", { x1: L, x2: W, y1: yy, y2: yy, class: "gridline" }));
+      s.appendChild(svg("text", { x: L - 8, y: yy + 4, "text-anchor": "end", class: "axis" })).textContent = bytes(v);
+    });
+    var bw = Math.max(3, Math.min(14, (W - L) / pts.length - 2));
+    pts.forEach(function (p, i) {
+      var r = svg("rect", { x: x(p.t) - bw / 2, y: y(p.size), width: bw, height: Math.max(1, y(0) - y(p.size)), rx: Math.min(4, bw / 2), fill: "var(--s1)", class: "col" });
+      r.dataset.i = i; s.appendChild(r);
+    });
+    (W < 480 ? [since, now] : [since, (since + now) / 2, now]).forEach(function (t, k, all) {
+      if (all.length === 2 && k === 1) k = 2;
+      s.appendChild(svg("text", { x: k === 2 ? W : x(t), y: H - 4, "text-anchor": k === 0 ? "start" : k === 1 ? "middle" : "end", class: "axis" }))
+        .textContent = k === 2 ? "now" : time(t, true);
+    });
+    var tip = tipper(box);
+    box.addEventListener("pointermove", function (e) {
+      var rect = s.getBoundingClientRect(), vx = (e.clientX - rect.left) / rect.width * W;
+      var best = null, bd = 1e9;
+      pts.forEach(function (p, i) { var d = Math.abs(x(p.t) - vx); if (d < bd) { bd = d; best = i; } });
+      if (best == null || bd > 30) { tip.hide(); return; }
+      var p = pts[best];
+      s.querySelectorAll(".col").forEach(function (r) { r.style.opacity = +r.dataset.i === best ? 1 : .45; });
+      tip.show(x(p.t) / W * rect.width, y(p.size) / H * rect.height, time(p.t, true) + " · " + bytes(p.size));
+    });
+    box.addEventListener("pointerleave", function () { tip.hide(); s.querySelectorAll(".col").forEach(function (r) { r.style.opacity = ""; }); });
+  }
+
+  // ── Disk: what uses each disk, free space over time, cleanups ──
+  function disk(st, hist, jobs) {
+    st.disks.forEach(function (d, n) {
+      var head = body.appendChild(el("div", "diskhead"));
+      head.appendChild(el("b", null, d.label));
+      head.appendChild(el("span", "muted", bytes(d.free) + " free of " + bytes(d.total)));
+      var stack = body.appendChild(el("div", "stack")); stack.setAttribute("role", "img");
+      stack.setAttribute("aria-label", d.areas.map(function (a) { return a.name + " " + bytes(a.bytes); }).join(", ") + ", free " + bytes(d.free));
+      var lg = el("ul", "legend");
+      d.areas.forEach(function (a, k) {
+        if (a.bytes < 1e6) return; // nothing there (yet)
+        var c = "var(--s" + (k + 1) + ")";
+        var seg = stack.appendChild(el("i")); seg.style.flex = String(a.bytes / d.total); seg.style.background = c; seg.style.setProperty("--k", k);
+        seg.title = a.name + ": " + bytes(a.bytes);
+        var li = lg.appendChild(el("li")); li.appendChild(el("i")).style.background = c;
+        li.append(el("span", null, a.name), el("span", "v", bytes(a.bytes)));
+      });
+      var free = stack.appendChild(el("i")); free.style.flex = String(d.free / d.total); free.style.background = "transparent";
+      var li = lg.appendChild(el("li")); li.appendChild(el("i")).style.background = "var(--fill)"; li.append(el("span", null, "Free"), el("span", "v", bytes(d.free)));
+      body.appendChild(lg);
+      if (d.note) body.appendChild(el("p", "muted", d.note));
+    });
+
+    var holder = el("div");
+    body.append(el("h3", null, "Free space"), rangeSeg(draw), holder);
+    function draw() {
+      holder.replaceChildren();
+      var pts = (hist.ranges[range] || []).filter(function (p) { return p[1].length; });
+      if (pts.length < 2) { holder.appendChild(el("p", "empty-note", "Building up: a point every 5 minutes from today.")); return; }
+      lineChart(holder, pts, hist.disks.map(function (d, i) { return st.disks[i] ? st.disks[i].label : d.mount; }));
+    }
+    draw();
+
+    body.appendChild(el("h3", null, "Clean up"));
+    var list = body.appendChild(el("div"));
+    st.cleanups.forEach(function (c) {
+      var row = list.appendChild(el("div", "job"));
+      var w = row.appendChild(el("div", "what", c.title)); w.appendChild(el("small", null, c.detail));
+      var p = el("div", "progress"); p.style.margin = "6px 0 0"; w.appendChild(p);
+      row.appendChild(el("span", "frees", c.frees ? "frees ~" + bytes(c.frees) : "nothing to free"));
+      var b = row.appendChild(el("button", "act", "Clean up")); b.type = "button";
+      if (!c.frees) b.disabled = true;
+      jobUi(c.job, b, p, jobs, function () { setTimeout(render, 800); }, "Frees ~" + bytes(c.frees) + ". Sure?");
+    });
+    body.appendChild(el("p", "muted", "Measured " + ago(st.generated) + "; measured again after each cleanup."));
+  }
+
+  // Lines over time, one per disk (same unit: free bytes, one axis), crosshair + tooltip
+  function lineChart(holder, pts, names) {
+    var box = holder.appendChild(el("div", "chart")), W = Math.max(280, holder.clientWidth || 700), H = 200, L = 56, B = 22, T = 10;
+    var all = []; pts.forEach(function (p) { all = all.concat(p[1]); });
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all), pad = Math.max((hi - lo) * 0.15, hi * 0.01);
+    lo = Math.max(0, lo - pad); hi = hi + pad;
+    var t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+    var x = function (t) { return L + (t - t0) / Math.max(1, t1 - t0) * (W - L - 6); }, y = function (v) { return T + (1 - (v - lo) / (hi - lo)) * (H - T - B); };
+    var s = box.appendChild(svg("svg", { viewBox: "0 0 " + W + " " + H, height: H, role: "img",
+      "aria-label": names.map(function (n, i) { return n + ": " + bytes(pts[pts.length - 1][1][i]) + " free now"; }).join("; ") }));
+    [0, 0.5, 1].forEach(function (f) {
+      var v = lo + (hi - lo) * f, yy = y(v);
+      s.appendChild(svg("line", { x1: L, x2: W, y1: yy, y2: yy, class: "gridline" }));
+      s.appendChild(svg("text", { x: L - 8, y: yy + 4, "text-anchor": "end", class: "axis" })).textContent = bytes(v);
+    });
+    names.forEach(function (n, i) {
+      var d = pts.map(function (p, k) { return (k ? "L" : "M") + x(p[0]).toFixed(1) + " " + y(p[1][i]).toFixed(1); }).join(" ");
+      s.appendChild(svg("path", { d: d, fill: "none", stroke: "var(--s" + (i + 1) + ")", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke" }));
+    });
+    [t0, t1].forEach(function (t, k) {
+      s.appendChild(svg("text", { x: x(t), y: H - 4, "text-anchor": k ? "end" : "start", class: "axis" })).textContent = time(t, true);
+    });
+    var cross = s.appendChild(svg("line", { y1: T, y2: H - B, stroke: "var(--muted)", "stroke-width": 1, opacity: 0 }));
+    var tip = tipper(box);
+    box.addEventListener("pointermove", function (e) {
+      var rect = s.getBoundingClientRect(), vx = (e.clientX - rect.left) / rect.width * W, best = 0, bd = 1e9;
+      pts.forEach(function (p, k) { var dd = Math.abs(x(p[0]) - vx); if (dd < bd) { bd = dd; best = k; } });
+      var p = pts[best]; cross.setAttribute("x1", x(p[0])); cross.setAttribute("x2", x(p[0])); cross.setAttribute("opacity", .5);
+      tip.show(x(p[0]) / W * rect.width, T / H * rect.height, time(p[0], true) + " · " + names.map(function (n, i) { return n + " " + bytes(p[1][i]); }).join(" · "));
+    });
+    box.addEventListener("pointerleave", function () { tip.hide(); cross.setAttribute("opacity", 0); });
+    var lg = holder.appendChild(el("ul", "legend"));
+    names.forEach(function (n, i) { var li = lg.appendChild(el("li")); li.appendChild(el("i")).style.background = "var(--s" + (i + 1) + ")"; li.append(el("span", null, n), el("span", "v", bytes(pts[pts.length - 1][1][i]) + " free")); });
+  }
+
+  // ── Jobs: a button that asks (twice for cleanups), then progress from jobs.json ──
+  function jobUi(job, btn, prog, jobs, done, confirmText) {
+    var label = btn.textContent, armed = null;
+    function showState(j) {
+      prog.replaceChildren();
+      if (!j || j.job !== job) return;
+      if (j.state === "running") {
+        prog.append(el("span", "spinner"), el("span", null, (j.step || "Working") + "…"));
+        btn.disabled = true;
+      } else if (j.finished && Date.now() / 1000 - j.finished < 3600) {
+        prog.appendChild(el("span", j.state === "done" ? "ok-word" : "bad-word",
+          (j.state === "done" ? "Done " : "Failed ") + ago(j.finished) + (j.finished && j.started ? ", took " + dur(j.finished - j.started) : "")));
+        if (j.state !== "done" && j.output && j.output.length) prog.appendChild(el("small", "muted", j.output[j.output.length - 1]));
+      }
+    }
+    function watch(since) {
+      clearInterval(poll);
+      poll = setInterval(function () {
+        get("jobs").then(function (j) {
+          if (j.job !== job || (j.started || 0) < since - 5) { prog.replaceChildren(el("span", "spinner"), el("span", null, "Waiting to start…")); return; }
+          showState(j);
+          if (j.state !== "running") { clearInterval(poll); poll = null; btn.disabled = false; btn.textContent = label; done(); }
+        }).catch(function () {});
+      }, 2000);
+    }
+    showState(jobs);
+    if (jobs && jobs.job === job && jobs.state === "running") watch(jobs.started);
+    btn.addEventListener("click", function () {
+      if (confirmText && !armed) {
+        btn.textContent = "Confirm"; btn.classList.add("confirm"); prog.replaceChildren(el("span", null, confirmText));
+        armed = setTimeout(function () { armed = null; btn.textContent = label; btn.classList.remove("confirm"); prog.replaceChildren(); }, 5000);
+        return;
+      }
+      clearTimeout(armed); armed = null; btn.classList.remove("confirm");
+      btn.disabled = true; btn.textContent = label;
+      var since = Date.now() / 1000;
+      fetch("/ops/run/" + job, { method: "POST", credentials: "same-origin", headers: { "X-Homelab-Ops": "1" } })
+        .then(function (r) { if (r.status !== 202) throw new Error("HTTP " + r.status); prog.replaceChildren(el("span", "spinner"), el("span", null, "Starting…")); watch(since); })
+        .catch(function (e) { btn.disabled = false; prog.replaceChildren(el("span", "bad-word", "Couldn't start (" + e.message + ")")); });
+    });
+  }
+
+  // Deep link (#outside, #backups, #disk): reload or share keeps the sheet open
+  var start = (location.hash || "").slice(1) || new URLSearchParams(location.search).get("sheet");
+  if (start && document.querySelector('[data-sheet="' + start.replace(/[^a-z]/g, "") + '"]')) open(start, document.querySelector('[data-sheet="' + start + '"]'));
+})();
+</script>
+{{- end }}
+</body>
+</html>

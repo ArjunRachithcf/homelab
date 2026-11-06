@@ -1,0 +1,46 @@
+title = "Files (OpenCloud)"
+description = "Everyone's files with desktop and phone sync; public links are switched off."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["second-disk", "offsite"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["opencloud"]
+public_names = ["files"]
+peer_names = ["files"]
+blueprints = ["files.yaml"]
+jobs = ["files-local"]
+ansible = ""
+stages = ["files:authentik", "files:start", "files:zones", "files:proxy", "files:opencloud"]
+
+
+[[tiles]]
+order = 80
+id = "files"
+name = "Files"
+kids = "My files"
+desc = "Your files on every device"
+url = "https://files.%s/"
+icon = "/apps/opencloud.svg"
+status = "files"
+group = "docs"
+audience = "family-and-kids"
+
+[options.OPENCLOUD_TAG]
+help = "OpenCloud version"
+type = "tag"
+default = "7.2.4"
+advanced = true
+[options.FILES_DIR]
+help = "OpenCloud's storage (on the second disk: its files/ folder, bind-mounted here)"
+type = "path"
+default = "/srv/files"
+macos_default = "~/homelab-data/files"
+[options.FILES_COPY_DIR]
+help = "Second copy of the files (a btrfs subvolume on the primary SSD)"
+type = "path"
+default = "/srv/files-copy"
+macos_default = "~/homelab-data/files-copy"
+advanced = true

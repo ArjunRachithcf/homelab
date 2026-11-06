@@ -1,0 +1,2 @@
+# caddy/components/family-tree/status.caddy (component family-tree; copied into caddy/enabled/ by ./homelab configure)
+import status tree gramps:5000 /ready

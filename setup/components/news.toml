@@ -1,0 +1,49 @@
+title = "News (FreshRSS)"
+description = "Feeds and blogs, also in any Google Reader app on the phone. Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["freshrss"]
+public_names = ["news"]
+peer_names = ["news"]
+blueprints = ["news.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 136
+id = "news"
+name = "News"
+desc = "Feeds and blogs you follow"
+url = "https://news.%s/"
+icon = "/apps/freshrss.svg"
+status = "news"
+group = "life"
+audience = "family"
+
+[options.FRESHRSS_TAG]
+help = "FreshRSS version (News)"
+type = "tag"
+default = "1.30.4"
+advanced = true
+[options.FRESHRSS_OIDC_CLIENT_SECRET]
+help = "FreshRSS's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+[options.FRESHRSS_OIDC_CRYPTO_KEY]
+help = "Encrypts FreshRSS's sign-in sessions"
+type = "secret"
+required = true
+generate = "openssl rand -hex 32"
+[options.FRESHRSS_ADMIN_USER]
+help = "FreshRSS's admin: your Authentik username exactly (capitals matter); empty = ADMIN_LOGIN"
+type = "text"
+advanced = true

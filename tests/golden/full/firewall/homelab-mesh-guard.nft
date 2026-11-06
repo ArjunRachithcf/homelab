@@ -1,0 +1,14 @@
+# /etc/nftables/homelab-mesh-guard.nft: the NetBird address (100.64.0.10), where every published port
+# listens, answers NetBird peers (wt0), this machine (lo) and its containers (docker0, br-*) only.
+# Docker's published ports are DNAT, and firewalld accepts DNAT'd packets before any zone or policy, so a
+# LAN host that routes this address via this machine would reach them: priority raw runs before Docker's
+# DNAT. One positive rule: `ip daddr` never matches IPv6, which passes untouched.
+# Written by Ansible from ansible/roles/firewall/templates: edit there, then --tags firewall.
+table inet homelab_mesh_guard
+delete table inet homelab_mesh_guard
+table inet homelab_mesh_guard {
+  chain prerouting {
+    type filter hook prerouting priority raw; policy accept;
+    ip daddr 100.64.0.10 iifname != { "lo", "wt0", "docker0" } iifname != "br-*" counter drop
+  }
+}

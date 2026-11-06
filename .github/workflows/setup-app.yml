@@ -1,0 +1,84 @@
+# The setup app (setup-app/): checks on every change to it, builds for Linux, macOS and Windows for
+# every tag (and on demand). Builds embed the tag and its commit (setup-app/src-tauri/build.rs), so the
+# app's bootstrap clones exactly that code. Unsigned (setup-app/README.md).
+name: setup-app
+
+on:
+  pull_request:
+    paths: ["setup-app/**", "setup/bootstrap.sh", "lib/setup/**", "tests/setup-app/**", ".github/workflows/setup-app.yml"]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request stops the run before it; runs on main always finish
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: System packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev librsvg2-dev libdbus-1-dev openssh-server
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: setup-app/src-tauri
+      - name: Clippy
+        working-directory: setup-app/src-tauri
+        run: cargo clippy --locked -- -D warnings
+      - name: Rust tests
+        working-directory: setup-app/src-tauri
+        run: cargo test --locked
+      - name: SSH transport against a real sshd
+        run: bash tests/setup-app/ssh.sh
+      - name: Window (Playwright)
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          NODE_PATH=$PWD/node_modules python3 -m unittest tests.unit.test_setup_app -v
+
+  build:
+    if: github.event_name != 'pull_request'
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      HOMELAB_REPO: https://github.com/${{ github.repository }}.git
+      HOMELAB_REF: ${{ github.ref_name }}
+      HOMELAB_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: System packages (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev librsvg2-dev libdbus-1-dev patchelf
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: setup-app/src-tauri
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Build
+        working-directory: setup-app/src-tauri
+        run: cargo tauri build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: homelab-setup-${{ runner.os }}
+          path: |
+            setup-app/src-tauri/target/release/bundle/**/*.AppImage
+            setup-app/src-tauri/target/release/bundle/**/*.deb
+            setup-app/src-tauri/target/release/bundle/**/*.rpm
+            setup-app/src-tauri/target/release/bundle/**/*.dmg
+            setup-app/src-tauri/target/release/bundle/**/*.msi
+            setup-app/src-tauri/target/release/bundle/**/*-setup.exe
+          if-no-files-found: error

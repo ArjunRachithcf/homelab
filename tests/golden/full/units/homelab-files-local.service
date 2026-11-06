@@ -1,0 +1,21 @@
+# /etc/systemd/system/homelab-files-local.service (RUNBOOK.md step 7e)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab files: OpenCloud snapshot + second copy on the primary SSD
+OnFailure=homelab-notify@%n.service
+After=docker.service
+RequiresMountsFor=/srv/nvme1 /srv/files-copy
+
+[Service]
+Type=oneshot
+User=alex
+WorkingDirectory=/home/alex/homelab
+Environment=NVME1_DIR=/srv/nvme1
+Environment=FILES_COPY_DIR=/srv/files-copy
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash /home/alex/homelab/files-local.sh
+# As for photos-local: rsync from a system service would run as rsync_t, which may not read
+# OpenCloud's container_file_t storage. The admin's normal login context instead.
+SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0
+Nice=10
+IOSchedulingClass=idle

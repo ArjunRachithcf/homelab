@@ -1,0 +1,2 @@
+# caddy/components/things/status.caddy (component things; copied into caddy/enabled/ by ./homelab configure)
+import status stuff homebox:7745 /api/v1/status

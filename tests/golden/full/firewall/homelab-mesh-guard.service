@@ -1,0 +1,13 @@
+# /etc/systemd/system/homelab-mesh-guard.service: loads homelab-mesh-guard.nft before Docker, at every
+# boot. A oneshot that stays "active (exited)": not a job (ansible/live-safe.sh counts running ones only).
+# Written by Ansible from ansible/roles/firewall/templates: edit there, then --tags firewall.
+[Unit]
+Description=Homelab: the NetBird address answers only NetBird, this machine and its containers
+Before=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables/homelab-mesh-guard.nft
+ExecStop=/usr/sbin/nft delete table inet homelab_mesh_guard
+[Install]
+WantedBy=multi-user.target

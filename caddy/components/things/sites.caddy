@@ -1,0 +1,28 @@
+# caddy/components/things/sites.caddy (component things; copied into caddy/enabled/ by ./homelab configure)
+# Things (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+# Homebox's login rate limit trusts X-Real-IP before X-Forwarded-For: set it from the real client
+(homebox) {
+	reverse_proxy homebox:7745 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+stuff.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import homebox
+}
+
+stuff.{$DOMAIN}, stuff.{$DOMAIN_ALIAS}, stuff.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical stuff
+}
+
+stuff.{$DOMAIN}:8444 {
+	import headers
+	import homebox
+}
+
+stuff.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://stuff.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

@@ -1,0 +1,5 @@
+# Fedora: firewalld, nftables for the mesh guard, and the Python bindings Ansible's firewalld module needs
+- name: firewalld and nftables
+  ansible.builtin.dnf5:
+    name: [firewalld, nftables, python3-firewall]
+    state: present

@@ -1,0 +1,46 @@
+version: 1
+metadata:
+  name: homelab - Terminal
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: termix-provider
+    identifiers:
+      name: Provider for Terminal
+    attrs:
+      client_type: confidential
+      client_id: termix
+      client_secret: !Env TERMIX_OIDC_CLIENT_SECRET
+      grant_types: [authorization_code]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      access_token_validity: minutes=10
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [name, email (verified)]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [name, groups (homelab)]]
+      redirect_uris:
+        - matching_mode: strict
+          url: https://term.example.com:9443/users/oidc/callback
+        - matching_mode: strict
+          url: https://term.example.com/users/oidc/callback
+  - model: authentik_core.application
+    id: termix-app
+    identifiers:
+      slug: termix
+    attrs:
+      name: Terminal
+      provider: !KeyOf termix-provider
+      meta_launch_url: https://term.example.com:9443/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf termix-app
+      group: !Find [authentik_core.group, [name, authentik Admins]]
+      order: 0

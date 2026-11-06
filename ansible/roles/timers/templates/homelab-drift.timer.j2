@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-drift.timer: Sundays 12:00, catches up after downtime
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Weekly homelab drift check
+
+[Timer]
+OnCalendar=Sun *-*-* 12:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+# /etc/systemd/system/homelab-notify@.service: mails the last 30 journal lines of a failed
+# homelab unit (OnFailure=homelab-notify@%n.service in each of them). Uses Proton SMTP from .env.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: mail that %i failed
+
+[Service]
+Type=oneshot
+User={{ homelab_user }}
+WorkingDirectory={{ homelab_dir }}
+Environment=NOTIFY_TO={{ notify_to }}
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash {{ homelab_dir }}/notify.sh failed %i

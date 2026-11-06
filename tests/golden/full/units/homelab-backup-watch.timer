@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-backup-watch.timer: every 5 minutes
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab change watcher for backups
+
+[Timer]
+OnCalendar=*:0/5
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

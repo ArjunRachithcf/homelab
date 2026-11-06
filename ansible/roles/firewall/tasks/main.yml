@@ -1,0 +1,219 @@
+# The LAN sees only what this machine itself needs (RUNBOOK.md "Firewall"):
+# - zone homelab-lan is firewalld's default zone, so every interface no other zone claims (the LAN, a
+#   new NIC): DHCPv6, mDNS, NetBird's WireGuard port, Matter's devices, and LAN_ALLOW (.env);
+# - policy homelab-no-route: nothing from the LAN is routed through this machine;
+# - homelab-mesh-guard (nftables): the NetBird address, where every published port listens, answers
+#   NetBird, this machine and its containers only. firewalld accepts DNAT'd packets before any zone or
+#   policy, so only a rule ahead of Docker's DNAT keeps out a LAN host that routes the address via here;
+# - wt0 bound to trusted for good: NetBird binds it at runtime only, which a firewall-cmd --reload drops.
+# Never restarts Docker (that restarts every container): it stops and says so instead.
+- name: firewalld and nftables, Fedora
+  ansible.builtin.import_tasks: RedHat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: firewalld and nftables, Debian/Ubuntu
+  ansible.builtin.import_tasks: Debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: firewalld and nftables, Arch
+  ansible.builtin.import_tasks: Archlinux.yml
+  when: ansible_os_family == "Archlinux"
+
+- name: Not over the LAN (this role takes ssh away from it)
+  ansible.builtin.assert:
+    that: firewall_ssh | length == 0 or firewall_ssh.split()[2] in [netbird_ip, '127.0.0.1', '::1'] or 'ssh' in lan_allow
+    fail_msg: "This SSH session reached {{ firewall_ssh.split()[2] | default('') }}, which the LAN loses: connect over NetBird ({{ netbird_ip }}) or run it at the console."
+    quiet: true
+  vars:
+    firewall_ssh: "{{ lookup('ansible.builtin.env', 'SSH_CONNECTION') }}"
+
+# On a new machine --check only reports the install above: the rest needs firewalld and nft
+- name: firewalld installed
+  ansible.builtin.stat:
+    path: /usr/bin/firewall-cmd
+  register: firewall_cmd
+
+- name: The LAN zone, the guard and wt0
+  when: firewall_cmd.stat.exists
+  block:
+    - name: ufw (Ubuntu's own firewall)
+      ansible.builtin.command: ufw status
+      register: firewall_ufw
+      check_mode: false
+      changed_when: false
+      failed_when: false
+
+    - name: Not two firewalls
+      ansible.builtin.assert:
+        that: "'Status: active' not in (firewall_ufw.stdout | default(''))"
+        fail_msg: "ufw is active: two firewalls fight. `sudo ufw disable`, then run again."
+        quiet: true
+
+    - name: firewalld running
+      ansible.builtin.systemd_service:
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: The services firewalld knows
+      ansible.builtin.command: firewall-cmd --get-services
+      register: firewall_services
+      check_mode: false
+      changed_when: false
+
+    - name: LAN_ALLOW names firewalld services or PORT/PROTO
+      ansible.builtin.assert:
+        that: item is search('^[0-9]+(-[0-9]+)?/(tcp|udp)$') or item in firewall_services.stdout.split()
+        fail_msg: "LAN_ALLOW: {{ item }} is neither a firewalld service (firewall-cmd --get-services) nor PORT/PROTO like 51413/tcp"
+        quiet: true
+      loop: "{{ lan_allow }}"
+
+    - name: Docker's bridges (docker0, br-*) and their zones
+      ansible.builtin.shell: |
+        for i in $(ls /sys/class/net | grep -E '^(docker0|br-)'); do
+          echo "$i $(firewall-cmd --get-zone-of-interface="$i" 2>/dev/null || echo none)"
+        done
+      register: firewall_bridges
+      check_mode: false
+      changed_when: false
+
+    # Docker puts its bridges into zone docker when it starts with firewalld running; started before
+    # firewalld, they'd land in the LAN zone, where the policy below cuts the containers off
+    - name: Docker started after firewalld
+      ansible.builtin.assert:
+        that: firewall_bridges.stdout_lines | reject('search', ' docker$') | list | length == 0
+        fail_msg: "Not in zone docker: {{ firewall_bridges.stdout_lines | reject('search', ' docker$') | join(', ') }}. Docker started before firewalld: `sudo systemctl restart docker` (restarts every container), then run again."
+        quiet: true
+
+    - name: NetBird's WireGuard port
+      ansible.builtin.command: netbird status --json
+      register: firewall_netbird
+      check_mode: false
+      changed_when: false
+      failed_when: false
+
+    - name: The port NetBird uses (51820 until it runs)
+      ansible.builtin.set_fact:
+        firewall_wg_port: "{{ (firewall_netbird.stdout | from_json).wireguardPort }}"
+      when: firewall_netbird.rc == 0 and firewall_netbird.stdout is search('wireguardPort')
+
+    - name: wt0 in zone trusted for good (before anything changes the default zone)
+      ansible.posix.firewalld:
+        zone: trusted
+        interface: "{{ firewall_mesh_iface }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: /etc/nftables
+      ansible.builtin.file:
+        path: /etc/nftables
+        state: directory
+        mode: "0755"
+
+    - name: The mesh guard's rule
+      ansible.builtin.template:
+        src: homelab-mesh-guard.nft.j2
+        dest: /etc/nftables/homelab-mesh-guard.nft
+        mode: "0644"
+        validate: /usr/sbin/nft -c -f %s
+      register: firewall_guard_nft
+
+    - name: Unit that loads it
+      ansible.builtin.template:
+        src: homelab-mesh-guard.service.j2
+        dest: /etc/systemd/system/homelab-mesh-guard.service
+        mode: "0644"
+      register: firewall_guard_unit
+
+    - name: Mesh guard loaded, and at every boot
+      ansible.builtin.systemd_service:
+        name: homelab-mesh-guard
+        enabled: true
+        state: "{{ 'restarted' if (firewall_guard_nft is changed or firewall_guard_unit is changed) else 'started' }}"
+        daemon_reload: "{{ firewall_guard_unit is changed }}"
+      when: not (ansible_check_mode and firewall_guard_unit is changed)
+
+    - name: The NetBird service, the LAN zone and the policy
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "/etc/firewalld/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - { src: homelab-netbird.xml.j2, dest: services/homelab-netbird.xml }
+        - { src: homelab-lan.xml.j2, dest: "zones/{{ firewall_zone }}.xml" }
+        - { src: homelab-no-route.xml.j2, dest: "policies/{{ firewall_policy }}.xml" }
+      notify: Reload firewalld
+
+    - name: firewalld reads them
+      ansible.builtin.command: firewall-cmd --check-config
+      check_mode: false
+      changed_when: false
+
+    - name: Loaded
+      ansible.builtin.meta: flush_handlers
+
+    - name: The default zone now
+      ansible.builtin.command: firewall-cmd --get-default-zone
+      register: firewall_default
+      check_mode: false
+      changed_when: false
+
+    - name: homelab-lan is the default zone (moves the LAN's interfaces into it now)
+      ansible.builtin.command: firewall-cmd --set-default-zone={{ firewall_zone }}
+      when: firewall_default.stdout != firewall_zone
+      changed_when: true
+
+    - name: Docker's bridges back in zone docker after the reload
+      ansible.builtin.shell: |
+        for i in {{ firewall_bridges.stdout_lines | map('split') | map('first') | join(' ') }}; do
+          [ "$(firewall-cmd --get-zone-of-interface="$i" 2>/dev/null)" = docker ] || echo "$i"
+        done
+      register: firewall_rebound
+      until: firewall_rebound.stdout | length == 0
+      retries: 15
+      delay: 1
+      changed_when: false
+      when: not ansible_check_mode
+
+    # Every run (and the weekly drift check, which only mails): what the kernel has now. A difference
+    # is "changed" in --check and stops a real run.
+    - name: The LAN closed as written
+      ansible.builtin.shell: |
+        set -u
+        zone=$(firewall-cmd --get-default-zone)
+        [ "$zone" = {{ firewall_zone }} ] || echo "default zone is $zone, not {{ firewall_zone }}"
+        for i in $(ip -o -4 addr show scope global | awk '{print $2}' | sort -u); do
+          case $i in lo|{{ firewall_mesh_iface }}|docker0|br-*|veth*|virbr*) continue ;; esac
+          z=$(firewall-cmd --get-zone-of-interface="$i" 2>/dev/null) || z=$zone
+          # Following the default zone is right (the line above covers a wrong default); another zone is pinned
+          [ "$z" = {{ firewall_zone }} ] || [ "$z" = "$zone" ] \
+            || echo "$i is in zone $z: its NetworkManager profile pins it (nmcli connection modify <profile> connection.zone '')"
+        done
+        if [ -e /sys/class/net/{{ firewall_mesh_iface }} ]; then
+          [ "$(firewall-cmd --get-zone-of-interface={{ firewall_mesh_iface }})" = trusted ] || echo "{{ firewall_mesh_iface }} is not in zone trusted"
+        fi
+        diff <(firewall-cmd --zone={{ firewall_zone }} --list-all 2>/dev/null | tail -n +2 | grep -vE '^\s*(interfaces|sources):') \
+             <(firewall-cmd --permanent --zone={{ firewall_zone }} --list-all 2>/dev/null | tail -n +2 | grep -vE '^\s*(interfaces|sources):') >/dev/null \
+          || echo "{{ firewall_zone }}: the running rules differ from the files (firewall-cmd without --permanent?)"
+        nft list table inet homelab_mesh_guard >/dev/null 2>&1 || echo "the mesh guard isn't loaded"
+      args:
+        executable: /bin/bash
+      register: firewall_state
+      check_mode: false
+      changed_when: firewall_state.stdout | length > 0
+      failed_when: firewall_state.stdout | length > 0 and not ansible_check_mode
+
+# fwupd's passim shares firmware metadata with the LAN on 27500; fwupd works without it. A static unit
+# (started on demand, nothing to disable): masked, so nothing starts it again
+- name: passim
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/passim.service
+  register: firewall_passim
+
+- name: passim masked and stopped
+  ansible.builtin.systemd_service:
+    name: passim
+    masked: true
+    state: stopped
+  when: firewall_passim.stat.exists

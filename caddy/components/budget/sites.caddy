@@ -1,0 +1,24 @@
+# caddy/components/budget/sites.caddy (component budget; copied into caddy/enabled/ by ./homelab configure)
+(actual) {
+	reverse_proxy actual:5006
+}
+
+budget.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import actual
+}
+
+budget.{$DOMAIN}, budget.{$DOMAIN_ALIAS}, budget.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical budget
+}
+
+budget.{$DOMAIN}:8444 {
+	import headers
+	import actual
+}
+
+budget.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://budget.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

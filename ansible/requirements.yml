@@ -1,0 +1,6 @@
+# Fedora packages them (ansible-collection-ansible-posix, ansible-collection-community-general),
+# which is how RUNBOOK.md installs them, so root (homelab-drift.service) sees them too.
+# Elsewhere: ansible-galaxy collection install -r ansible/requirements.yml
+collections:
+  - name: ansible.posix
+  - name: community.general

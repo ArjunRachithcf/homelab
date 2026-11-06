@@ -1,0 +1,2 @@
+# caddy/components/chores/status.caddy (component chores; copied into caddy/enabled/ by ./homelab configure)
+import status chores donetick:2021 /api/v1/health

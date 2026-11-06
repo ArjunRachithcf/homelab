@@ -1,0 +1,2 @@
+# caddy/components/paperless/status.caddy (component paperless; copied into caddy/enabled/ by ./homelab configure)
+import status paperless paperless:8000 /api/

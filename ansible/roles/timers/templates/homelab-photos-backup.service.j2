@@ -1,0 +1,17 @@
+# /etc/systemd/system/homelab-photos-backup.service (RUNBOOK.md step 9)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab off-box copy to Proton Drive (photos, encrypted backups)
+OnFailure=homelab-notify@%n.service
+Wants=network-online.target
+After=network-online.target homelab-backup.service homelab-photos-local.service
+RequiresMountsFor={{ photos_dir }}
+
+[Service]
+Type=oneshot
+User={{ homelab_user }}
+WorkingDirectory={{ homelab_dir }}
+# Through bash: systemd may not execute a file labelled user_home_t directly (SELinux)
+ExecStart=/usr/bin/bash {{ homelab_dir }}/backup-photos.sh
+Nice=10
+IOSchedulingClass=idle

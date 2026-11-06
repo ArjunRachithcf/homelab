@@ -1,0 +1,2 @@
+# caddy/components/places/status.caddy (component places; copied into caddy/enabled/ by ./homelab configure)
+import status places dawarich:3000 /api/v1/health

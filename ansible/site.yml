@@ -1,0 +1,67 @@
+# ~/homelab/ansible/site.yml: what this machine should look like (host only; the stack is compose).
+# Fedora, Debian 13, Ubuntu 24.04, Arch: each role imports tasks/<family>.yml for repos and packages.
+#   ansible-playbook -K ansible/site.yml --check --diff     dry run
+#   ansible-playbook -K ansible/site.yml --skip-tags pam,sleep
+# Real runs refuse while a homelab job or Proton upload runs, or 02:00–05:30 (live-safe.sh).
+- name: Homelab host
+  hosts: localhost
+  connection: local
+  vars_files: [vars.yml]
+  vars:
+    netbird_ip: "{{ lookup('homelab_env', 'NETBIRD_IP', file=homelab_env) }}"
+
+  pre_tasks:
+    - name: A distro this homelab knows
+      ansible.builtin.assert:
+        that: ansible_os_family in ["RedHat", "Debian", "Archlinux"]
+        fail_msg: "{{ ansible_distribution }} ({{ ansible_os_family }}) isn't supported: Fedora, Debian 13, Ubuntu 24.04 or Arch."
+        quiet: true
+      tags: always
+
+    - name: Its package names and repos (ansible/distro/<family>.yml)
+      ansible.builtin.include_vars: "{{ playbook_dir }}/distro/{{ ansible_os_family }}.yml"
+      tags: always
+
+    # Fedora: enforcing. SELinux labels, ports and unit contexts only where it's on.
+    - name: SELinux on or off
+      ansible.builtin.set_fact:
+        # ansible_selinux says "Missing selinux Python library" (not enabled) on a fresh minimal Fedora
+        # until python3-libselinux is in: the kernel's own file decides then (connection: local)
+        homelab_selinux: "{{ (ansible_selinux | default({})).status | default('disabled') == 'enabled'
+                             or '/sys/fs/selinux/enforce' is file }}"
+      tags: always
+
+    - name: The homelab repo and its .env exist
+      ansible.builtin.stat:
+        path: "{{ homelab_env }}"
+      register: env_file
+      failed_when: not env_file.stat.exists
+      tags: always
+
+    - name: .env has this instance's keys ("Your instance" in .env.example)
+      ansible.builtin.assert:
+        that: lookup('homelab_env', item, file=homelab_env) | length > 0
+        fail_msg: "{{ item }} is empty or missing in {{ homelab_env }}: see .env.example, section \"Your instance\""
+        quiet: true
+      loop: "{{ ['ADMIN_USER', 'NOTIFY_TO', 'NETBIRD_IP'] + (['PHOTOS_UUID', 'IMMICH_UPLOAD_DIR'] if second_disk_enabled else []) + (['MEDIA_DIR'] if plex_enabled or 'all' in homelab_components or 'media-library' in homelab_components else []) }}"
+      tags: always
+
+    - name: Live-safety guard (no homelab job, no Proton upload, not 02:00–05:30)
+      ansible.builtin.command: /usr/bin/bash {{ playbook_dir }}/live-safe.sh {{ homelab_home }}
+      register: live_safe
+      check_mode: false
+      changed_when: false
+      failed_when: live_safe.rc != 0 and not ansible_check_mode
+      tags: always
+
+  roles:
+    - { role: base, tags: base }
+    - { role: firewall, tags: firewall }   # before docker: Docker binds its bridges when firewalld runs
+    - { role: docker, tags: docker }
+    - { role: gpu, tags: gpu, when: gpu_enabled }
+    - { role: netbird, tags: netbird }
+    - { role: plex, tags: plex, when: plex_enabled }
+    - { role: storage, tags: storage }
+    - { role: smarthome, tags: smarthome, when: smarthome_enabled }
+    - { role: ssh, tags: ssh }
+    - { role: timers, tags: timers }

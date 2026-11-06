@@ -1,0 +1,2 @@
+# caddy/components/audiobooks/status.caddy (component audiobooks; copied into caddy/enabled/ by ./homelab configure)
+import status books audiobookshelf:80 /healthcheck

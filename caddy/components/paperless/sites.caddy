@@ -1,0 +1,23 @@
+# caddy/components/paperless/sites.caddy (component paperless; copied into caddy/enabled/ by ./homelab configure)
+(paperless) {
+	reverse_proxy paperless:8000
+}
+
+paperless.{$DOMAIN}, paperless.{$DOMAIN_ALIAS}, paperless.{$DOMAIN}:{$PUBLIC_PORT}, paperless.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import paperless
+}
+
+# Public: Authentik's sign-in only. Paperless's API also takes a password (HTTP Basic, POST /api/token/),
+# which skips Authentik and its MFA for every user with a local password (the break-glass admin), so
+# both are refused here. API tokens still work (Less Paper's SSO login ends in one); NetBird peers keep both.
+paperless.{$DOMAIN}:8444, paperless.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	@password {
+		header_regexp Authorization (?i)^\s*basic(\s|$)
+	}
+	respond @password "Passwords aren't accepted here: sign in with your account." 403
+	@token_for_password path /api/token /api/token/*
+	respond @token_for_password "Passwords aren't accepted here: sign in with your account." 403
+	import paperless
+}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- /etc/firewalld/zones/homelab-lan.xml. Written by Ansible from ansible/roles/firewall/templates:
+     edit there (or LAN_ALLOW in .env), then run the playbook's firewall tag. -->
+<zone>
+  <short>Homelab LAN</short>
+  <description>firewalld's default zone, so every interface no other zone claims: the LAN. The homelab answers only on its NetBird address (wt0, zone trusted); here only what this machine itself needs, and LAN_ALLOW in .env.</description>
+  <service name="dhcpv6-client"/>
+  <service name="mdns"/>
+  <service name="homelab-netbird"/>
+  <service name="samba-client"/>
+  <port port="51413" protocol="tcp"/>
+  <!-- Matter (Home Assistant): matter.js picks a random operational port at every start, so its devices
+       get in by their own port 5540, over IPv6 only (Matter has no IPv4) -->
+  <rule family="ipv6">
+    <source-port port="5540" protocol="udp"/>
+    <accept/>
+  </rule>
+</zone>

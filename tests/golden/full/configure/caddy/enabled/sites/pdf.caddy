@@ -1,0 +1,27 @@
+# caddy/components/pdf/sites.caddy (component pdf; copied into caddy/enabled/ by ./homelab configure)
+(bentopdf) {
+	route {
+		import forward_auth
+		reverse_proxy bentopdf:8080
+	}
+}
+
+pdf.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import bentopdf
+}
+
+pdf.{$DOMAIN}, pdf.{$DOMAIN_ALIAS}, pdf.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical pdf
+}
+
+pdf.{$DOMAIN}:8444 {
+	import headers
+	import bentopdf
+}
+
+pdf.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://pdf.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

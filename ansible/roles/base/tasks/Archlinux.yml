@@ -1,0 +1,10 @@
+# Arch Linux: the packages. Rolling release, so no unattended updates: pacman -Syu by hand, then reboot.
+- name: Packages used by the homelab scripts
+  community.general.pacman:
+    name: "{{ distro_packages }}"   # ansible/distro/Archlinux.yml
+    state: present
+    update_cache: true
+
+- name: Updates on Arch
+  ansible.builtin.debug:
+    msg: "Arch has no unattended updates here: run `sudo pacman -Syu` now and then (not 02:00–05:30), then reboot."

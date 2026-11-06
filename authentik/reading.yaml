@@ -1,0 +1,73 @@
+# ~/homelab/authentik/reading.yaml
+# Reading (Kavita, read.<domain>, RUNBOOK.md 7e): confidential OIDC client, roles claim → admin,
+# downloads, libraries, kids' age limit (family). Needs KAVITA_OIDC_CLIENT_SECRET in the worker's
+# environment (setup-ssh.sh passes it from .env).
+#
+# Applied by `authentik/setup-ssh.sh component reading` when reading is chosen (also part of
+# `hardening`, so it's re-applied after upgrades).
+version: 1
+metadata:
+  name: homelab - Reading
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # ── Reading (Kavita, read.<domain>) ───────────────────────────────────
+  # Kavita asks for the scope "roles" when the provider lists it and turns the claim into its roles
+  # (Kavita.Models/Constants/PolicyConstants.cs): Login lets someone in at all; library-<name> per
+  # library; the highest age-restriction-<rating> wins. Synced at every login.
+  - model: authentik_providers_oauth2.scopemapping
+    id: kavita-roles
+    identifiers:
+      name: Reading roles (roles)
+    attrs:
+      scope_name: roles
+      description: What you can read
+      expression: |
+        roles = ["Login"]
+        if ak_is_group_member(request.user, name="authentik Admins"):
+            roles.append("Admin")
+        if ak_is_group_member(request.user, name="kids"):
+            roles += ["library-Kids", "age-restriction-Everyone 10+"]
+        else:
+            roles += ["Download", "library-Books", "library-Comics", "library-Manga", "library-Kids"]
+        return {"roles": roles}
+  - model: authentik_providers_oauth2.oauth2provider
+    id: kavita-provider
+    identifiers:
+      name: Provider for Reading
+    attrs:
+      client_type: confidential
+      client_id: kavita
+      grant_types: [authorization_code, refresh_token]
+      client_secret: !Env KAVITA_OIDC_CLIENT_SECRET
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [name, email (verified)]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+        - !KeyOf kavita-roles
+      redirect_uris:
+        - matching_mode: strict
+          url: https://read.__DOMAIN__:__PUBLIC_PORT__/signin-oidc
+        - matching_mode: strict
+          url: https://read.__DOMAIN__:__PUBLIC_PORT__/signout-callback-oidc
+  - model: authentik_core.application
+    id: kavita-app
+    identifiers:
+      slug: kavita
+    attrs:
+      name: Reading
+      provider: !KeyOf kavita-provider
+      meta_launch_url: https://read.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf kavita-app
+      group: !Find [authentik_core.group, [name, family]]
+      order: 0

@@ -1,0 +1,4 @@
+# ~/homelab/setup/presets/minimal.toml: a small start; add anything later (./homelab setup --add …).
+title = "Minimal: documents and photos"
+description = "Sign-in, the home page, Documents and Photos, with encrypted backups. Mesh only."
+components = ["core", "mesh", "paperless", "photos", "backups"]

@@ -1,0 +1,220 @@
+# ~/homelab/jobs/jobs.toml: every scheduled or triggered job of this homelab, once (plan Phase 2).
+#
+# Read by: ./homelab (status, list, run, logs), Ansible (timers role: which units to install, the
+# polkit rule), ansible/live-safe.sh (the locks), the ops container and ops-run.sh (the home page's
+# actions), and tests/unit/test_jobs.py, which checks that this file and the unit templates in
+# ansible/roles/timers/templates/ agree. The units themselves stay hand-written systemd there (each
+# with its own reasons in comments); on macOS (Phase 5) launchd jobs are generated from this file.
+#
+# Per job:
+#   title, description   for people (./homelab list, the console)
+#   units                its systemd units, in install order (service first)
+#   script               what the service runs (relative to the repo), with its arguments
+#   run_as               "user" (ADMIN_USER) or "root"
+#   calendar             the timer's OnCalendar, exactly; "" = no timer (started by something else)
+#   when                 the schedule in words
+#   polkit_start         true: the homelab user may start it without sudo (backup-watch.sh, ./homelab run)
+#   lock                 name of its flock in ~/.local/state/homelab/ (ansible/live-safe.sh waits for it)
+#   notify_on_failure    OnFailure=homelab-notify@ (a mail to NOTIFY_TO)
+#   guide                site/console/guides/<guide>.md, what to do when it fails (the console)
+#   macos                runs on macOS too (launchd, lib/jobs.py plists); false: Linux only (btrfs, XFS, Ansible)
+
+[jobs.notify]
+title = "Failure mail"
+description = "Mails the last journal lines of a homelab unit that failed"
+units = ["homelab-notify@.service"]
+script = "notify.sh failed %i"
+run_as = "user"
+calendar = ""
+when = "when another job fails"
+polkit_start = false
+lock = ""
+notify_on_failure = false
+guide = ""
+macos = true
+
+[jobs.backup]
+title = "Backup"
+description = "Encrypted backup: Paperless, Authentik, Immich, Jellyfin, NetBird, Plex, config"
+units = ["homelab-backup.service", "homelab-backup.timer"]
+script = "backup.sh"
+run_as = "user"
+calendar = "*-*-* *:30:00"
+when = "hourly at :30, and after changes"
+polkit_start = true
+lock = "backup"
+notify_on_failure = true
+guide = "backup-failed"
+macos = true
+
+[jobs.photos-local]
+title = "Photos: dedupe + second copy"
+description = "Deduplicates the photo library and copies it to the primary SSD"
+units = ["homelab-photos-local.service", "homelab-photos-local.timer"]
+script = "photos-local.sh"
+run_as = "user"
+calendar = "*-*-* 04:00:00"
+when = "daily 04:00"
+polkit_start = false
+lock = "photos-local"
+notify_on_failure = true
+guide = "photos-copy-failed"
+macos = false
+
+[jobs.files-local]
+title = "Files: snapshot + second copy"
+description = "Snapshots OpenCloud's files and copies them to the primary SSD"
+units = ["homelab-files-local.service", "homelab-files-local.timer"]
+script = "files-local.sh"
+run_as = "user"
+calendar = "*-*-* 03:50:00"
+when = "daily 03:50"
+polkit_start = false
+lock = "files-local"
+notify_on_failure = true
+guide = "files-copy-failed"
+macos = false
+
+[jobs.photos-backup]
+title = "Off-box copy (nightly)"
+description = "Encrypted archives, photos and files to Proton Drive; Sunday restore test"
+units = ["homelab-photos-backup.service", "homelab-photos-backup.timer"]
+script = "backup-photos.sh"
+run_as = "user"
+calendar = "*-*-* 04:30:00"
+when = "daily 04:30"
+polkit_start = false
+lock = "backup-photos"
+notify_on_failure = true
+guide = "offbox-failed"
+macos = true
+
+[jobs.photos-copy]
+title = "Photos: copy to the SSD"
+description = "Copies new photos to the primary SSD (no dedupe)"
+units = ["homelab-photos-copy.service", "homelab-photos-copy.timer"]
+script = "photos-local.sh copy"
+run_as = "user"
+calendar = "*-*-* *:45:00"
+when = "hourly at :45, and after changes"
+polkit_start = true
+lock = "photos-local"
+notify_on_failure = true
+guide = "photos-copy-failed"
+macos = false
+
+[jobs.offbox]
+title = "Off-box copy (quick)"
+description = "The newest archive and new photos to Proton Drive"
+units = ["homelab-offbox.service", "homelab-offbox.timer"]
+script = "backup-photos.sh quick"
+run_as = "user"
+calendar = "*-*-* 00/4:50:00"
+when = "every 4 hours at :50, and after changes"
+polkit_start = true
+lock = "backup-photos"
+notify_on_failure = true
+guide = "offbox-failed"
+macos = true
+
+[jobs.backup-watch]
+title = "Change watcher"
+description = "Starts a backup and the copies soon after something changed"
+units = ["homelab-backup-watch.service", "homelab-backup-watch.timer"]
+script = "backup-watch.sh"
+run_as = "user"
+calendar = "*:0/5"
+when = "every 5 minutes"
+polkit_start = false
+lock = ""
+notify_on_failure = true
+guide = "backup-failed"
+macos = true
+
+[jobs.proton-drive-update]
+title = "Proton Drive CLI update"
+description = "Updates the official and the patched Proton Drive command line tools"
+units = ["homelab-proton-drive-update.service", "homelab-proton-drive-update.timer"]
+script = "proton-drive/update.sh"
+run_as = "user"
+calendar = "Sun *-*-* 02:30:00"
+when = "Sundays 02:30"
+polkit_start = false
+lock = ""
+notify_on_failure = true
+guide = "offbox-failed"
+macos = true
+
+[jobs.drift]
+title = "Drift check"
+description = "Ansible --check: mails when this machine differs from ansible/site.yml"
+units = ["homelab-drift.service", "homelab-drift.timer"]
+script = "ansible/drift.sh"
+run_as = "root"
+calendar = "Sun *-*-* 12:00:00"
+when = "Sundays 12:00"
+polkit_start = false
+lock = ""
+notify_on_failure = true
+guide = "drift"
+macos = false
+
+[jobs.heartbeat]
+title = "Heartbeat"
+description = "The outside view: pings healthchecks.io, writes the home page's status"
+units = ["homelab-heartbeat.service", "homelab-heartbeat.timer"]
+script = "heartbeat.sh"
+run_as = "user"
+calendar = "*:2/5"
+when = "every 5 minutes"
+polkit_start = false
+lock = ""
+notify_on_failure = false
+guide = "site-down"
+macos = false
+
+[jobs.storage-report]
+title = "Disk report"
+description = "What uses the disks and what each cleanup would free (home page, Disk)"
+units = ["homelab-storage-report.service", "homelab-storage-report.timer"]
+script = "storage-report.py"
+run_as = "user"
+calendar = "hourly"
+when = "hourly"
+polkit_start = false
+lock = ""
+notify_on_failure = false
+guide = "disk-full"
+macos = true
+
+[jobs.ops]
+title = "Home page actions"
+description = "Runs what the home page's detail sheets ask for (see [actions])"
+units = ["homelab-ops.service", "homelab-ops.path"]
+script = "ops-run.sh"
+run_as = "user"
+calendar = ""
+when = "when the home page asks"
+polkit_start = false
+lock = "ops"
+notify_on_failure = true
+guide = ""
+macos = true
+
+# What the home page's buttons may ask for (ops/server.py accepts only these names; ops-run.sh maps
+# each to one fixed command). cleanup = shown in the Disk sheet with what it would free.
+[actions.backup]
+title = "Back up now"
+cleanup = false
+
+[actions.clean-docker]
+title = "Unused Docker images and build cache"
+cleanup = true
+
+[actions.clean-bins]
+title = "Recycle bins of the second copies"
+cleanup = true
+
+[actions.clean-backups]
+title = "Older hourly backups"
+cleanup = true

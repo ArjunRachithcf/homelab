@@ -1,0 +1,10 @@
+# The LAN zone: firewalld's default zone, so every interface no other zone claims (the LAN, a new NIC).
+# Besides LAN_ALLOW (.env) it allows what this machine itself needs: DHCPv6, mDNS, and NetBird's
+# WireGuard port, so peers on the same LAN connect directly instead of through a relay.
+firewall_zone: homelab-lan
+firewall_policy: homelab-no-route
+firewall_lan_services: [dhcpv6-client, mdns, homelab-netbird]
+# NetBird's interface (zone trusted) and WireGuard port; the role reads the port from
+# `netbird status --json` when NetBird runs
+firewall_mesh_iface: wt0
+firewall_wg_port: 51820

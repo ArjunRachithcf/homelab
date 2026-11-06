@@ -1,0 +1,5 @@
+# The project itself: its name and where it lives. The one place these are written; setup-app/src-tauri/build.rs
+# reads them (tests/unit/test_public_tree.py checks that no code repeats them; docs may).
+name = "homelab"
+repo = "https://github.com/ArjunRachithcf/homelab"
+security = "https://github.com/ArjunRachithcf/homelab/security/advisories/new"

@@ -1,0 +1,17 @@
+# caddy/components/terminal/sites.caddy (component terminal; copied into caddy/enabled/ by ./homelab configure)
+(termix) {
+	# Termix's own OIDC login (admins only in Authentik); websockets pass through
+	reverse_proxy termix:8080
+}
+
+# Terminal (Termix): NetBird only (no :8444 site, no NetBird service, DNS zone for the Admin group only),
+# admins only (its Authentik app). Port 443 and 9443 both work, like Home Assistant.
+term.{$DOMAIN}, term.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import termix
+}
+
+term.{$DOMAIN_ALIAS}, term.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	redir https://term.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

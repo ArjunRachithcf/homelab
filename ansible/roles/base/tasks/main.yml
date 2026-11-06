@@ -1,0 +1,27 @@
+# Packages the scripts need (per distro: ansible/distro/<family>.yml, tasks/<family>.yml), unattended
+# security updates, binds to the NetBird IP before wt0 is up, never sleep. RUNBOOK.md steps 1, 9, 11.
+- name: Packages and automatic updates, Fedora
+  ansible.builtin.import_tasks: RedHat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: Packages and automatic updates, Debian/Ubuntu
+  ansible.builtin.import_tasks: Debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: Packages and automatic updates, Arch
+  ansible.builtin.import_tasks: Archlinux.yml
+  when: ansible_os_family == "Archlinux"
+
+- name: Allow binds to the NetBird IP before wt0 is up (Caddy, sshd)
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-netbird-bind.conf
+    content: "net.ipv4.ip_nonlocal_bind = 1\n"
+    mode: "0644"
+  notify: Reload sysctl
+
+- name: Never suspend or hibernate
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: true
+  loop: [sleep.target, suspend.target, hibernate.target, hybrid-sleep.target]
+  tags: sleep

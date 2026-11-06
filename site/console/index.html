@@ -1,0 +1,405 @@
+<!doctype html>
+<!-- ~/homelab/site/console/index.html: the operator console (RUNBOOK.md "Console").
+     For admins and the operators group (Caddyfile `(home)`, 403 for everyone else). Static: the data
+     comes from /ops/data/console.json (console-report.py, every 5 min), actions go to
+     POST /ops/run/<name> (ops/server.py → ops-run.sh), guides are site/console/guides/*.md.
+     Restarts and runs only work over NetBird; from outside this is a read-only view.
+     Caddy runs this file through `templates` like every page here: keep it free of double braces.
+     Same look as the home page (site/index.html): system font, iOS greys, inset lists. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Console</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<script>
+  try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<style>
+@font-face {
+  font-family: "Inter"; font-weight: 100 900; font-display: swap;
+  src: url(/fonts/inter.woff2) format("woff2");
+}
+:root {
+  --ground: #f5f5f7; --card: #ffffff; --fill: rgba(120,120,128,.12); --hover: rgba(120,120,128,.08);
+  --sep: rgba(60,60,67,.16); --text: #1d1d1f; --muted: #6e6e73; --accent: #1b6e66; --on-accent: #ffffff;
+  --green: #34c759; --red: #ff3b30; --orange: #ff9500; --green-text: #248a3d; --red-text: #d70015;
+  --shadow: 0 1px 3px rgba(0,0,0,.05); --radius-card: 22px;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #000000; --card: #1c1c1e; --fill: rgba(120,120,128,.24); --hover: rgba(120,120,128,.16);
+    --sep: rgba(84,84,88,.6); --text: #f5f5f7; --muted: #98989d; --accent: #5fb3a9; --on-accent: #000000;
+    --green: #30d158; --red: #ff453a; --orange: #ff9f0a; --green-text: #30d158; --red-text: #ff6961;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #000000; --card: #1c1c1e; --fill: rgba(120,120,128,.24); --hover: rgba(120,120,128,.16);
+  --sep: rgba(84,84,88,.6); --text: #f5f5f7; --muted: #98989d; --accent: #5fb3a9; --on-accent: #000000;
+  --green: #30d158; --red: #ff453a; --orange: #ff9f0a; --green-text: #30d158; --red-text: #ff6961;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground); color: var(--text);
+  font: 400 15px/1.4 var(--font); letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 48px; }
+header.top { display: flex; align-items: center; gap: 10px; height: 56px; }
+header.top img { width: 26px; height: 26px; }
+header.top .home { color: var(--accent); text-decoration: none; font-size: 15px; margin-left: auto; padding: 12px 0; }
+h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; margin: 12px 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.sub .ro { color: var(--red-text); }
+h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin: 28px 4px 10px; display: flex; align-items: baseline; gap: 8px; }
+h2 .count { color: var(--muted); font-weight: 400; font-size: 15px; }
+.list { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow); overflow: hidden; }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; min-height: 56px; }
+.item + .item { border-top: 1px solid var(--sep); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+.dot.ok { background: var(--green); } .dot.bad { background: var(--red); } .dot.busy { background: var(--orange); }
+.txt { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.txt .n { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txt .t { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btns { display: flex; gap: 8px; flex: none; }
+button {
+  font: inherit; font-size: 14px; border: 0; border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  background: var(--fill); color: var(--text);
+}
+button:hover { background: var(--hover); }
+button.primary { background: var(--accent); color: var(--on-accent); }
+button.danger { background: var(--red); color: #fff; }
+button[disabled] { opacity: .5; cursor: default; }
+.empty { padding: 18px 16px; color: var(--muted); }
+.good { color: var(--green-text); } .bad-text { color: var(--red-text); }
+.filter { display: flex; gap: 8px; margin: 0 4px 10px; flex-wrap: wrap; }
+.filter button[aria-pressed="true"] { background: var(--text); color: var(--ground); }
+/* Sheet: guides, logs, confirmations */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.32); z-index: 30; }
+.sheet {
+  position: fixed; z-index: 31; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(720px, calc(100vw - 24px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+  background: var(--card); border-radius: 18px; box-shadow: 0 0 0 .5px var(--sep), 0 20px 60px rgba(0,0,0,.25);
+}
+.sheet header { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; }
+.sheet header h3 { margin: 0; font-size: 18px; flex: 1; }
+.sheet .body { padding: 4px 20px 20px; overflow: auto; }
+.sheet pre { font: 12px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; background: var(--fill); padding: 12px; border-radius: 12px; margin: 0; }
+.md h1 { font-size: 22px; margin: 4px 0 8px; } .md h2 { font-size: 17px; margin: 18px 0 6px; display: block; }
+.md code { font: 13px var(--mono); background: var(--fill); padding: 1px 5px; border-radius: 6px; }
+.md pre code { background: none; padding: 0; }
+.md li { margin: 4px 0; }
+[hidden] { display: none !important; }
+@media (max-width: 600px) {
+  .item { flex-wrap: wrap; }
+  .btns { width: 100%; justify-content: flex-end; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img src="/mark.png" alt="">
+    <strong>Console</strong>
+    <a class="home" href="/">Home</a>
+  </header>
+  <h1 id="title">Console</h1>
+  <p class="sub" id="sub">Loading…</p>
+
+  <section aria-labelledby="h-attention">
+    <h2 id="h-attention">Needs a look <span class="count" id="n-attention"></span></h2>
+    <div class="list" id="attention"></div>
+  </section>
+
+  <section aria-labelledby="h-jobs">
+    <h2 id="h-jobs">Jobs <span class="count" id="n-jobs"></span></h2>
+    <div class="list" id="jobs"></div>
+  </section>
+
+  <section aria-labelledby="h-apps">
+    <h2 id="h-apps">Apps <span class="count" id="n-apps"></span></h2>
+    <div class="filter" id="app-filter" role="group" aria-label="Show">
+      <button type="button" data-f="problems" aria-pressed="false">Problems</button>
+      <button type="button" data-f="all" aria-pressed="true">All</button>
+    </div>
+    <div class="list" id="apps"></div>
+  </section>
+
+  <section aria-labelledby="h-certs">
+    <h2 id="h-certs">Certificates <span class="count" id="n-certs"></span></h2>
+    <div class="list" id="certs"></div>
+  </section>
+
+  <section aria-labelledby="h-guides">
+    <h2 id="h-guides">Guides</h2>
+    <div class="list" id="guides"></div>
+  </section>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <header><h3 id="sheet-title"></h3><button type="button" id="sheet-close" aria-label="Close">Close</button></header>
+  <div class="body" id="sheet-body"></div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+  var data = null, allowed = [], guides = [], filter = "all";
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function $(id) { return document.getElementById(id); }
+  function may(name) { return allowed.indexOf(name) >= 0; }
+  function ago(t) {
+    var s = Math.max(0, Math.round(Date.now() / 1000 - t));
+    return s < 90 ? "just now" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago";
+  }
+  function getJSON(url) {
+    return fetch(url, { cache: "no-store", credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+
+  // ── Sheet ──
+  var lastFocus = null;
+  function openSheet(title, body) {
+    lastFocus = document.activeElement;
+    $("sheet-title").textContent = title;
+    $("sheet-body").replaceChildren(body);
+    $("scrim").hidden = false; $("sheet").hidden = false;
+    $("sheet-close").focus();
+  }
+  function closeSheet() {
+    $("scrim").hidden = true; $("sheet").hidden = true;
+    if (lastFocus) lastFocus.focus();
+  }
+  $("sheet-close").addEventListener("click", closeSheet);
+  $("scrim").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+
+  // ── Markdown, the small part guides use: headings, lists, code, bold, links. Text only via textContent. ──
+  function inline(parent, text) {
+    var re = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\))/g, last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var t = m[0];
+      if (t[0] === "`") parent.appendChild(el("code", null, t.slice(1, -1)));
+      else if (t[0] === "*") parent.appendChild(el("strong", null, t.slice(2, -2)));
+      else {
+        var lm = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(t), a = el("a", null, lm[1]), href = lm[2];
+        // Only links to other guides, this site, or https
+        if (/^[a-z0-9-]+\.md$/.test(href)) { a.href = "#guide=" + href.slice(0, -3); }
+        else if (/^(https:\/\/|\/)/.test(href)) { a.href = href; if (href[0] !== "/") { a.target = "_blank"; a.rel = "noopener"; } }
+        parent.appendChild(a);
+      }
+      last = re.lastIndex;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+  function markdown(src) {
+    var root = el("div", "md"), lines = src.replace(/\r/g, "").split("\n"), i = 0, list = null, para = null;
+    function flush() { list = null; para = null; }
+    while (i < lines.length) {
+      var line = lines[i], m;
+      if (/^```/.test(line)) {
+        flush();
+        var code = [];
+        for (i++; i < lines.length && !/^```/.test(lines[i]); i++) code.push(lines[i]);
+        var pre = el("pre"); pre.appendChild(el("code", null, code.join("\n"))); root.appendChild(pre);
+      } else if ((m = /^(#{1,3})\s+(.*)$/.exec(line))) {
+        flush();
+        var h = el("h" + m[1].length); inline(h, m[2]); root.appendChild(h);
+      } else if ((m = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(line))) {
+        var tag = /\d/.test(m[1]) ? "ol" : "ul";
+        if (!list || list.tagName.toLowerCase() !== tag) { list = el(tag); root.appendChild(list); }
+        para = null;
+        var li = el("li"); inline(li, m[2]); list.appendChild(li);
+      } else if (!line.trim()) {
+        flush();
+      } else if (list && /^\s+/.test(line)) {
+        list.lastChild.appendChild(document.createTextNode(" ")); inline(list.lastChild, line.trim());
+      } else {
+        list = null;
+        if (!para) { para = el("p"); root.appendChild(para); } else para.appendChild(document.createTextNode(" "));
+        inline(para, line.trim());
+      }
+      i++;
+    }
+    return root;
+  }
+  function showGuide(id) {
+    if (!/^[a-z0-9-]+$/.test(id)) return;
+    fetch("guides/" + id + ".md", { cache: "no-store", credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then(function (t) {
+        var g = guides.filter(function (x) { return x.id === id; })[0];
+        openSheet(g ? g.title : "Guide", markdown(t));
+      }, function () { openSheet("Guide", el("p", null, "This guide isn't there (" + id + ").")); });
+  }
+  window.addEventListener("hashchange", function () {
+    var m = /^#guide=([a-z0-9-]+)$/.exec(location.hash);
+    if (m) { showGuide(m[1]); history.replaceState(null, "", location.pathname); }
+  });
+
+  // ── Actions: POST /ops/run/<name>, then follow ops/data/jobs.json ──
+  function run(name, label) {
+    var out = el("div"), status = el("p", null, "Starting…");
+    out.appendChild(status);
+    openSheet(label, out);
+    var since = Math.floor(Date.now() / 1000) - 2;
+    return fetch("/ops/run/" + name, { method: "POST", credentials: "same-origin", headers: { "X-Homelab-Ops": "1" } })
+      .then(function (r) {
+        if (r.status === 403) return r.text().then(function (t) {
+          throw new Error(/NetBird/.test(t) ? "Restarts and runs only work over NetBird. Connect NetBird and open this page again." : "Not allowed from here.");
+        });
+        if (r.status !== 202) throw new Error("The console didn't take it (HTTP " + r.status + ").");
+        return follow(name, since, status);
+      })
+      .then(function (job) {
+        if (/^logs-/.test(name)) return getJSON("/ops/data/" + name + ".json").then(function (l) {
+          var pre = el("pre", null, (l.lines || []).join("\n") || "No lines.");
+          out.replaceChildren(el("p", "sub", "Last " + (l.lines || []).length + " lines, " + ago(l.time)), pre);
+          pre.scrollTop = pre.scrollHeight;
+        });
+        status.textContent = job.state === "done" ? "Done." : "It failed.";
+        status.className = job.state === "done" ? "good" : "bad-text";
+        if (job.output && job.output.length) out.appendChild(el("pre", null, job.output.join("\n")));
+        setTimeout(load, 1500);
+      })
+      .catch(function (e) { status.textContent = e.message; status.className = "bad-text"; });
+  }
+  function follow(name, since, status) {
+    return new Promise(function (resolve, reject) {
+      var tries = 0;
+      (function poll() {
+        getJSON("/ops/data/jobs.json").then(function (j) {
+          if (j.job === name && j.started >= since) {
+            if (j.state !== "running") return resolve(j);
+            status.textContent = (j.step || "Working") + "…";
+          }
+          if (++tries > 900) return reject(new Error("No answer from the machine yet; look again later."));
+          setTimeout(poll, 2000);
+        }, function () { setTimeout(poll, 4000); });
+      })();
+    });
+  }
+  function confirmRun(name, title, text, verb, danger) {
+    var body = el("div"), p = el("p", null, text), row = el("div", "btns");
+    var go = el("button", danger ? "danger" : "primary", verb), no = el("button", null, "Cancel");
+    go.type = no.type = "button";
+    go.addEventListener("click", function () { run(name, title); });
+    no.addEventListener("click", closeSheet);
+    row.append(no, go); body.append(p, row);
+    openSheet(title, body);
+    go.focus();
+  }
+  function btn(label, fn, cls) {
+    var b = el("button", cls || null, label); b.type = "button";
+    b.addEventListener("click", fn);
+    return b;
+  }
+
+  // ── Rendering ──
+  function item(state, name, detail, buttons) {
+    var row = el("div", "item");
+    if (state != null) row.appendChild(el("span", "dot " + state));
+    var txt = el("span", "txt");
+    txt.append(el("span", "n", name), el("span", "t", detail));
+    row.appendChild(txt);
+    if (buttons && buttons.length) { var b = el("span", "btns"); b.append.apply(b, buttons); row.appendChild(b); }
+    return row;
+  }
+  function fill(id, rows, emptyText) {
+    $(id).replaceChildren.apply($(id), rows.length ? rows : [el("div", "empty", emptyText)]);
+    $("n-" + id) && ($("n-" + id).textContent = rows.length ? rows.length : "");
+  }
+  function jobButtons(id, title) {
+    var out = [];
+    if (may("logs-job-" + id)) out.push(btn("Logs", function () { run("logs-job-" + id, title + ": log"); }));
+    if (may("run-" + id)) out.push(btn("Run now", function () {
+      confirmRun("run-" + id, title, "Start " + title + " now? It runs on the machine; you can close this and come back.", "Run now");
+    }));
+    return out;
+  }
+  function appButtons(svc) {
+    var out = [];
+    if (may("logs-app-" + svc)) out.push(btn("Logs", function () { run("logs-app-" + svc, svc + ": log"); }));
+    if (may("restart-" + svc)) out.push(btn("Restart", function () {
+      confirmRun("restart-" + svc, "Restart " + svc, "Restart " + svc + "? Whoever uses it is cut off for a moment. The admin gets a mail naming you.", "Restart", true);
+    }));
+    return out;
+  }
+  function render() {
+    var d = data;
+    $("sub").replaceChildren(document.createTextNode("Updated " + ago(d.time) + ". "));
+    var att = (d.attention || []).map(function (a) {
+      var b = [btn("What to do", function () { showGuide(a.guide); }, "primary")];
+      if (a.kind === "job") b = b.concat(jobButtons(a.id, a.title));
+      if (a.kind === "app") b = b.concat(appButtons(a.id));
+      return item("bad", a.title, kindText[a.kind] || "", b);
+    });
+    fill("attention", att, "Nothing. Everything this console watches is fine.");
+
+    fill("jobs", (d.jobs || []).map(function (j) {
+      var st = j.state === "ok" ? "ok" : j.state === "failed" ? "bad" : j.state === "running" ? "busy" : "";
+      var detail = j.detail + " · " + (j.last ? "last " + j.last : "not run yet") + " · " + (j.next ? "next " + j.next : j.when);
+      return item(st, j.title, detail, jobButtons(j.id, j.title));
+    }), "No jobs (no systemd here?).");
+
+    var apps = (d.apps || []).filter(function (a) {
+      return filter === "all" || a.state !== "running" || a.health === "unhealthy";
+    });
+    fill("apps", apps.map(function (a) {
+      var bad = a.state !== "running" || a.health === "unhealthy";
+      var st = a.state === "unknown" ? "" : bad ? "bad" : a.health === "starting" ? "busy" : "ok";
+      return item(st, a.service, a.title + " · " + (a.status || a.state), appButtons(a.service));
+    }), filter === "all" ? "No apps (Docker not answering?)." : "No problems.");
+    $("n-apps").textContent = (d.apps || []).length;
+
+    fill("certs", (d.certs || []).map(function (c) {
+      var st = c.days == null ? "bad" : c.days < 14 ? "bad" : "ok";
+      return item(st, c.name, c.days == null ? "no valid certificate on :443" : c.days + " days left");
+    }), "No certificates checked.");
+  }
+  var kindText = { job: "A job failed", app: "An app isn't running", cert: "Certificate", outside: "Outside view", disk: "Disk space" };
+
+  Array.prototype.forEach.call(document.querySelectorAll("#app-filter button"), function (b) {
+    b.addEventListener("click", function () {
+      filter = b.dataset.f;
+      Array.prototype.forEach.call(document.querySelectorAll("#app-filter button"), function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      if (data) render();
+    });
+  });
+
+  function load() {
+    return getJSON("/ops/data/console.json").then(function (d) {
+      if (d.missing) { $("sub").textContent = "No report yet: console-report.py runs with every heartbeat (5 min)."; return; }
+      data = d; allowed = d.allowed || []; render();
+    }, function (e) { $("sub").textContent = "Couldn't load the report (" + e.message + ")."; });
+  }
+
+  getJSON("guides/index.json").then(function (g) {
+    guides = g;
+    fill("guides", g.map(function (x) {
+      return item(null, x.title, x.summary || "", [btn("Open", function () { showGuide(x.id); })]);
+    }), "No guides.");
+  }).catch(function () {});
+  load();
+  setInterval(function () { if ($("sheet").hidden && !document.hidden) load(); }, 60000);
+})();
+</script>
+</body>
+</html>

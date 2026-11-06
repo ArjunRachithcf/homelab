@@ -1,0 +1,29 @@
+# caddy/components/family-tree/sites.caddy (component family-tree; copied into caddy/enabled/ by ./homelab configure)
+# Family tree (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+# Gramps Web hands out an owner-creating token without a login until the first user exists, and
+# ignores DISABLE_LOCAL_AUTH there. Owners come from Authentik's groups instead, so it stays shut.
+(gramps) {
+	@create_owner path /api/token/create_owner* /api/users/*/create_owner*
+	respond @create_owner 403
+	reverse_proxy gramps:5000
+}
+
+tree.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import gramps
+}
+
+tree.{$DOMAIN}, tree.{$DOMAIN_ALIAS}, tree.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical tree
+}
+
+tree.{$DOMAIN}:8444 {
+	import headers
+	import gramps
+}
+
+tree.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://tree.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

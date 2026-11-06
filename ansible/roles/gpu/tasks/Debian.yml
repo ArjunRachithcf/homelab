@@ -1,0 +1,26 @@
+# Debian/Ubuntu: NVIDIA's apt repo (docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+- name: /etc/apt/keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: NVIDIA container toolkit signing key
+  ansible.builtin.get_url:
+    url: https://nvidia.github.io/libnvidia-container/gpgkey
+    dest: /etc/apt/keyrings/nvidia-container-toolkit.asc
+    mode: "0644"
+
+- name: NVIDIA container toolkit repo
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    content: "deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit.asc] https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /\n"
+    mode: "0644"
+  register: gpu_repo
+
+- name: nvidia-container-toolkit (nvidia-ctk)
+  ansible.builtin.apt:
+    name: nvidia-container-toolkit
+    state: present
+    update_cache: "{{ gpu_repo is changed }}"
+  when: not (ansible_check_mode and gpu_repo is changed)

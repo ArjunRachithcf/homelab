@@ -1,0 +1,2 @@
+# caddy/components/ntfy/status.caddy (component ntfy; copied into caddy/enabled/ by ./homelab configure)
+import status ntfy ntfy:80 /v1/health

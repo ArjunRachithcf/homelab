@@ -1,0 +1,13 @@
+# /etc/systemd/system/homelab-photos-backup.timer: daily 04:30 (after homelab-backup at 03:30),
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+# catches up after downtime
+[Unit]
+Description=Daily homelab copy to Proton Drive
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

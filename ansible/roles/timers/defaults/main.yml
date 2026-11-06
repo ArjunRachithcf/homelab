@@ -1,0 +1,4 @@
+# Every unit of the chosen components (COMPONENTS) and which ones the homelab user may start, from the
+# job registry (jobs/jobs.toml, lib/jobs.py)
+timers_units: "{{ lookup('ansible.builtin.pipe', ansible_playbook_python ~ ' ' ~ homelab_repo ~ '/lib/jobs.py units --env ' ~ homelab_env) | from_json }}"
+timers_polkit_units: "{{ lookup('ansible.builtin.pipe', ansible_playbook_python ~ ' ' ~ homelab_repo ~ '/lib/jobs.py polkit --env ' ~ homelab_env) | from_json }}"

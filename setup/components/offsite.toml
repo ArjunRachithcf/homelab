@@ -1,0 +1,16 @@
+title = "Off-site copy (Proton Drive)"
+description = "Nightly: the encrypted backups, photos and files to Proton Drive, a restore test every Sunday."
+category = "backup"
+core = false
+requires = ["backups"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = ["photos-backup", "offbox", "proton-drive-update"]
+ansible = ""
+stages = ["immich:proton", "immich:proton_photos"]

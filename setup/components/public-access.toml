@@ -1,0 +1,25 @@
+title = "Public access"
+description = "Family members reach the apps from anywhere, through NetBird's reverse proxy in TLS passthrough mode, behind Authentik with MFA. No port opens on your router."
+category = "access"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = []
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = ""
+stages = ["public:custom_domains", "public:wildcard_dns", "public:services", "public:cutover", "public:verify"]
+
+[options.NETBIRD_PROXY_CLUSTER]
+help = "NetBird reverse proxy cluster target for the wildcard CNAMEs (Custom Domains)"
+type = "domain"
+set_by = "public:custom_domains"
+[options.NETBIRD_PROXY_PORT]
+help = "Listen port the NetBird TLS services got (9443 on the shared eu1 cluster)"
+type = "port"
+default = "9443"

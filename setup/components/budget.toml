@@ -1,0 +1,43 @@
+title = "Budget (Actual)"
+description = "Household budgeting for the group \"budget\"."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch", "macos"]
+services = ["actual"]
+public_names = ["budget"]
+peer_names = ["budget"]
+blueprints = ["budget.yaml"]
+jobs = []
+ansible = ""
+stages = ["apps:authentik", "apps:start", "apps:netbird", "apps:proxy", "apps:media"]
+
+
+[[tiles]]
+order = 110
+id = "budget"
+name = "Budget"
+desc = "Accounts and spending"
+url = "https://budget.%s/"
+icon = "/apps/actual-budget.svg"
+status = "budget"
+group = "docs"
+audience = "budget"
+
+[options.ACTUAL_TAG]
+help = "Actual version"
+type = "tag"
+default = "26.10.0"
+advanced = true
+[options.ACTUAL_OIDC_CLIENT_SECRET]
+help = "Actual's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+
+# What Authentik needs beyond the blueprint (lib/authentik.py): you into the group (a list addition)
+[authentik]
+admin_groups = ["budget"]
