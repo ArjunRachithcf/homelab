@@ -673,8 +673,9 @@ mod tests {
   #[test]
   fn outside_sites_and_lookalikes_stay_out() {
     let b = base();
+    // outside.invalid, not example.com: that is the example instance's own domain (tests/fixtures/full.env)
     for no in [format!("http://photos.{b}/"), format!("https://photos.{b}.evil.test/"), format!("https://evil{b}/"),
-               "https://example.com/".into(), "file:///etc/passwd".into(), "smb://nas/share".into()] {
+               "https://outside.invalid/".into(), "file:///etc/passwd".into(), "smb://nas/share".into()] {
       assert!(!in_the_window(&u(&no)), "{no}");
     }
   }
