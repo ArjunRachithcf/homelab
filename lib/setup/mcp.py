@@ -219,6 +219,9 @@ def t_apply(a):
     if r.get("applied"):
         code, out = sh(["./homelab", "configure"])
         r["configure"] = {"exit": code, "output": out[-2000:]}
+        if ENV.resolve() == (ROOT / ".env").resolve():  # the running console's backend reads this one's choice
+            code, out = sh(["./homelab", "refresh-console"])
+            r["console"] = {"exit": code, "output": out[-500:]}
     return r
 
 
@@ -311,7 +314,7 @@ RO = {"readOnlyHint": True, "openWorldHint": False}
 TOOLS = {
     "list_components": (t_list_components, "Every component (app or feature) with its options (secret values hidden), the presets and the current choice.", OBJ, RO),
     "plan": (t_plan, "What a choice would do: components added, notes, what's still needed, the setup stages. Changes nothing.", CHOICE, RO),
-    "apply": (t_apply, "Writes the choice and options into .env (generated secrets stay on the machine) and runs ./homelab configure. Ask first.", CHOICE,
+    "apply": (t_apply, "Writes the choice and options into .env (generated secrets stay on the machine), runs ./homelab configure and gives a running console the new choice (./homelab refresh-console). Ask first.", CHOICE,
               {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True}),
     "set_option": (t_set_option, "Sets one non-secret .env option of the chosen components. Ask first.",
                    {**OBJ, "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]},

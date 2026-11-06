@@ -389,18 +389,20 @@
   // ── 4. Set up: the wizards' protocol ──
   var feed = $("feed"), ask = $("ask");
   function add(node) { feed.appendChild(node); node.scrollIntoView({ block: "nearest" }); return node; }
-  var WIZ = { wizard: "The machine", public: "Public access", hardening: "Sign-in and backups", immich: "Photos", apps: "Apps", music: "Music", files: "Files and reading", family: "Family life" };
+  var WIZ = { wizard: "The machine", public: "Public access", hardening: "Sign-in, firewall and backups", immich: "Photos", apps: "Apps", music: "Music", files: "Files and reading", family: "Family life" };
 
   function toRun(applied) { go("run"); renderApplied(applied); renderParts(); }
 
-  // What Apply just did: configure's own words (e.g. Caddy to recreate) and what was switched off but still runs
+  // What Apply just did: configure's own words (e.g. Caddy to recreate), the console's backend (restarted when the
+  // choice changed) and what was switched off but still runs
   function renderApplied(r) {
     var box = $("applied");
     box.replaceChildren();
     box.hidden = !r;
     if (!r) return;
     box.appendChild(el("strong", "good", "Saved."));
-    var out = r.configure && r.configure.output ? r.configure.output.trim() : "";
+    var out = [r.configure, r.console].map(function (x) { return x && x.output ? x.output.trim() : ""; })
+      .filter(Boolean).join("\n");
     if (out) box.appendChild(el("pre", "log", out));
     if (r.still_running && r.still_running.length) {
       box.appendChild(el("p", "warn", "Switched off, but their containers still run: " + r.still_running.map(titleOf).join(", ")

@@ -161,6 +161,7 @@ class Window(unittest.TestCase):
         self.assertEqual(out["startOne"], {"wizards": ["wizard"], "stages": ["dns"], "check": False})
         self.assertTrue(out["toRunHidden"])  # a machine without .env has nothing to set up unchanged
         self.assertIn("nothing to change", out["applied"])  # configure's own words after Apply
+        self.assertIn("console's backend restarted", out["applied"])  # and ./homelab refresh-console's
         # Switching off what the machine has: the plan lists it, Apply asks first, "Keep them" writes nothing
         # (COMPONENTS above is still the minimal choice)
         self.assertIn("Switched off", out["planOff"])

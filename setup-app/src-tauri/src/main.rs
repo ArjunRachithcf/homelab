@@ -2,7 +2,7 @@
 //
 // The window (ui/) chooses; this side runs. It only runs fixed argvs in the homelab repository:
 // ./homelab components --json, ./homelab setup --plan|--apply --answers - --json, ./homelab configure,
-// ./homelab setup --set-secret KEY (value on stdin), ./homelab setup --export-answers, ./homelab setup --protocol [wizards] [--stages=…] [--check], and the embedded
+// ./homelab refresh-console, ./homelab setup --set-secret KEY (value on stdin), ./homelab setup --export-answers, ./homelab setup --protocol [wizards] [--stages=…] [--check], and the embedded
 // setup/bootstrap.sh when there's no repository yet. Over SSH the same argvs are quoted word by word.
 //
 // Secrets: answers to `secret` steps go to the wizard's stdin (lib/setup/run.py); the sudo password,
@@ -226,7 +226,8 @@ async fn plan(state: State<'_, App>, answers: String) -> R<Value> {
   json_out(&o)
 }
 
-/// Writes the choice into .env (secrets generated there, never shown) and runs ./homelab configure
+/// Writes the choice into .env (secrets generated there, never shown), runs ./homelab configure, and gives a
+/// running console's backend the new choice (./homelab refresh-console: it reads the components when it starts)
 #[tauri::command]
 async fn apply(state: State<'_, App>, answers: String) -> R<Value> {
   let c = conn(&state)?;
@@ -235,6 +236,8 @@ async fn apply(state: State<'_, App>, answers: String) -> R<Value> {
   if v["applied"] == json!(true) {
     let cf = c.run(Cwd::Repo, &argv(&["./homelab", "configure"]), None).await?;
     v["configure"] = json!({ "code": cf.code, "output": format!("{}{}", cf.stdout, cf.stderr) });
+    let rc = c.run(Cwd::Repo, &argv(&["./homelab", "refresh-console"]), None).await?;
+    v["console"] = json!({ "code": rc.code, "output": format!("{}{}", rc.stdout, rc.stderr) });
   }
   Ok(v)
 }

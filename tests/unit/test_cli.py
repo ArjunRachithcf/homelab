@@ -75,6 +75,43 @@ class Cli(unittest.TestCase):
         self.assertEqual(self.run_cli("nope").returncode, 2)
         self.assertNotEqual(self.run_cli("run", "no-such-job").returncode, 0)
 
+    def refresh_console(self, before: str, after: str = "", up: int = 0) -> tuple[subprocess.CompletedProcess, str]:
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "docker"
+            p.write_text(DOCKER)
+            p.chmod(0o755)
+            log = Path(d) / "calls"
+            env = dict(os.environ, NO_COLOR="1", PATH=f"{d}:{os.environ['PATH']}", DOCKER_HOST="unix:///nonexistent",
+                       STUB_LOG=str(log), BEFORE=before, AFTER=after, UP=str(up))
+            r = subprocess.run([str(ROOT / "homelab"), "refresh-console"], capture_output=True, text=True, env=env, cwd=ROOT)
+            return r, log.read_text() if log.exists() else ""
+
+    def test_refresh_console(self):
+        r, calls = self.refresh_console("")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("isn't running", r.stdout)
+        self.assertNotIn("compose up", calls)  # never started by this
+        r, calls = self.refresh_console("c1", "c1")
+        self.assertIn("docker compose up -d --no-deps ops", calls)
+        self.assertIn("up to date", r.stdout)
+        r, _ = self.refresh_console("c1", "c2")
+        self.assertIn("restarted", r.stdout)
+        r, _ = self.refresh_console("c1", up=1)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no such image", r.stderr)
+
+
+# docker for refresh-console: the running ops container is $BEFORE (empty: not running), `compose up` exits $UP,
+# and afterwards it is $AFTER
+DOCKER = """#!/bin/sh
+echo "docker $*" >> "$STUB_LOG"
+case "$*" in
+  "compose ps -q --status running ops") printf '%s' "$BEFORE" ;;
+  "compose up -d --no-deps ops") [ "$UP" = 0 ] || { echo "Error: no such image" >&2; exit "$UP"; } ;;
+  "compose ps -q ops") printf '%s' "$AFTER" ;;
+esac
+"""
+
 
 if __name__ == "__main__":
     unittest.main()

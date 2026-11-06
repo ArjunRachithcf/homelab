@@ -16,6 +16,8 @@
 #   ./homelab setup --plan|--apply|--export-answers [--preset P] [--answers F] [--add a,b] [--remove c]
 #                                 choose components and options; --plan changes nothing
 #   ./homelab mcp                 the setup as an MCP server on stdin/stdout (lib/setup/mcp.py; the setup app's assistant)
+#   ./homelab refresh-console     the console's backend with the components now chosen (it reads them when it starts):
+#                                 recreated when they changed, left alone when it isn't running; after every Apply
 set -euo pipefail
 here=$(dirname "$0"); [[ -L $0 ]] && here=$(dirname "$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$0")")
 # shellcheck source=lib/need-bash.sh
@@ -97,6 +99,19 @@ cmd_selftest() {
   return $bad
 }
 
+# The console's backend (ops) reads the chosen components when it starts (OPS_COMPONENTS in docker-compose.yml):
+# compose recreates it only when that, or anything else of it, changed
+cmd_refresh_console() {
+  local before after out
+  before=$(docker compose ps -q --status running ops 2>/dev/null) || before=""
+  if [[ -z $before ]]; then echo "· the console's backend isn't running: nothing to refresh"; return 0; fi
+  out=$(docker compose up -d --no-deps ops 2>&1) \
+    || { echo "✗ the console's backend: docker compose up -d --no-deps ops: ${out##*$'\n'}" >&2; return 1; }
+  after=$(docker compose ps -q ops 2>/dev/null) || after=""
+  if [[ $after == "$before" ]]; then echo "✓ the console's backend: up to date"
+  else echo "✓ the console's backend restarted: it offers the components now chosen"; fi
+}
+
 case "${1:-}" in
   status) plat_status ;;
   list) python3 lib/jobs.py list ;;
@@ -114,6 +129,7 @@ case "${1:-}" in
   setup) shift; exec python3 lib/setup/run.py "$@" ;;
   components) shift; exec python3 lib/setup/engine.py components "$@" ;;
   mcp) shift; exec python3 lib/setup/mcp.py "$@" ;;
+  refresh-console) cmd_refresh_console ;;
   -h|--help|help|"") usage ;;
   *) echo "homelab: unknown command \"$1\"" >&2; usage >&2; exit 2 ;;
 esac

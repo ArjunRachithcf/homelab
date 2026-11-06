@@ -80,7 +80,8 @@ two differ, `INSTANCE.md` wins.
 - `immich-wizard.sh`: the walkthrough for Immich (disk, NetBird, logins, Proton Drive, local copy); `--check`.
 - `music-wizard.sh`: the walkthrough for Navidrome (zones, first login = admin, public services,
   app password, copying music); `--check`.
-- `hardening-wizard.sh`: the walkthrough for SSH/hardening/backups; `--check` re-runs checks.
+- `hardening-wizard.sh`: the walkthrough for SSH/hardening/backups and the LAN firewall (stage `firewall`: the
+  firewall role's dry run, then the change, with an undo timer over SSH); `--check` re-runs checks.
 - `apps-wizard.sh`: the walkthrough for step 7d (secrets, Ansible, Authentik apps, NetBird zones/services/
   nameserver, AdGuard, Home Assistant + Matter, first sign-ins, heartbeat); `--check`.
 - `authentik/{audiobooks,bookmarks,budget,pdf,adblock}.yaml`: the 7d apps, one blueprint per component (`setup-ssh.sh apps`
@@ -110,7 +111,8 @@ two differ, `INSTANCE.md` wins.
 - `memos/`: Memos' settings (JSON, read at start), `sso-admin.patch` + `build.sh` (our image), `README.md`.
 - `ntfy/setup.sh` (`n8n-token`, `user NAME`, `status`): ntfy's users in its `user.db` (deny-all otherwise; RUNBOOK.md 7g).
 - `authentik/n8n.yaml`: n8n's forward-auth (admins; `setup-ssh.sh n8n`, also run by `hardening`; RUNBOOK.md 7h).
-- `homelab`: the CLI (`status`, `list`, `run JOB`, `logs JOB [-f]`, `check`, `configure`, `doctor`, `selftest`, `mcp`); `jobs/jobs.toml`
+- `homelab`: the CLI (`status`, `list`, `run JOB`, `logs JOB [-f]`, `check`, `configure`, `doctor`, `selftest`, `mcp`,
+  `refresh-console`: the console's backend with the choice after an Apply); `jobs/jobs.toml`
   is the job registry it reads (also Ansible's unit list and polkit rule, `live-safe.sh`'s locks, ops' actions);
   `lib/` holds `render.py`, `configure.py`, `jobs.py`, `portable.sh` (GNU/BSD), `platform/{systemd,launchd}.sh`.
 - `setup/components/*.toml` (35 components: services + compose profile, `.env` options, jobs, blueprints, wizard
