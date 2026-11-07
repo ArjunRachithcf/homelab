@@ -52,6 +52,21 @@
     groups: docker
     append: true
 
+# The VPN downloader's tunnel is kernel WireGuard (gluetun, no /dev/net/tun) and a container may not load a module:
+# loaded at boot, not only while NetBird happens to have it in use
+- name: WireGuard module at boot (component downloads)
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/homelab-wireguard.conf
+    content: "# gluetun's kernel WireGuard (homelab component downloads)\nwireguard\n"
+    mode: "0644"
+  when: downloads_enabled | bool
+
+- name: WireGuard module loaded now (component downloads)
+  community.general.modprobe:
+    name: wireguard
+    state: present
+  when: downloads_enabled | bool and not ansible_check_mode
+
 # Only the apps that transcode get the device (docker-compose.yml): without them it needn't exist
 - name: Render device for VAAPI (Jellyfin, Immich)
   ansible.builtin.stat:

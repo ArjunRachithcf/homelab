@@ -3,7 +3,8 @@
 
     homelab setup                     the chosen components' wizard stages (COMPONENTS in .env), in
                                       RUNBOOK order, in this terminal (no COMPONENTS: every stage)
-    homelab setup WIZARD [--check]    one wizard (wizard, public, hardening, immich, apps, music, files, family)
+    homelab setup WIZARD [--check]    one wizard (wizard, public, hardening, immich, apps, music, files, family,
+                                      downloads)
     homelab setup --protocol [WIZARD] the same, spoken as JSON lines (the setup app, the MCP server)
     homelab setup WIZARD --stages=a,b only those stages of one wizard (ids: lib/wizard.sh, stage_<id>)
     homelab setup --plan | --apply | --export-answers [--preset P] [--answers F] [--add a,b]
@@ -38,7 +39,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 # RUNBOOK order. The setup engine (Phase 2b-2) narrows this to the chosen components.
-WIZARDS = ["wizard", "public", "hardening", "immich", "apps", "music", "files", "family"]
+WIZARDS = ["wizard", "public", "hardening", "immich", "apps", "music", "files", "family", "downloads"]
 ASKS = {"pause", "confirm", "input", "secret", "lines", "danger", "terminal"}
 
 

@@ -201,6 +201,20 @@ notify_on_failure = true
 guide = ""
 macos = true
 
+[jobs.downloads-guard]
+title = "Downloads guard"
+description = "Stops the torrents when the media disk runs low; brings qBittorrent and Prowlarr back after the VPN restarts"
+units = ["homelab-downloads-guard.service", "homelab-downloads-guard.timer"]
+script = "downloads/guard.sh"
+run_as = "user"
+calendar = "*:4/10"
+when = "every 10 minutes"
+polkit_start = false
+lock = ""
+notify_on_failure = true
+guide = "downloads-paused"
+macos = false
+
 # What the home page's buttons may ask for (ops/server.py accepts only these names; ops-run.sh maps
 # each to one fixed command). cleanup = shown in the Disk sheet with what it would free.
 [actions.backup]

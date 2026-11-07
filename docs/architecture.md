@@ -37,8 +37,13 @@ flowchart LR
   (the setup app's "LAN firewall") runs it: a dry run first, an undo timer over SSH, then the checks.
 - **One sign-in.** Caddy asks Authentik's outpost for every request (forward-auth) or the app speaks OIDC to
   Authentik itself; Jellyfin's apps use LDAP. Groups decide who sees what (`site/apps.json`).
-- **Apps** are Docker containers on one compose network, none with a published port; Caddy and the fixed
-  addresses in `docker-compose.yml` are the only ways in.
+- **Apps** are Docker containers on one compose network (the downloads apps on one of their own), none with a
+  published port; Caddy and the fixed addresses in `docker-compose.yml` are the only ways in.
+- **Downloads, if chosen, only through a VPN.** gluetun's WireGuard tunnel holds qBittorrent and Prowlarr in its
+  network namespace with a kill switch: torrent peers and search sites see the VPN's address only, and with the
+  tunnel down nothing of theirs goes out. With Radarr, Sonarr and Recyclarr they share a compose network with
+  Caddy and nothing else, each with its own login behind Authentik. The provider's forwarded port (Proton:
+  NAT-PMP) is open on the VPN's address, never on the router or the machine.
 
 ## What's set up how
 

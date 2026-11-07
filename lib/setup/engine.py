@@ -42,7 +42,7 @@ PRESETS_DIR = ROOT / "setup/presets"
 # Wizards in RUNBOOK order; stages run in this order, then in file order within a wizard
 WIZARDS = {"wizard": "wizard.sh", "public": "public-wizard.sh", "hardening": "hardening-wizard.sh",
            "immich": "immich-wizard.sh", "apps": "apps-wizard.sh", "music": "music-wizard.sh",
-           "files": "files-wizard.sh", "family": "family-wizard.sh"}
+           "files": "files-wizard.sh", "family": "family-wizard.sh", "downloads": "downloads-wizard.sh"}
 TYPES = {
     "domain": re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"),
     "email": re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
@@ -317,8 +317,9 @@ def generate(cmd: str) -> str:
 
 def infer(comps: dict[str, dict], env: dict[str, str]) -> list[str]:
     """An install from before the setup engine ran every compose service and had every Ansible flag
-    on: that is all components. (Change it afterwards with ./homelab setup --plan / --apply.)"""
-    return order(comps, comps)
+    on: that is all components but the opt-in ones (`opt_in`: added since, and only ever chosen).
+    (Change it afterwards with ./homelab setup --plan / --apply.)"""
+    return order(comps, [c for c, d in comps.items() if not d.get("opt_in")])
 
 
 def current(comps: dict[str, dict], env: dict[str, str]) -> tuple[list[str], bool]:

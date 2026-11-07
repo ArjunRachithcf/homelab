@@ -4,7 +4,7 @@
 
 Every app or feature is a component (`setup/components/<id>.toml`). Choose them with a preset and `./homelab setup --plan/--apply`, the setup app, or an assistant (docs/getting-started.md). What one needs comes along by itself.
 
-Presets: **everything** (35 components); **family** (35 components); **minimal** (5 components).
+Presets: **everything** (37 components); **family** (35 components); **minimal** (5 components).
 
 ## Always there
 
@@ -492,6 +492,49 @@ Books, comics and manga in the browser and OPDS readers; a Kids library with an 
 |---|---|---|
 | `KAVITA_TAG` | default `0.9.1` | Kavita version |
 | `KAVITA_OIDC_CLIENT_SECRET` | secret, generated | Kavita's Authentik client secret |
+
+### Downloads through a VPN (qBittorrent, Prowlarr) (`downloads`)
+
+Torrents and their search sites only through a VPN with a kill switch (gluetun; Proton's forwarded port); admins, mesh only. Needs a VPN subscription.
+
+- needs `core`, `media-library`
+- goes well with `movies-tv`
+- runs on fedora, debian, ubuntu, arch
+- containers `gluetun`, `qbittorrent`, `prowlarr`
+- jobs `downloads-guard`
+
+| Setting | | What it is |
+|---|---|---|
+| `VPN_SERVICE_PROVIDER` | default `protonvpn` | The VPN provider, as gluetun names it (protonvpn, mullvad, …) |
+| `VPN_WIREGUARD_PRIVATE_KEY` | secret, asked | The VPN's WireGuard private key (Proton: a WireGuard configuration with NAT-PMP) |
+| `VPN_SERVER_COUNTRIES` | optional | VPN server countries, commas between (empty: any) |
+| `DOWNLOADS_PORT_FORWARDING` | default `true` | The VPN's forwarded port for incoming peers (Proton: P2P servers); false for a provider without it |
+| `DOWNLOADS_ADMIN_PASSWORD` | secret, asked | The password of qBittorrent's, Prowlarr's, Radarr's and Sonarr's own logins (after Authentik) |
+| `DOWNLOADS_SEED_RATIO` | default `2` | Seed each torrent to this ratio (or the days below), then stop it |
+| `DOWNLOADS_SEED_DAYS` | default `14` | Seed each torrent this many days at most |
+| `DOWNLOADS_KEEP_FREE_PCT` | default `15` | Stop all torrents when the media folder's disk has less than this % free |
+| `GLUETUN_TAG` | default `v3.41.3` | gluetun (VPN) version |
+| `QBITTORRENT_TAG` | default `5.3.0-2` | qBittorrent version |
+| `PROWLARR_TAG` | default `2.7.0.5723-ls167` | Prowlarr version (LinuxServer's image) |
+| `GLUETUN_CONTROL_KEY` | secret, generated | API key of gluetun's control server (exit address, forwarded port) for the checks |
+| `QBITTORRENT_API_KEY` | secret, generated | qBittorrent's API key (Radarr, Sonarr, the VPN's port hook) |
+| `PROWLARR_API_KEY` | secret, generated | Prowlarr's API key |
+
+### Movies and TV on request (Radarr, Sonarr) (`movies-tv`)
+
+Ask for a film or a series and it arrives in Movies or TV Shows (through Downloads); nothing downloads unless someone asks. Admins, mesh only.
+
+- needs `downloads`
+- runs on fedora, debian, ubuntu, arch
+- containers `radarr`, `sonarr`, `recyclarr`
+
+| Setting | | What it is |
+|---|---|---|
+| `RADARR_TAG` | default `6.4.4.10685-ls325` | Radarr version (LinuxServer's image) |
+| `SONARR_TAG` | default `4.0.20.3014-ls3` | Sonarr version (LinuxServer's image) |
+| `RECYCLARR_TAG` | default `8.8.1` | Recyclarr version |
+| `RADARR_API_KEY` | secret, generated | Radarr's API key |
+| `SONARR_API_KEY` | secret, generated | Sonarr's API key |
 
 ## Disks
 

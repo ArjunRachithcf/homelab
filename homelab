@@ -39,7 +39,7 @@ job_field() { python3 -c 'import sys, tomllib; print(str(tomllib.load(open("jobs
 
 cmd_check() {
   local w failed=()
-  for w in wizard public-wizard hardening-wizard immich-wizard apps-wizard music-wizard files-wizard family-wizard; do
+  for w in wizard public-wizard hardening-wizard immich-wizard apps-wizard music-wizard files-wizard family-wizard downloads-wizard; do
     [[ -x ./$w.sh ]] || continue
     printf '\n== %s.sh --check\n' "$w"
     ./"$w".sh --check || failed+=("$w")
@@ -91,7 +91,7 @@ cmd_doctor() {
 
 cmd_selftest() {
   local f bad=0
-  for f in homelab ./*.sh lib/*.sh lib/platform/*.sh ansible/*.sh authentik/*.sh n8n/*.sh ntfy/*.sh tests/*.sh; do
+  for f in homelab ./*.sh lib/*.sh lib/platform/*.sh ansible/*.sh authentik/*.sh n8n/*.sh ntfy/*.sh downloads/*.sh tests/*.sh; do
     [[ -f $f ]] || continue
     bash -n "$f" || { echo "✗ bash -n $f"; bad=1; }
   done

@@ -76,6 +76,15 @@ CREDENTIALS = [
     ("paperless", "GET", "/api/auth/headless/app/v1/config", {}),
     ("games", "POST", "/api/token", {}),
     ("games", "POST", "/api/token/", {}),
+    # Downloads (qBittorrent, Prowlarr, Radarr, Sonarr): Authentik before every path, whatever key comes along;
+    # their API keys never leave the downloads network
+    *[(h, "GET", path, hdrs) for h in ("qbit", "prowlarr", "radarr", "sonarr") for path, hdrs in (
+        ("/initialize.json", {}),
+        ("/api/v3/system/status", {"X-Api-Key": "x"}),
+        ("/api/v1/indexer?apikey=x", {}),
+        ("/api/v2/app/version", {"Authorization": "Bearer qbt_x"}),
+        ("/signalr/messages", {"Connection": "Upgrade", "Upgrade": "websocket", "Sec-WebSocket-Version": "13",
+                               "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ=="}))],
 ]
 # OpenCloud: every way a public link's token opens it, refused; what the apps and signed-in people need, open
 PUBLIC_LINKS = [
@@ -334,6 +343,8 @@ def main() -> None:
                 jobs.append((PORTS[8444], "8444-noproxy", host, "GET", "/", ""))
                 results.append(r)
             for h, method, path, extra in CREDENTIALS + FORWARDING + PUBLIC_LINKS:
+                if h not in HOSTS:   # that component isn't chosen in this instance
+                    continue
                 for d in (domain, alias):
                     for real, port in PORTS.items():
                         if real == 80:

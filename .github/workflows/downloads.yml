@@ -1,0 +1,38 @@
+# The downloads components with their real images (tests/downloads/run.sh): gluetun's kernel WireGuard with a random
+# key, its kill switch, the apps' non-root start, their setup over the APIs, the guard. Only when their parts change:
+# the images are about 2 GB. Nothing here reaches a real machine (compose project homelab-dltest on the runner).
+name: downloads
+
+on:
+  pull_request:
+    paths: &paths
+      - docker-compose.yml
+      - downloads/**
+      - downloads-wizard.sh
+      - recyclarr/**
+      - tests/downloads/**
+      - .github/workflows/downloads.yml
+  push:
+    branches: [main]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  real-images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: kernel WireGuard (gluetun can't load a module itself)
+        run: sudo modprobe wireguard
+      - name: tests/downloads/run.sh
+        run: bash tests/downloads/run.sh

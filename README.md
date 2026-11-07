@@ -14,11 +14,12 @@ machine. It sets itself up with you, step by step, in a terminal, in a desktop a
 
 - **One sign-in** (Authentik): passkeys or password + authenticator, sign-up limited to your family's
   addresses, every app behind it.
-- **Apps you choose** from 35 components: Paperless-ngx (documents, with local AI), Immich (photos),
+- **Apps you choose** from 37 components: Paperless-ngx (documents, with local AI), Immich (photos),
   Jellyfin or Plex, Navidrome (music), Audiobookshelf, Kavita (books), OpenCloud (files), Actual (budget),
   Karakeep (bookmarks), BentoPDF, Sharry (share links), Home Assistant + Matter, AdGuard Home, a web terminal,
-  ntfy (push notifications), n8n (automations) and the family apps (chores, things,
-  family tree, notes, wiki, news, games, places).
+  ntfy (push notifications), n8n (automations), the family apps (chores, things,
+  family tree, notes, wiki, news, games, places), and, if you have a VPN subscription, movies and TV on request
+  (qBittorrent and Prowlarr only through the VPN, Radarr, Sonarr).
   The full list: [docs/components.md](docs/components.md).
 - **A home page** for everyone (only the apps each person may open), and a **console** for whoever looks
   after the machine: jobs, apps, logs, what to do when something is red.

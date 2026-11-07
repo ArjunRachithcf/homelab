@@ -177,6 +177,17 @@ if component_on places; then
   vol_tar dawarich-storage "$NONE"             # imported files, exports
   pg_app dawarich dawarich-db
 fi
+# Downloads on request (opt-in, so only when listed): the apps' settings and libraries, not the downloads (media)
+# nor their logs and own backups. Their API keys and login are in .env.
+if component_listed downloads; then
+  echo "Downloads…"
+  vol_tar qbittorrent-config '^qBittorrent/(logs|data/logs|cache)'   # settings, categories, resume data
+  vol_tar prowlarr-config '^(logs|logs\.db|Backups|asp)' prowlarr.db
+fi
+if component_listed movies-tv; then
+  vol_tar radarr-config '^(logs|logs\.db|Backups|MediaCover|asp)' radarr.db
+  vol_tar sonarr-config '^(logs|logs\.db|Backups|MediaCover|asp)' sonarr.db
+fi
 
 # Root-only files from backup-stage.sh (only when run by homelab-backup.service)
 staged=()

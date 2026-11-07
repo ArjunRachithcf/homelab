@@ -108,6 +108,18 @@ two differ, `INSTANCE.md` wins.
   first sign-ins as admin, public services, phones, backup); `--check`.
 - `authentik/{chores,things,family-tree,notes,wiki,news,games,places}.yaml`: the family apps' OIDC clients, one per component
   (`setup-ssh.sh family-apps` applies the chosen ones; also run by `hardening`).
+- `downloads-wizard.sh`: the walkthrough for downloads on request (components downloads and movies-tv, opt-in: never
+  part of "all"): the VPN's key and the apps' password, WireGuard at boot and the guard's timer (Ansible), start
+  (the volumes to HOST_UID, then the VPN, then the apps), Authentik apps, NetBird zones, connecting them, search sites,
+  the library imported unmonitored, Recyclarr, a first film, backup; `--check`.
+- `downloads/`: `setup.py` (stdlib: `init`, `apply`, `status`, `unmonitor-new-seasons`, `guard`), run by `run.sh` in a
+  throwaway container on the compose project's downloads network (not a compose service: heartbeat.sh counts those),
+  and `guard.sh` (`homelab-downloads-guard.timer`: torrents stopped when the media disk runs low, qBittorrent and
+  Prowlarr recreated after gluetun restarts). gluetun's namespace holds qBittorrent and Prowlarr (kill switch);
+  Prowlarr, Radarr and Sonarr sign in with Forms behind Authentik forward-auth (External would hand out their API
+  keys); all on the `downloads` network with Caddy only. `authentik/{downloads,movies-tv}.yaml`,
+  `recyclarr/recyclarr.yml` (TRaSH Guides' profiles). Tests: `tests/unit/test_downloads.py`, `tests/downloads/run.sh`
+  (the real images in project homelab-dltest, never `homelab`).
 - `memos/`: Memos' settings (JSON, read at start), `sso-admin.patch` + `build.sh` (our image), `README.md`.
 - `ntfy/setup.sh` (`n8n-token`, `user NAME`, `status`): ntfy's users in its `user.db` (deny-all otherwise; RUNBOOK.md 7g).
 - `authentik/n8n.yaml`: n8n's forward-auth (admins; `setup-ssh.sh n8n`, also run by `hardening`; RUNBOOK.md 7h).
@@ -115,7 +127,7 @@ two differ, `INSTANCE.md` wins.
   `refresh-console`: the console's backend with the choice after an Apply); `jobs/jobs.toml`
   is the job registry it reads (also Ansible's unit list and polkit rule, `live-safe.sh`'s locks, ops' actions);
   `lib/` holds `render.py`, `configure.py`, `jobs.py`, `portable.sh` (GNU/BSD), `platform/{systemd,launchd}.sh`.
-- `setup/components/*.toml` (35 components: services + compose profile, `.env` options, jobs, blueprints, wizard
+- `setup/components/*.toml` (37 components: services + compose profile, `.env` options, jobs, blueprints, wizard
   stages) and `setup/presets/` (`minimal`, `family` = this box, `everything`); `lib/setup/engine.py` resolves them
   (`./homelab components`, `./homelab setup --plan|--apply|--export-answers`); `COMPONENTS` / `COMPOSE_PROFILES` in `.env`.
   A new app = a component file plus its compose service (with `profiles: [<id>]`).

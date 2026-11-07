@@ -1,4 +1,4 @@
 # ~/homelab/setup/presets/everything.toml: every component there is.
 title = "Everything"
-description = "Every component this repo has (the same as Family today); remove what you don't want."
+description = "Every component this repo has: Family, plus the downloads through a VPN (a VPN subscription); remove what you don't want."
 components = "all"

@@ -20,6 +20,8 @@ the parts only they can do. The design is decided; don't redesign it.
 ## Ports
 
 - The ports that are open and to whom (the mesh groups), if they differ from the defaults.
+- With the downloads: the VPN provider's forwarded port, open on the VPN's address (not this machine's, not the
+  router's).
 
 ## What <owner> does themselves (stop and ask, then wait)
 

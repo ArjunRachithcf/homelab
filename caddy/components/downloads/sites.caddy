@@ -1,0 +1,40 @@
+# caddy/components/downloads/sites.caddy (component downloads; copied into caddy/enabled/ by ./homelab configure)
+# qBittorrent and Prowlarr live in gluetun's network namespace: gluetun:8080, gluetun:9696. NetBird only (no :8444
+# site, no NetBird service, DNS zones for the Admin group only), admins only (their Authentik apps), every path behind
+# forward-auth, then each app's own login.
+(qbittorrent) {
+	route {
+		import forward_auth
+		reverse_proxy gluetun:8080
+	}
+}
+
+# Prowlarr's redirects say http (it doesn't take Caddy's X-Forwarded-Proto); these listeners only speak https
+(prowlarr) {
+	route {
+		import forward_auth
+		reverse_proxy gluetun:9696 {
+			header_down Location ^http:// https://
+		}
+	}
+}
+
+qbit.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import qbittorrent
+}
+
+qbit.{$DOMAIN}, qbit.{$DOMAIN_ALIAS}, qbit.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical qbit
+}
+
+prowlarr.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import prowlarr
+}
+
+prowlarr.{$DOMAIN}, prowlarr.{$DOMAIN_ALIAS}, prowlarr.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical prowlarr
+}

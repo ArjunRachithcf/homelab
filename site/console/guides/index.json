@@ -11,5 +11,6 @@
   {"id": "drift", "title": "The machine drifted from its setup", "summary": "The weekly Ansible check"},
   {"id": "after-power-cut", "title": "After a power cut", "summary": "What to check once it's back"},
   {"id": "add-family-member", "title": "Adding a family member", "summary": "Sign-up, groups, children, operators"},
-  {"id": "update-apps", "title": "Updating the apps", "summary": "One at a time, after a backup"}
+  {"id": "update-apps", "title": "Updating the apps", "summary": "One at a time, after a backup"},
+  {"id": "downloads-paused", "title": "Downloads stopped", "summary": "The disk ran low, or the VPN restarted"}
 ]

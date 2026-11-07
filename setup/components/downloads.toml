@@ -1,0 +1,117 @@
+title = "Downloads through a VPN (qBittorrent, Prowlarr)"
+description = "Torrents and their search sites only through a VPN with a kill switch (gluetun; Proton's forwarded port); admins, mesh only. Needs a VPN subscription."
+category = "media"
+core = false
+# Opt-in: not part of "everything an older install ran" (engine.infer) nor of the family preset
+opt_in = true
+requires = ["core", "media-library"]
+suggests = ["movies-tv"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["gluetun", "qbittorrent", "prowlarr"]
+public_names = []
+peer_names = ["qbit", "prowlarr"]
+blueprints = ["downloads.yaml"]
+jobs = ["downloads-guard"]
+ansible = "downloads_enabled"
+stages = ["downloads:secrets", "downloads:host", "downloads:start", "downloads:authentik", "downloads:zones",
+          "downloads:connect", "downloads:indexers", "downloads:backup"]
+
+
+[[tiles]]
+order = 205
+id = "qbit"
+name = "Downloads"
+desc = "qBittorrent, behind the VPN"
+url = "https://qbit.%s/"
+icon = "/apps/qbittorrent.svg"
+status = "qbit"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[[tiles]]
+order = 210
+id = "prowlarr"
+name = "Search sites"
+desc = "Prowlarr, behind the VPN"
+url = "https://prowlarr.%s/"
+icon = "/apps/prowlarr.svg"
+status = "prowlarr"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.VPN_SERVICE_PROVIDER]
+help = "The VPN provider, as gluetun names it (protonvpn, mullvad, …)"
+type = "text"
+default = "protonvpn"
+[options.VPN_WIREGUARD_PRIVATE_KEY]
+help = "The VPN's WireGuard private key (Proton: a WireGuard configuration with NAT-PMP)"
+type = "secret"
+required = true
+set_by = "downloads:secrets"
+[options.VPN_SERVER_COUNTRIES]
+help = "VPN server countries, commas between (empty: any)"
+type = "text"
+set_by = "downloads:secrets"
+[options.DOWNLOADS_PORT_FORWARDING]
+help = "The VPN's forwarded port for incoming peers (Proton: P2P servers); false for a provider without it"
+type = "bool"
+default = "true"
+advanced = true
+[options.DOWNLOADS_ADMIN_PASSWORD]
+help = "The password of qBittorrent's, Prowlarr's, Radarr's and Sonarr's own logins (after Authentik)"
+type = "secret"
+required = true
+set_by = "downloads:secrets"
+[options.DOWNLOADS_SEED_RATIO]
+help = "Seed each torrent to this ratio (or the days below), then stop it"
+type = "int"
+default = "2"
+advanced = true
+[options.DOWNLOADS_SEED_DAYS]
+help = "Seed each torrent this many days at most"
+type = "int"
+default = "14"
+advanced = true
+[options.DOWNLOADS_KEEP_FREE_PCT]
+help = "Stop all torrents when the media folder's disk has less than this % free"
+type = "int"
+default = "15"
+advanced = true
+[options.GLUETUN_TAG]
+help = "gluetun (VPN) version"
+type = "tag"
+default = "v3.41.3"
+advanced = true
+[options.QBITTORRENT_TAG]
+help = "qBittorrent version"
+type = "tag"
+default = "5.3.0-2"
+advanced = true
+[options.PROWLARR_TAG]
+help = "Prowlarr version (LinuxServer's image)"
+type = "tag"
+default = "2.7.0.5723-ls167"
+advanced = true
+[options.GLUETUN_CONTROL_KEY]
+help = "API key of gluetun's control server (exit address, forwarded port) for the checks"
+type = "secret"
+required = true
+generate = "openssl rand -hex 16"
+[options.QBITTORRENT_API_KEY]
+help = "qBittorrent's API key (Radarr, Sonarr, the VPN's port hook)"
+type = "secret"
+required = true
+generate = "echo \"qbt_$(openssl rand -hex 14)\""
+[options.PROWLARR_API_KEY]
+help = "Prowlarr's API key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 16"
+
+# What Authentik needs beyond the blueprint (lib/authentik.py): a list addition the blueprint would replace
+[authentik]
+outpost = ["Provider for qBittorrent", "Provider for Prowlarr"]

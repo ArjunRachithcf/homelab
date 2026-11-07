@@ -1,0 +1,71 @@
+# ~/homelab/authentik/movies-tv.yaml
+# Movies and TV (radarr.<domain>, sonarr.<domain>): Radarr and Sonarr, for admins, NetBird only. Their stable
+# releases have no OIDC, so Caddy asks Authentik first (forward-auth, every path) and each keeps its own login
+# behind it. Applied by `authentik/setup-ssh.sh component movies-tv` (also part of `hardening`), which also adds the
+# providers to the embedded outpost. Needs family.yaml.
+version: 1
+metadata:
+  name: homelab - movies-tv
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # External host carries the public port: Caddy serves this site only there (Caddyfile `canonical`).
+  - model: authentik_providers_proxy.proxyprovider
+    id: radarr-provider
+    identifiers:
+      name: Provider for Radarr
+    attrs:
+      mode: forward_single
+      external_host: https://radarr.__DOMAIN__:__PUBLIC_PORT__
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      # Same as the UI sets: username/groups for the X-Authentik-* headers
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+  - model: authentik_core.application
+    id: radarr-app
+    identifiers:
+      slug: radarr
+    attrs:
+      name: Radarr
+      provider: !KeyOf radarr-provider
+      meta_launch_url: https://radarr.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf radarr-app
+      group: !Find [authentik_core.group, [name, authentik Admins]]
+      order: 0
+  # External host carries the public port: Caddy serves this site only there (Caddyfile `canonical`).
+  - model: authentik_providers_proxy.proxyprovider
+    id: sonarr-provider
+    identifiers:
+      name: Provider for Sonarr
+    attrs:
+      mode: forward_single
+      external_host: https://sonarr.__DOMAIN__:__PUBLIC_PORT__
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      # Same as the UI sets: username/groups for the X-Authentik-* headers
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+  - model: authentik_core.application
+    id: sonarr-app
+    identifiers:
+      slug: sonarr
+    attrs:
+      name: Sonarr
+      provider: !KeyOf sonarr-provider
+      meta_launch_url: https://sonarr.__DOMAIN__:__PUBLIC_PORT__/
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf sonarr-app
+      group: !Find [authentik_core.group, [name, authentik Admins]]
+      order: 0

@@ -1,4 +1,5 @@
 """lib/setup/engine.py: resolve, plan, apply (secrets generated, never printed), export, stage selection."""
+import json
 import os
 import re
 import subprocess
@@ -122,7 +123,9 @@ stage_a; stage_b; stage_c
             self.assertNotIn("in b", out)
 
     def test_infer_is_everything(self):
-        self.assertEqual(set(engine.infer(self.comps, {})), set(self.comps))
+        # an install from before the setup engine never had an opt-in component (added since, only ever chosen)
+        self.assertEqual(set(engine.infer(self.comps, {})), {c for c, d in self.comps.items() if not d.get("opt_in")})
+        self.assertTrue({"downloads", "movies-tv"} <= {c for c, d in self.comps.items() if d.get("opt_in")})
 
 
 if __name__ == "__main__":
@@ -155,6 +158,21 @@ class Json(unittest.TestCase):
         self.assertEqual(titles["hardening:caa"], "Infomaniak: CAA on example.org (who may issue certificates)")
         self.assertEqual(titles["family:start"], "Start …")
         self.assertFalse([t for t in titles.values() if "$" in t or not t])
+
+    def test_every_wizard_is_registered(self):
+        # The engine's list, the runner's, ./homelab check's loop and the setup app's own copy (main.rs): a wizard
+        # missing from one is a part the app can't start or a check nobody runs
+        want = list(engine.WIZARDS)
+        run = re.search(r"^WIZARDS = (\[.*\])$", (ROOT / "lib/setup/run.py").read_text(), re.M).group(1)
+        self.assertEqual(json.loads(run), want)
+        rust = re.search(r"const WIZARDS: &\[&str\] = &\[(.*?)\];", (ROOT / "setup-app/src-tauri/src/main.rs").read_text())
+        self.assertEqual(re.findall(r'"([a-z]+)"', rust.group(1)), want)
+        loop = re.search(r"^  for w in (wizard public-wizard .*); do$", (ROOT / "homelab").read_text(), re.M).group(1).split()
+        self.assertEqual(loop, [engine.WIZARDS[w].removesuffix(".sh") for w in want])
+        app = re.search(r"var WIZ = \{(.*?)\};", (ROOT / "setup-app/ui/app.js").read_text()).group(1)
+        self.assertEqual(re.findall(r"(\w+): \"", app), want)
+        for f in engine.WIZARDS.values():
+            self.assertTrue(os.access(ROOT / f, os.X_OK), f)
 
     def test_plan_says_what_it_switches(self):
         import json

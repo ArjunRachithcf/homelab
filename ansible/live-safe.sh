@@ -16,7 +16,7 @@ if (( 10#$hm >= 200 && 10#$hm < 530 )); then echo "busy: nightly window 02:00–
 
 # A job is a oneshot, so it's "activating" while it runs. Oneshots with RemainAfterExit (the mesh guard)
 # stay "active (exited)" for good and must not make the box look busy forever.
-active=$(systemctl list-units 'homelab-*.service' --state=activating,deactivating --no-legend --plain | awk '$1 !~ /^homelab-(drift|heartbeat)/ {print $1}')
+active=$(systemctl list-units 'homelab-*.service' --state=activating,deactivating --no-legend --plain | awk '$1 !~ /^homelab-(drift|heartbeat|downloads-guard)/ {print $1}')
 if [[ -n "$active" ]]; then echo "busy: ${active//$'\n'/ } running"; return 0; fi
 
 if pgrep -x proton-drive >/dev/null; then echo "busy: a proton-drive process is running"; return 0; fi

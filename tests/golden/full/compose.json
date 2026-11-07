@@ -1,6 +1,9 @@
 {
   "name": "homelab",
   "networks": {
+    "downloads": {
+      "name": "homelab_downloads"
+    },
     "internal": {
       "ipam": {
         "config": [
@@ -443,10 +446,12 @@
       ],
       "image": "homelab-caddy:2.11.7-infomaniak",
       "networks": {
+        "downloads": {},
         "internal": {
           "aliases": [
             "auth.example.com"
           ],
+          "gw_priority": 1,
           "ipv4_address": "172.21.1.11"
         }
       },
@@ -741,6 +746,49 @@
         {
           "source": "freshrss-data",
           "target": "/var/www/FreshRSS/data",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
+    },
+    "gluetun": {
+      "cap_add": [
+        "NET_ADMIN"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "environment": {
+        "HEALTH_SMALL_CHECK_TYPE": "dns",
+        "HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE": "{\"auth\":\"apikey\",\"apikey\":\"goldengluetuncontrolkey000000000\"}",
+        "PGID": "0",
+        "PUID": "0",
+        "QBT_API_KEY": "qbt_goldenqbittorrentapikey0",
+        "SERVER_COUNTRIES": "Switzerland",
+        "TZ": "Europe/Zurich",
+        "VPN_PORT_FORWARDING": "true",
+        "VPN_PORT_FORWARDING_UP_COMMAND": "/bin/sh -c 'printf \"header = Authorization: Bearer %s\\n\" \"$$QBT_API_KEY\" > /tmp/qbt.wgetrc && WGETRC=/tmp/qbt.wgetrc wget -qO- --retry-connrefused --post-data \"json={\\\"listen_port\\\":{{PORT}},\\\"current_network_interface\\\":\\\"{{VPN_INTERFACE}}\\\",\\\"random_port\\\":false,\\\"upnp\\\":false}\" http://127.0.0.1:8080/api/v2/app/setPreferences'",
+        "VPN_SERVICE_PROVIDER": "protonvpn",
+        "VPN_TYPE": "wireguard",
+        "WIREGUARD_IMPLEMENTATION": "kernelspace",
+        "WIREGUARD_PRIVATE_KEY": "Z29sZGVuLXdpcmVndWFyZC1wcml2YXRlLWtleS0wMDA="
+      },
+      "image": "docker.io/qmcgaw/gluetun:v3.41.3",
+      "networks": {},
+      "profiles": [
+        "downloads"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp/gluetun:mode=0755"
+      ],
+      "volumes": [
+        {
+          "source": "gluetun-data",
+          "target": "/gluetun",
           "type": "volume",
           "volume": {}
         }
@@ -1625,7 +1673,7 @@
         "/app/server.py"
       ],
       "environment": {
-        "OPS_COMPONENTS": "core,mesh,public-access,paperless,local-ai,media-library,jellyfin,plex,music,photos,second-disk,backups,offsite,heartbeat,audiobooks,budget,bookmarks,pdf,reading,files,share,ssh-sso,terminal,home-assistant,adblock,chores,things,family-tree,notes,wiki,news,games,places,ntfy,n8n",
+        "OPS_COMPONENTS": "core,mesh,public-access,paperless,local-ai,media-library,jellyfin,plex,music,photos,second-disk,backups,offsite,heartbeat,audiobooks,budget,bookmarks,pdf,reading,files,share,ssh-sso,terminal,home-assistant,adblock,chores,things,family-tree,notes,wiki,news,games,places,ntfy,n8n,downloads,movies-tv",
         "OPS_ORIGINS": "https://home.example.com:9443 https://home.example.com",
         "OPS_TRUSTED_PROXY": "172.21.1.11"
       },
@@ -1959,6 +2007,204 @@
         "no-new-privileges:true"
       ]
     },
+    "prowlarr": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "depends_on": {
+        "gluetun": {
+          "condition": "service_healthy",
+          "required": true,
+          "restart": true
+        }
+      },
+      "environment": {
+        "PROWLARR__AUTH__APIKEY": "goldenprowlarrapikey000000000000",
+        "PROWLARR__AUTH__METHOD": "Forms",
+        "PROWLARR__AUTH__REQUIRED": "Enabled",
+        "PROWLARR__LOG__ANALYTICSENABLED": "false",
+        "PROWLARR__SERVER__ALLOWEDHOSTS": "prowlarr.example.com,gluetun",
+        "TZ": "Europe/Zurich"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 2,
+        "test": [
+          "CMD-SHELL",
+          "test -e /sys/class/net/eth0"
+        ],
+        "timeout": "5s"
+      },
+      "image": "lscr.io/linuxserver/prowlarr:2.7.0.5723-ls167",
+      "network_mode": "service:gluetun",
+      "profiles": [
+        "downloads"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:uid=1000,gid=1000,exec"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "prowlarr-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        }
+      ]
+    },
+    "qbittorrent": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "depends_on": {
+        "gluetun": {
+          "condition": "service_healthy",
+          "required": true,
+          "restart": true
+        }
+      },
+      "environment": {
+        "QBT_LEGAL_NOTICE": "confirm",
+        "TZ": "Europe/Zurich"
+      },
+      "healthcheck": {
+        "interval": "30s",
+        "retries": 2,
+        "test": [
+          "CMD-SHELL",
+          "test -e /sys/class/net/eth0"
+        ],
+        "timeout": "5s"
+      },
+      "image": "docker.io/qbittorrentofficial/qbittorrent-nox:5.3.0-2",
+      "network_mode": "service:gluetun",
+      "profiles": [
+        "downloads"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "stop_grace_period": "30m0s",
+      "tmpfs": [
+        "/tmp"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "qbittorrent-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "source": "/srv/media/torrents",
+          "target": "/data/torrents",
+          "type": "bind"
+        }
+      ]
+    },
+    "radarr": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "environment": {
+        "RADARR__AUTH__APIKEY": "goldenradarrapikey00000000000000",
+        "RADARR__AUTH__METHOD": "Forms",
+        "RADARR__AUTH__REQUIRED": "Enabled",
+        "RADARR__LOG__ANALYTICSENABLED": "false",
+        "RADARR__SERVER__ALLOWEDHOSTS": "radarr.example.com,radarr",
+        "TZ": "Europe/Zurich"
+      },
+      "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls325",
+      "networks": {},
+      "profiles": [
+        "movies-tv"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:uid=1000,gid=1000,exec"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "radarr-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "source": "/srv/media",
+          "target": "/data",
+          "type": "bind"
+        }
+      ]
+    },
+    "recyclarr": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "environment": {
+        "CRON_SCHEDULE": "@weekly",
+        "RADARR_API_KEY": "goldenradarrapikey00000000000000",
+        "SONARR_API_KEY": "goldensonarrapikey00000000000000",
+        "TZ": "Europe/Zurich"
+      },
+      "image": "ghcr.io/recyclarr/recyclarr:8.8.1",
+      "networks": {},
+      "profiles": [
+        "movies-tv"
+      ],
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "recyclarr-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "bind": {
+            "selinux": "Z"
+          },
+          "read_only": true,
+          "source": "$REPO/recyclarr/recyclarr.yml",
+          "target": "/config/recyclarr.yml",
+          "type": "bind"
+        }
+      ]
+    },
     "romm": {
       "depends_on": {
         "romm-db": {
@@ -2162,6 +2408,50 @@
         }
       ]
     },
+    "sonarr": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "environment": {
+        "SONARR__AUTH__APIKEY": "goldensonarrapikey00000000000000",
+        "SONARR__AUTH__METHOD": "Forms",
+        "SONARR__AUTH__REQUIRED": "Enabled",
+        "SONARR__LOG__ANALYTICSENABLED": "false",
+        "SONARR__SERVER__ALLOWEDHOSTS": "sonarr.example.com,sonarr",
+        "TZ": "Europe/Zurich"
+      },
+      "image": "lscr.io/linuxserver/sonarr:4.0.20.3014-ls3",
+      "networks": {},
+      "profiles": [
+        "movies-tv"
+      ],
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/run:uid=1000,gid=1000,exec"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "sonarr-config",
+          "target": "/config",
+          "type": "volume",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "source": "/srv/media",
+          "target": "/data",
+          "type": "bind"
+        }
+      ]
+    },
     "termix": {
       "environment": {
         "ALLOW_PASSWORD_LOGIN": "false",
@@ -2253,6 +2543,9 @@
     "freshrss-data": {
       "name": "homelab_freshrss-data"
     },
+    "gluetun-data": {
+      "name": "homelab_gluetun-data"
+    },
     "gramps-cache": {
       "name": "homelab_gramps-cache"
     },
@@ -2334,6 +2627,18 @@
     "paperless-redis": {
       "name": "homelab_paperless-redis"
     },
+    "prowlarr-config": {
+      "name": "homelab_prowlarr-config"
+    },
+    "qbittorrent-config": {
+      "name": "homelab_qbittorrent-config"
+    },
+    "radarr-config": {
+      "name": "homelab_radarr-config"
+    },
+    "recyclarr-config": {
+      "name": "homelab_recyclarr-config"
+    },
     "romm-assets": {
       "name": "homelab_romm-assets"
     },
@@ -2354,6 +2659,9 @@
     },
     "sharry-files": {
       "name": "homelab_sharry-files"
+    },
+    "sonarr-config": {
+      "name": "homelab_sonarr-config"
     },
     "termix-data": {
       "name": "homelab_termix-data"
@@ -2378,5 +2686,23 @@
     "security_opt": [
       "no-new-privileges:true"
     ]
+  },
+  "x-in-gluetun": {
+    "depends_on": {
+      "gluetun": {
+        "condition": "service_healthy",
+        "restart": true
+      }
+    },
+    "healthcheck": {
+      "interval": "30s",
+      "retries": 2,
+      "test": [
+        "CMD-SHELL",
+        "test -e /sys/class/net/eth0"
+      ],
+      "timeout": "5s"
+    },
+    "network_mode": "service:gluetun"
   }
 }

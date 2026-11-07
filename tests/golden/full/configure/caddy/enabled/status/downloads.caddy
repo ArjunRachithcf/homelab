@@ -1,0 +1,3 @@
+# caddy/components/downloads/status.caddy (component downloads; copied into caddy/enabled/ by ./homelab configure)
+import status qbit gluetun:8080 /
+import status prowlarr gluetun:9696 /ping
