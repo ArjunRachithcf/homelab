@@ -1,0 +1,13 @@
+# downloads/gluetun-post-rules.txt: gluetun's /iptables/post-rules.txt (docker-compose.yml), run after its own rules.
+# Its kill switch accepts the packets of an established connection on any interface: while it restarts the tunnel,
+# tun0 and its routes are gone, and those packets (Prowlarr's, Byparr's; qBittorrent binds to tun0) would leave by
+# eth0 unencrypted, from the tunnel's address. Tunnels have private or shared (CGNAT) addresses and eth0 has one in a
+# documentation range (DOWNLOADS_NET can't be anything else), so nothing from those leaves by eth0. Plain rules only:
+# gluetun reads its chains back and stops at a match it doesn't know (negations, addrtype).
+iptables -I OUTPUT 1 -o eth0 -s 10.0.0.0/8 -j DROP
+iptables -I OUTPUT 1 -o eth0 -s 172.16.0.0/12 -j DROP
+iptables -I OUTPUT 1 -o eth0 -s 192.168.0.0/16 -j DROP
+iptables -I OUTPUT 1 -o eth0 -s 100.64.0.0/10 -j DROP
+# Prowlarr listens on eth0's address only, as loopback counts as local to it (no login), but another process here
+# (qBittorrent, Byparr) could still come from 127.0.0.1: a socket bound there reaches a local address over lo
+iptables -I INPUT 1 -i lo -s 127.0.0.0/8 -p tcp --dport 9696 -j DROP

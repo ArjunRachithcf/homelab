@@ -42,8 +42,13 @@
         "places",
         "ntfy",
         "n8n",
+        "albums",
+        "book-requests",
+        "byparr",
         "downloads",
-        "movies-tv"
+        "movies-tv",
+        "requests",
+        "subtitles"
     ],
     "homelab_dir": "/home/alex/homelab",
     "homelab_home": "/home/alex",

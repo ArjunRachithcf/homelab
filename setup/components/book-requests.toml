@@ -1,0 +1,50 @@
+title = "Books on request (Bindery)"
+description = "The family asks for books and audiobooks, an admin approves, and they arrive in Reading's and Audiobooks' libraries (through Downloads). Signs in with Authentik; family without kids, mesh only."
+category = "media"
+core = false
+# Opt-in like downloads, which it needs
+opt_in = true
+requires = ["downloads"]
+suggests = ["reading", "audiobooks"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["bindery"]
+public_names = []
+peer_names = ["bindery"]
+blueprints = ["book-requests.yaml"]
+jobs = []
+ansible = ""
+stages = ["downloads:books"]
+
+
+[[tiles]]
+order = 55
+id = "bindery"
+name = "Book requests"
+desc = "Ask for a book or an audiobook"
+url = "https://bindery.%s/"
+icon = "/apps/bindery.svg"
+status = "bindery"
+group = "watch"
+netbird = true
+audience = "family"
+
+[options.BINDERY_TAG]
+help = "Bindery version (it fixes only its latest release: keep it current)"
+type = "tag"
+default = "1.48.0"
+advanced = true
+[options.BINDERY_API_KEY]
+help = "Bindery's API key (64 hex characters)"
+type = "secret"
+required = true
+generate = "openssl rand -hex 32"
+[options.BINDERY_OIDC_CLIENT_SECRET]
+help = "Bindery's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
+
+[authentik]
+outpost = ["Provider for Book requests"]

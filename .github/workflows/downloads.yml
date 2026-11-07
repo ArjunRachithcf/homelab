@@ -1,6 +1,7 @@
 # The downloads components with their real images (tests/downloads/run.sh): gluetun's kernel WireGuard with a random
-# key, its kill switch, the apps' non-root start, their setup over the APIs, the guard. Only when their parts change:
-# the images are about 2 GB. Nothing here reaches a real machine (compose project homelab-dltest on the runner).
+# key, its kill switch, the apps' non-root start, Authentik as their only login, their setup over the APIs, Seerr's
+# first admin from a Jellyfin, the guard. Only when their parts change: the images are about 7 GB. Nothing here
+# reaches a real machine (compose project homelab-dltest on the runner).
 name: downloads
 
 on:
@@ -11,6 +12,7 @@ on:
       - downloads-wizard.sh
       - recyclarr/**
       - tests/downloads/**
+      - tests/fixtures/full.env
       - .github/workflows/downloads.yml
   push:
     branches: [main]
@@ -27,7 +29,7 @@ concurrency:
 jobs:
   real-images:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

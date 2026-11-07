@@ -191,8 +191,18 @@ def kid(name):
     out("✓", u.username, "in kids, not in paperless-users:", ", ".join(sorted(g.name for g in u.ak_groups.all())))
 
 
+def members(group):
+    """The active users of a group (its own members), one username a line: what an app takes over from Authentik's
+    groups (Seerr's permissions, downloads-wizard.sh). Nothing for a group that doesn't exist."""
+    from authentik.core.models import Group
+    g = Group.objects.filter(name=group).first()
+    if g:
+        for u in g.users.filter(is_active=True).order_by("username"):
+            out(u.username)
+
+
 TASKS = {f.__name__: f for f in (rename_admin, cert_state, set_cert, list_additions, export_ca, outpost_token,
-                                 add_keys, list_keys, status, brand, on_outpost, join_groups, kid)}
+                                 add_keys, list_keys, status, brand, on_outpost, join_groups, kid, members)}
 
 
 def run():

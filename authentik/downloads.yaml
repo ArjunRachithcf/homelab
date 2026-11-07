@@ -1,6 +1,7 @@
 # ~/homelab/authentik/downloads.yaml
 # Downloads (qbit.<domain>, prowlarr.<domain>): qBittorrent and Prowlarr, behind the VPN, for admins, NetBird only.
-# Neither has OIDC, so Caddy asks Authentik first (forward-auth, every path) and each keeps its own login behind it.
+# Neither has OIDC, so Caddy asks Authentik first (forward-auth, every path) and each lets in what Caddy's fixed
+# address forwards without its own login (qBittorrent's whitelist, Prowlarr's trusted network: docker-compose.yml).
 # Applied by `authentik/setup-ssh.sh component downloads` (also part of `hardening`), which also adds the providers
 # to the embedded outpost. Needs family.yaml.
 version: 1

@@ -1,0 +1,24 @@
+# caddy/components/book-requests/sites.caddy (component book-requests; copied into caddy/enabled/ by ./homelab
+# configure)
+# Bindery: NetBird only (no :8444 site, no NetBird service, DNS zone for the family's groups), the family without kids
+# (its Authentik apps), every path behind forward-auth, then its own sign-in through Authentik (OIDC). Its first-run
+# setup makes a local admin and is open until its Authentik provider is pushed (downloads/setup.py bindery-init):
+# shut here at any time.
+(bindery) {
+	route {
+		import forward_auth
+		@setup path /setup /setup/* /api/v1/auth/setup /api/v1/auth/setup/*
+		respond @setup "Bindery signs in through Authentik only." 403
+		reverse_proxy bindery:8787
+	}
+}
+
+bindery.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import bindery
+}
+
+bindery.{$DOMAIN}, bindery.{$DOMAIN_ALIAS}, bindery.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical bindery
+}

@@ -1,7 +1,8 @@
 # caddy/components/downloads/sites.caddy (component downloads; copied into caddy/enabled/ by ./homelab configure)
 # qBittorrent and Prowlarr live in gluetun's network namespace: gluetun:8080, gluetun:9696. NetBird only (no :8444
 # site, no NetBird service, DNS zones for the Admin group only), admins only (their Authentik apps), every path behind
-# forward-auth, then each app's own login.
+# forward-auth; behind it each lets in what Caddy's fixed address forwards without its own login (qBittorrent's
+# whitelist, Prowlarr's trusted network: docker-compose.yml).
 (qbittorrent) {
 	route {
 		import forward_auth

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # downloads/guard.sh (homelab-downloads-guard.timer, every 10 min; component downloads):
-#  1. qBittorrent and Prowlarr live in gluetun's network namespace. A restarted or recreated gluetun is a new one, and
-#     theirs keeps only lo: they're recreated when gluetun started after them or their healthcheck says so.
+#  1. qBittorrent, Prowlarr and Byparr live in gluetun's network namespace. A restarted or recreated gluetun is a new
+#     one, and theirs keeps only lo: they're recreated when gluetun started after them or their healthcheck says so.
 #  2. The media folder's disk below DOWNLOADS_KEEP_FREE_PCT free: every running torrent stopped, 5 points above it
 #     again: started (downloads/setup.py guard). Fails, so the unit mails, only when it has just stopped them, or
 #     can't while the disk is low: a broken API on a roomy disk is a line in the log, not a mail every 10 minutes.
@@ -26,7 +26,7 @@ rc=0
 g=$(started gluetun)
 if [[ -n $g ]]; then
   stale=()
-  for s in qbittorrent prowlarr; do
+  for s in qbittorrent prowlarr byparr; do
     t=$(started "$s")
     [[ -n $t ]] || continue   # not running: nothing to bring back
     if awk -v a="$t" -v b="$g" 'BEGIN { exit !(a < b) }' || [[ $(health "$s") == unhealthy ]]; then stale+=("$s"); fi

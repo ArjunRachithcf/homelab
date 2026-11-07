@@ -27,6 +27,8 @@ the parts only they can do. The design is decided; don't redesign it.
 
 - Dashboards (NetBird, the DNS provider), the first admin account, hardware keys, BIOS settings, any sudo
   password prompt.
+- With the downloads: the VPN's key; with the request page, Jellyfin's own admin password once (Seerr's first admin,
+  never stored).
 
 ## How to work
 

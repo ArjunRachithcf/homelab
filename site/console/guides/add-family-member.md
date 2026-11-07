@@ -11,5 +11,7 @@ family automatically and the admins get a mail.
    kids' library only.
 4. An operator (may open this console): an admin adds them to the `operators` group in the
    accounts admin (Directory → Groups → operators).
+5. Requests (Seerr), if it's on: once they've signed in there, the admin runs the step "Downloads on
+   request → Requests" again: an adult's requests are then approved by themselves, a child's still wait.
 
 Someone with another address can't sign up; an admin creates the account in the accounts admin.

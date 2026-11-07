@@ -1,7 +1,7 @@
 # ~/homelab/authentik/movies-tv.yaml
 # Movies and TV (radarr.<domain>, sonarr.<domain>): Radarr and Sonarr, for admins, NetBird only. Their stable
-# releases have no OIDC, so Caddy asks Authentik first (forward-auth, every path) and each keeps its own login
-# behind it. Applied by `authentik/setup-ssh.sh component movies-tv` (also part of `hardening`), which also adds the
+# releases have no OIDC, so Caddy asks Authentik first (forward-auth, every path) and each lets in what Caddy
+# forwards without its own login (docker-compose.yml). Applied by `authentik/setup-ssh.sh component movies-tv` (also part of `hardening`), which also adds the
 # providers to the embedded outpost. Needs family.yaml.
 version: 1
 metadata:

@@ -51,7 +51,12 @@ TYPES = {
     "bool": re.compile(r"^(true|false)$"),
     "tag": re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$"),
     "path": re.compile(r"^[^\s'\"]+$"),
+    # the first three numbers of a /24 (DOWNLOADS_NET, REQUESTS_NET); which ranges: check_value
+    "net24": re.compile(r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){2}$"),
 }
+# Where a net24 may lie: documentation and benchmarking ranges. Never a private one (Radarr, Sonarr, Lidarr and Prowlarr
+# skip their own login for those, docker-compose.yml), never a real one (this PC could no longer reach it).
+NET24_RANGES = [ipaddress.ip_network(n) for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "198.18.0.0/15")]
 # LAN_ALLOW (firewall role): firewalld service names (0-AD, RH-Satellite-6, mdns: a letter somewhere, so
 # a bare port is refused) or PORT[-PORT]/PROTO, spaces between
 FIREWALL_WORD = re.compile(r"^((?=[^/]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9_.-]*|[0-9]{1,5}(-[0-9]{1,5})?/(tcp|udp))$")
@@ -215,6 +220,8 @@ def check_value(opt: dict, value: str) -> str | None:
     rx = TYPES.get(t)
     if rx and not rx.match(value):
         return f"not a valid {t}"
+    if t == "net24" and not any(ipaddress.ip_network(f"{value}.0/24").subnet_of(r) for r in NET24_RANGES):
+        return "not in a documentation or benchmarking range (192.0.2, 198.51.100, 203.0.113, 198.18–198.19)"
     return None
 
 
@@ -271,6 +278,16 @@ def make_plan(comps: dict[str, dict], env: dict[str, str], chosen: list[str], gp
             later.append((c, k, o["set_by"]))
         elif o.get("required"):
             missing.append((c, k, o.get("help", "")))
+    # Two networks on one /24 (DOWNLOADS_NET, REQUESTS_NET): Docker refuses the second and Caddy, on all of them
+    # whatever is chosen, wouldn't start. So every component's, defaults included
+    seen: dict[str, str] = {}
+    for c in comps.values():
+        for k, o in c.get("options", {}).items():
+            if o.get("type") == "net24":
+                v = write.get(k) or env.get(k) or str(o.get("default", ""))
+                if v in seen:
+                    invalid.append((k, f"the same /24 as {seen[v]}: two of the stack's networks can't share one"))
+                seen[v] = k
     prof = profiles(comps, res.enabled, platform)
     write["COMPONENTS"] = ",".join(res.enabled)
     write["COMPOSE_PROFILES"] = ",".join(prof)

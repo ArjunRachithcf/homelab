@@ -76,15 +76,46 @@ CREDENTIALS = [
     ("paperless", "GET", "/api/auth/headless/app/v1/config", {}),
     ("games", "POST", "/api/token", {}),
     ("games", "POST", "/api/token/", {}),
-    # Downloads (qBittorrent, Prowlarr, Radarr, Sonarr): Authentik before every path, whatever key comes along;
-    # their API keys never leave the downloads network
-    *[(h, "GET", path, hdrs) for h in ("qbit", "prowlarr", "radarr", "sonarr") for path, hdrs in (
+    # Downloads (qBittorrent, Prowlarr, Radarr, Sonarr, Lidarr, Bazarr, Bindery): Authentik before every path, whatever
+    # key comes along; their API keys never leave the downloads network
+    *[(h, "GET", path, hdrs) for h in ("qbit", "prowlarr", "radarr", "sonarr", "lidarr", "subs", "bindery")
+      for path, hdrs in (
         ("/initialize.json", {}),
         ("/api/v3/system/status", {"X-Api-Key": "x"}),
         ("/api/v1/indexer?apikey=x", {}),
         ("/api/v2/app/version", {"Authorization": "Bearer qbt_x"}),
         ("/signalr/messages", {"Connection": "Upgrade", "Upgrade": "websocket", "Sec-WebSocket-Version": "13",
-                               "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ=="}))],
+                               "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ=="}),
+        ("/api/system/status", {"X-API-KEY": "x"}), ("/setup", {}))],
+    # Seerr (requests, public, no forward-auth): its own accounts, Quick Connect, its API's docs and the image proxies
+    # its pages don't use are shut on both listeners, also in another case or %-encoded (its routes ignore case);
+    # Jellyfin's sign-in reaches it; avatars only with its session cookie; Next.js's middleware header never arrives
+    ("requests", "POST", "/api/v1/auth/jellyfin", {"X-Matrix-Probe": "seerr", "X-Middleware-Subrequest": "middleware",
+                                                   "X-Api-Key": "a-guessed-key", "X-Api-User": "1"}),
+    ("requests", "GET", "/api/v1/settings/public", {}),
+    *[("requests", "POST", path, {}) for path in (
+        "/api/v1/auth/local", "/api/v1/auth/local/", "/api/v1/Auth/Local", "/api/v1/auth/%6Cocal", "/api/v1/auth/plex",
+        "/api/v1/auth/reset-password", "/api/v1/auth/reset-password/abc", "/api/v1/auth/jellyfin/quickconnect/initiate",
+        "/api/v1/auth/jellyfin/quickconnect/authenticate", "/api/v1/user/2/settings/linked-accounts/jellyfin/quickconnect",
+        "/api/v1/user/2/settings/linked-accounts/jellyfin/quickconnect/")],
+    *[("requests", "GET", path, {}) for path in (
+        "/api/v1/auth/jellyfin/quickconnect/check?secret=x", "/api-docs", "/api-docs/swagger-ui.css", "/API-DOCS",
+        "/_next/image?url=%2Flogo_full.svg&w=64&q=75", "/imageproxy/tmdb/t/p/w300/x.jpg",
+        "/avatarproxy/0123456789abcdef0123456789abcdef")],
+    ("requests", "GET", "/avatarproxy/0123456789abcdef0123456789abcdef", {"Cookie": "connect.sid=s%3Aabc"}),
+]
+# Seerr before its own setup step made its admin ours (site/status/requests-ready not there yet): nothing reaches it
+UNCLAIMED = [("requests", "GET", "/", {}), ("requests", "POST", "/api/v1/auth/jellyfin", {}),
+             ("requests", "GET", "/api/v1/settings/public", {})]
+# Signed in to Authentik (the stub's cookie), then: (host, method, path, headers, user)
+SIGNED_IN = [
+    # Bindery's first-run setup (a local admin) shut at any time, its own sign-in through Authentik open
+    *[("bindery", m, path, {}, "anna") for m, path in (
+        ("GET", "/setup"), ("GET", "/setup/admin"), ("POST", "/api/v1/auth/setup"), ("POST", "/api/v1/auth/setup/"),
+        ("POST", "/api/v1/Auth/Setup"), ("GET", "/api/v1/auth/oidc/authentik/login"), ("GET", "/"))],
+    # Bazarr: its Basic login is Caddy's (BAZARR_AUTH), whatever the browser sends
+    ("subs", "GET", "/", {"X-Matrix-Probe": "auth"}, "admin"),
+    ("subs", "GET", "/api/system/status", {"X-Matrix-Probe": "auth", "Authorization": "Basic Zm9yZ2VkOmZvcmdlZA=="}, "admin"),
 ]
 # OpenCloud: every way a public link's token opens it, refused; what the apps and signed-in people need, open
 PUBLIC_LINKS = [
@@ -106,6 +137,7 @@ FORWARDING = [
     ("stuff", "GET", "/api/v1/status", PROBE_IP),
 ]
 DUMP: Path | None = None  # --dump: keep every body Caddy itself served, named by its hash
+EXPECTED_AUTH = ""  # main(): what Caddy sends Bazarr (Basic, BAZARR_AUTH from the instance's .env)
 UPSTREAM = re.compile(r"(?<![\w.{}$-])((?:[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)*)|(?:\d+(?:\.\d+){3})):(\d{2,5})\b")
 
 
@@ -158,8 +190,16 @@ def stub_handler(name: str, domain: str):
                 return
             body = (f"UPSTREAM {name} {self.command} {self.path} xau={self.headers.get('X-Authentik-Username', '-')}"
                     f" xag={self.headers.get('X-Authentik-Groups', '-')}")
-            if self.headers.get("X-Matrix-Probe") == "ip":  # FORWARDING rows: the client IP the app would use
+            probe = self.headers.get("X-Matrix-Probe")
+            if probe == "ip":  # FORWARDING rows: the client IP the app would use
                 body += "".join(f" {h}={self.headers.get(h, '-')}" for h in ("True-Client-IP", "X-Real-IP", "X-Forwarded-For"))
+            elif probe == "seerr":   # Next.js's own subrequests' header, Seerr's API key (its admin)
+                body += "".join(f" {h.lower()}={self.headers.get(h, '-')}"
+                                for h in ("X-Middleware-Subrequest", "X-Api-Key", "X-Api-User"))
+            elif probe == "auth":    # the Authorization the app got: Caddy's own (BAZARR_AUTH) or something else
+                got = self.headers.get("Authorization", "")
+                body += " authorization=" + ("caddy's" if got and got == EXPECTED_AUTH
+                                             else hashlib.sha256(got.encode()).hexdigest()[:12] if got else "-")
             body = body.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -233,7 +273,7 @@ def batch(port: int, real_port: int, host: str, user: str) -> list[str]:
 
 
 def main() -> None:
-    global DUMP, ENV, HOSTS, PATHS
+    global DUMP, ENV, EXPECTED_AUTH, HOSTS, PATHS
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--env", default=str(ENV), help="the instance's .env (default: tests/fixtures/full.env)")
     ap.add_argument("--out", default="-")
@@ -254,6 +294,7 @@ def main() -> None:
         sys.exit(2)
     env = caddy_env()
     domain, alias = env["DOMAIN"], env["DOMAIN_ALIAS"]
+    EXPECTED_AUTH = f"Basic {env.get('BAZARR_AUTH', '')}"
     tmp = Path(tempfile.mkdtemp(prefix="caddy-matrix-"))
     try:
         # The site as ./homelab configure leaves it, plus a fixed heartbeat (no live data)
@@ -263,6 +304,8 @@ def main() -> None:
             if rel.parts[0] == "site":
                 (tmp / rel).write_bytes(data)
         (tmp / "site/status").mkdir()
+        # Seerr's admin is ours (downloads-wizard.sh's requests step): the UNCLAIMED rows go without it, at the end
+        (tmp / "site/status/requests-ready").write_text("")
         (tmp / "site/status/heartbeat.json").write_text(json.dumps(
             {"time": 1, "ok": False, "outside": None, "problems": ["stub problem"], "backup_time": None, "disks": []}))
 
@@ -342,8 +385,25 @@ def main() -> None:
                     r = f"ERR {type(e).__name__}"
                 jobs.append((PORTS[8444], "8444-noproxy", host, "GET", "/", ""))
                 results.append(r)
-            for h, method, path, extra in CREDENTIALS + FORWARDING + PUBLIC_LINKS:
+            for h, method, path, extra, *as_user in CREDENTIALS + FORWARDING + PUBLIC_LINKS + SIGNED_IN:
                 if h not in HOSTS:   # that component isn't chosen in this instance
+                    continue
+                user = as_user[0] if as_user else ""
+                for d in (domain, alias):
+                    for real, port in PORTS.items():
+                        if real == 80:
+                            continue
+                        host = f"{h}.{d}"
+                        try:
+                            r = one(connect(port, real, host), real, host, method, path, user, extra)
+                        except (OSError, ssl.SSLError, http.client.HTTPException) as e:
+                            r = f"ERR {type(e).__name__}"
+                        label = "".join(f" [{k}: {v}]" for k, v in extra.items())
+                        jobs.append((port, real, host, method, path + label, user))
+                        results.append(r)
+            (tmp / "site/status/requests-ready").unlink()
+            for h, method, path, extra in UNCLAIMED:
+                if h not in HOSTS:
                     continue
                 for d in (domain, alias):
                     for real, port in PORTS.items():
@@ -354,8 +414,7 @@ def main() -> None:
                             r = one(connect(port, real, host), real, host, method, path, "", extra)
                         except (OSError, ssl.SSLError, http.client.HTTPException) as e:
                             r = f"ERR {type(e).__name__}"
-                        label = "".join(f" [{k}: {v}]" for k, v in extra.items())
-                        jobs.append((port, real, host, method, path + label, ""))
+                        jobs.append((port, real, host, method, path + " [before its setup step]", ""))
                         results.append(r)
         finally:
             proc.terminate()

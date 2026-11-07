@@ -31,10 +31,29 @@ networks:
   # Paperless and its converters (Tika, Gotenberg) only: no internet, no other container
   paperless-convert:
     internal: true
-  # The downloads components only (gluetun with qBittorrent and Prowlarr, Radarr, Sonarr, Recyclarr) and Caddy:
-  # Radarr, Sonarr and Prowlarr trust whatever reaches them on it (their API keys), so no other app may.
-  # Not internal: Radarr and Sonarr fetch metadata, gluetun reaches the VPN.
-  downloads: {}
+  # The downloads components only (gluetun with qBittorrent, Prowlarr and Byparr; Radarr, Sonarr, Recyclarr, Lidarr,
+  # Bazarr, Bindery) and Caddy. A documentation range, not a private one (DOWNLOADS_NET): Radarr, Sonarr, Lidarr and
+  # Prowlarr skip their own login for "local" addresses, which the client Caddy forwards is (a NetBird peer, signed in
+  # to Authentik) and a neighbour here isn't; no IPv6 (its unique-local and link-local addresses are local to them).
+  # Pinned: Caddy and gluetun have fixed addresses, which the apps trust. Not internal: the apps fetch metadata,
+  # gluetun reaches the VPN. Not "downloads", #8's name: compose can't move that one to its range while anything else
+  # is on it, and stopped what it was recreating (Caddy) trying.
+  arr:
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: ${DOWNLOADS_NET:-198.51.100}.0/24
+          ip_range: ${DOWNLOADS_NET:-198.51.100}.128/25
+          gateway: ${DOWNLOADS_NET:-198.51.100}.1
+  # Seerr (the family's request page, public) with what it needs and nothing else: Radarr, Sonarr and Caddy (through
+  # which it reaches Jellyfin and ntfy). A documentation range as well (REQUESTS_NET): Seerr is never "local".
+  requests:
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: ${REQUESTS_NET:-203.0.113}.0/24
+          ip_range: ${REQUESTS_NET:-203.0.113}.128/25
+          gateway: ${REQUESTS_NET:-203.0.113}.1
 
 volumes:
   caddy-data: {}
@@ -94,6 +113,10 @@ volumes:
   radarr-config: {}
   sonarr-config: {}
   recyclarr-config: {}
+  lidarr-config: {}
+  bazarr-config: {}
+  bindery-config: {}
+  seerr-config: {}
 
 # Every container: a process can never gain privileges (setuid binaries, file capabilities).
 x-hardening: &hardening
@@ -156,6 +179,8 @@ services:
       BRAND: ${BRAND:-Home}
       BRAND_SLUG: ${BRAND_SLUG:-home}
       ADMIN_NAME: ${ADMIN_NAME:-}
+      # Bazarr's own login (component subtitles), which Caddy sends it after Authentik's sign-in
+      BAZARR_AUTH: ${BAZARR_AUTH:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
       # The chosen components' sites, status checks and Authentik additions (./homelab configure)
@@ -174,8 +199,17 @@ services:
         ipv4_address: 172.21.1.11
         # Its default route and published ports stay here with a second network (Docker 28+)
         gw_priority: 1
-      # Radarr, Sonarr, Prowlarr and qBittorrent (components downloads, movies-tv)
-      downloads: {}
+      # The downloads apps (components downloads, movies-tv, albums, subtitles, book-requests): they trust exactly
+      # this address to forward the client's (TrustedNetworks, qBittorrent's whitelist). Bindery reaches Authentik
+      # here as auth.<domain>.
+      arr:
+        ipv4_address: ${DOWNLOADS_NET:-198.51.100}.11
+        aliases: ["auth.${DOMAIN}"]
+      # Seerr (component requests): Radarr and Sonarr trust this address too; Seerr reaches Jellyfin and ntfy here
+      # by their names, as their sites (https, the public port)
+      requests:
+        ipv4_address: ${REQUESTS_NET:-203.0.113}.11
+        aliases: ["jellyfin.${DOMAIN}", "ntfy.${DOMAIN}"]
     # Optional apps (compose profiles, COMPOSE_PROFILES in .env): waited for only when they're on
     depends_on:
       authentik-server:
@@ -1161,12 +1195,15 @@ services:
       - n8n-data:/home/node/.n8n
     networks: [internal]
 
-  # ── Downloads on request (components downloads and movies-tv, downloads-wizard.sh) ─────────────
-  # The VPN tunnel (gluetun) holds qBittorrent and Prowlarr in its network namespace: torrent peers and search sites
-  # only ever see the VPN's address, and with the tunnel down neither reaches anything (gluetun's firewall is the kill
-  # switch, its DNS goes through the tunnel). Radarr and Sonarr only fetch metadata. On the downloads network with
-  # Caddy and nothing else; each keeps its own login behind Authentik forward-auth (admins). Their volumes' first
-  # owner and their settings over the APIs: downloads/run.sh (not a compose service).
+  # ── Downloads on request (components downloads, movies-tv, albums, subtitles, book-requests, byparr, requests;
+  # downloads-wizard.sh) ──
+  # The VPN tunnel (gluetun) holds qBittorrent, Prowlarr and Byparr in its network namespace: torrent peers and search
+  # sites only ever see the VPN's address, and with the tunnel down none of them reaches anything (gluetun's firewall
+  # is the kill switch, its DNS goes through the tunnel). Radarr, Sonarr, Lidarr, Bazarr and Bindery only fetch
+  # metadata and subtitles. On their network (arr) with Caddy and nothing else. Authentik is the one login a person
+  # uses: Caddy asks it first on every path (forward-auth), and behind it each app lets in what Caddy forwards and
+  # nothing else without its own credentials (generated, in .env: break-glass and the apps' own calls). Their volumes'
+  # first owner and their settings over the APIs: downloads/run.sh (not a compose service).
   gluetun:
     profiles: [downloads]
     <<: *hardening
@@ -1203,10 +1240,16 @@ services:
     tmpfs: ["/tmp/gluetun:mode=0755"]
     volumes:
       - gluetun-data:/gluetun
-    networks: [downloads]
+      # Its kill switch also while it restarts the tunnel: nothing from a tunnel's address out by eth0 (the file says why)
+      - ./downloads/gluetun-post-rules.txt:/iptables/post-rules.txt:ro,Z
+    networks:
+      arr:
+        # Fixed: Prowlarr binds to it (below)
+        ipv4_address: ${DOWNLOADS_NET:-198.51.100}.10
 
   # qBittorrent's own image: non-root, read-only. Its sign-in (hash and API key) comes from downloads/run.sh init,
-  # the rest from apply; no localhost bypass (Prowlarr shares that address).
+  # the rest from apply: Caddy's address needs no login (its whitelist), everyone else does, localhost included
+  # (Prowlarr and Byparr share that address).
   qbittorrent:
     profiles: [downloads]
     <<: [*hardening, *in-gluetun]
@@ -1227,8 +1270,12 @@ services:
       - ${MEDIA_DIR:-/srv/media}/torrents:/data/torrents:z
 
   # LinuxServer's images in their non-root mode (no PUID/PGID; /run their own, as s6 needs with no-new-privileges).
-  # Each its own login (set by downloads/run.sh apply), not "External": that hands the API key to anything that
-  # reaches it (/initialize.json). The API key is fixed from .env, so the setup and the others know it.
+  # Prowlarr, Radarr, Sonarr and Lidarr: their form login, required except for "local" addresses. They take the
+  # client from X-Forwarded-For only when Caddy's fixed address sends it (TrustedNetworks), and with TrustCgnat that
+  # client (a NetBird peer, 100.64.0.0/10, after Authentik) is local: no second login. A neighbour on these networks
+  # isn't (documentation ranges), nor is a forged header from it: their login, or the API key. Never "External":
+  # that hands the API key to anything that reaches them (/initialize.json). The API keys are fixed from .env, so the
+  # setup and the others know them.
   prowlarr:
     profiles: [downloads]
     <<: [*hardening, *in-gluetun]
@@ -1236,17 +1283,25 @@ services:
     restart: unless-stopped
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     cap_drop: [ALL]
+    # .NET waits up to 30 s for its calls on the way out, which hang while the VPN is down: not a SIGKILL after 10
+    stop_grace_period: 30s
     tmpfs: ["/run:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000},exec"]
     environment:
       TZ: ${TIME_ZONE:-Europe/Zurich}
       PROWLARR__AUTH__METHOD: Forms
-      PROWLARR__AUTH__REQUIRED: Enabled
+      PROWLARR__AUTH__REQUIRED: DisabledForLocalAddresses
+      PROWLARR__AUTH__TRUSTCGNATIPADDRESSES: "true"
       PROWLARR__AUTH__APIKEY: ${PROWLARR_API_KEY:-}
       PROWLARR__LOG__ANALYTICSENABLED: "false"
-      # Radarr and Sonarr call it gluetun (its network namespace)
+      # The others call it gluetun (its network namespace)
       PROWLARR__SERVER__ALLOWEDHOSTS: prowlarr.${DOMAIN},gluetun
+      PROWLARR__SERVER__TRUSTEDNETWORKS: ${DOWNLOADS_NET:-198.51.100}.11
+      # gluetun's address only, never 127.0.0.1: qBittorrent and Byparr share that loopback, which counts as local
+      PROWLARR__SERVER__BINDADDRESS: ${DOWNLOADS_NET:-198.51.100}.10
     volumes:
       - {type: volume, source: prowlarr-config, target: /config, volume: {nocopy: true}}
+      # s6's readiness check, asking that address (the image's asks localhost: never ready, a stop ends in SIGKILL)
+      - ./downloads/prowlarr-ready.sh:/etc/s6-overlay/s6-rc.d/svc-prowlarr/data/check:ro,Z
 
   radarr:
     profiles: [movies-tv]
@@ -1259,15 +1314,18 @@ services:
     environment:
       TZ: ${TIME_ZONE:-Europe/Zurich}
       RADARR__AUTH__METHOD: Forms
-      RADARR__AUTH__REQUIRED: Enabled
+      RADARR__AUTH__REQUIRED: DisabledForLocalAddresses
+      RADARR__AUTH__TRUSTCGNATIPADDRESSES: "true"
       RADARR__AUTH__APIKEY: ${RADARR_API_KEY:-}
       RADARR__LOG__ANALYTICSENABLED: "false"
       RADARR__SERVER__ALLOWEDHOSTS: radarr.${DOMAIN},radarr
+      # Caddy on both its networks (Seerr's as well)
+      RADARR__SERVER__TRUSTEDNETWORKS: ${DOWNLOADS_NET:-198.51.100}.11,${REQUESTS_NET:-203.0.113}.11
     volumes:
       - {type: volume, source: radarr-config, target: /config, volume: {nocopy: true}}
       # Read-write, the whole media folder: a hardlink from torrents/ into Movies/ can't cross two mounts
       - ${MEDIA_DIR:-/srv/media}:/data:z
-    networks: [downloads]
+    networks: [arr, requests]
 
   sonarr:
     profiles: [movies-tv]
@@ -1280,14 +1338,16 @@ services:
     environment:
       TZ: ${TIME_ZONE:-Europe/Zurich}
       SONARR__AUTH__METHOD: Forms
-      SONARR__AUTH__REQUIRED: Enabled
+      SONARR__AUTH__REQUIRED: DisabledForLocalAddresses
+      SONARR__AUTH__TRUSTCGNATIPADDRESSES: "true"
       SONARR__AUTH__APIKEY: ${SONARR_API_KEY:-}
       SONARR__LOG__ANALYTICSENABLED: "false"
       SONARR__SERVER__ALLOWEDHOSTS: sonarr.${DOMAIN},sonarr
+      SONARR__SERVER__TRUSTEDNETWORKS: ${DOWNLOADS_NET:-198.51.100}.11,${REQUESTS_NET:-203.0.113}.11
     volumes:
       - {type: volume, source: sonarr-config, target: /config, volume: {nocopy: true}}
       - ${MEDIA_DIR:-/srv/media}:/data:z
-    networks: [downloads]
+    networks: [arr, requests]
 
   # TRaSH Guides' qualities and sizes into Radarr and Sonarr (recyclarr/recyclarr.yml), weekly by its own schedule
   recyclarr:
@@ -1308,7 +1368,139 @@ services:
       # its copy of the guides
       - {type: volume, source: recyclarr-config, target: /config, volume: {nocopy: true}}
       - ./recyclarr/recyclarr.yml:/config/recyclarr.yml:ro,Z
-    networks: [downloads]
+    networks: [arr]
+
+  # Byparr (component byparr): search sites behind Cloudflare's checks, for Prowlarr (its FlareSolverr proxy, only
+  # for the sites tagged cloudflare). A browser: in gluetun's namespace, so it leaves through the VPN with Prowlarr's
+  # address, and bound to the namespace's loopback (no login of its own: only Prowlarr reaches it). Its browser
+  # comes with the image (/cache) and writes beside itself there (fonts, the GeoIP file), so no read-only root, and
+  # no volume: one would keep an old browser after an upgrade.
+  byparr:
+    profiles: [byparr]
+    <<: [*hardening, *in-gluetun]
+    image: ghcr.io/thephaseless/byparr:${BYPARR_TAG:-3.1.1}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    shm_size: 1gb
+    tmpfs: ["/tmp:exec,mode=1777,size=1G"]
+    environment:
+      HOST: 127.0.0.1
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      # Else it looks up the VPN's exit address to pick them
+      BROWSER_TIMEZONE: ${TIME_ZONE:-Europe/Zurich}
+      BROWSER_LOCALE: ${BYPARR_LOCALE:-en-US}
+
+  # Lidarr (component albums): albums on request, into Music/. Its tags and renames stay off: a rewritten file would
+  # no longer be the torrent's hardlink.
+  lidarr:
+    profiles: [albums]
+    <<: *hardening
+    image: lscr.io/linuxserver/lidarr:${LIDARR_TAG:-3.1.6.5079-ls47}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    tmpfs: ["/run:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000},exec"]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      LIDARR__AUTH__METHOD: Forms
+      LIDARR__AUTH__REQUIRED: DisabledForLocalAddresses
+      LIDARR__AUTH__TRUSTCGNATIPADDRESSES: "true"
+      LIDARR__AUTH__APIKEY: ${LIDARR_API_KEY:-}
+      LIDARR__LOG__ANALYTICSENABLED: "false"
+      LIDARR__SERVER__ALLOWEDHOSTS: lidarr.${DOMAIN},lidarr
+      LIDARR__SERVER__TRUSTEDNETWORKS: ${DOWNLOADS_NET:-198.51.100}.11
+    volumes:
+      - {type: volume, source: lidarr-config, target: /config, volume: {nocopy: true}}
+      - ${MEDIA_DIR:-/srv/media}:/data:z
+    networks: [arr]
+
+  # Bazarr (component subtitles): subtitles beside the films and episodes, the same paths as Radarr's and Sonarr's,
+  # and nothing else of the media folder. Its login is HTTP Basic, which Caddy fills in after Authentik
+  # (BAZARR_AUTH); its API key for the rest. Its config.yaml: downloads/run.sh init (on a fresh volume).
+  bazarr:
+    profiles: [subtitles]
+    <<: *hardening
+    image: lscr.io/linuxserver/bazarr:${BAZARR_TAG:-v1.6.2-ls371}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    tmpfs: ["/run:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000},exec", /tmp]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+    volumes:
+      - {type: volume, source: bazarr-config, target: /config, volume: {nocopy: true}}
+      - ${MEDIA_DIR:-/srv/media}/Movies:/data/Movies:z
+      - ${MEDIA_DIR:-/srv/media}/TV Shows:/data/TV Shows:z
+    networks: [arr]
+
+  # Bindery (component book-requests): the family asks for books and audiobooks, admins approve. Signs in with
+  # Authentik (OIDC, its own client; no local accounts), Authentik's forward-auth in front as well. Only its four
+  # folders: the downloads it imports (copies: two mounts) and the two libraries. Read-only, non-root.
+  bindery:
+    profiles: [book-requests]
+    <<: *hardening
+    image: ghcr.io/vavallee/bindery:${BINDERY_TAG:-1.48.0}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      BINDERY_DB_PATH: /config/bindery.db
+      BINDERY_DATA_DIR: /config
+      BINDERY_LIBRARY_DIR: /books
+      BINDERY_AUDIOBOOK_DIR: /audiobooks
+      # qBittorrent's categories books and audiobooks save there (the same path in both)
+      BINDERY_DOWNLOAD_DIR: /data/torrents/books
+      BINDERY_AUDIOBOOK_DOWNLOAD_DIR: /data/torrents/audiobooks
+      BINDERY_DIR_MODE: "0755"
+      BINDERY_API_KEY: ${BINDERY_API_KEY:-}
+      BINDERY_LOCAL_AUTH_ENABLED: "false"
+      BINDERY_OIDC_AUTO_PROVISION: "true"
+      BINDERY_OIDC_DEFAULT_ROLE: requester
+      BINDERY_OIDC_ADMIN_GROUP: authentik Admins
+      BINDERY_OIDC_REDIRECT_BASE_URL: https://bindery.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      BINDERY_TRUSTED_PROXY: ${DOWNLOADS_NET:-198.51.100}.11
+      BINDERY_COOKIE_SECURE: always
+      BINDERY_TELEMETRY_DISABLED: "true"
+    volumes:
+      - {type: volume, source: bindery-config, target: /config, volume: {nocopy: true}}
+      - ${MEDIA_DIR:-/srv/media}/torrents/books:/data/torrents/books:z
+      - ${MEDIA_DIR:-/srv/media}/torrents/audiobooks:/data/torrents/audiobooks:z
+      - ${MEDIA_DIR:-/srv/media}/Books/Books:/books:z
+      - ${AUDIOBOOKS_DIR:-/srv/media/audiobooks}:/audiobooks:z
+    networks: [arr]
+
+  # Seerr (component requests): the family's request page, public. Signs in through Jellyfin, whose logins are
+  # Authentik's (LDAP, password;code); kids' requests wait for an admin. On the requests network only: Radarr, Sonarr
+  # and Caddy. Read-only, non-root; never started before its own setup stage (the first sign-in makes the admin).
+  seerr:
+    profiles: [requests]
+    <<: *hardening
+    image: ghcr.io/seerr-team/seerr:${SEERR_TAG:-v3.5.1}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    # What `npm start` runs, without npm
+    command: [node, dist/index.js]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      NODE_ENV: production
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      LOG_LEVEL: info
+      API_KEY: ${SEERR_API_KEY:-}
+    volumes:
+      - {type: volume, source: seerr-config, target: /app/config, volume: {nocopy: true}}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5055/api/v1/settings/public"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [requests]
 
   # --- ops (RUNBOOK.md 7e, "Details"): the home page's detail sheets for admins. Serves the reports
   # in ops/data (written on the host) and drops job requests (only a name) into ops/requests, where

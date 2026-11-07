@@ -61,11 +61,6 @@ help = "The VPN's forwarded port for incoming peers (Proton: P2P servers); false
 type = "bool"
 default = "true"
 advanced = true
-[options.DOWNLOADS_ADMIN_PASSWORD]
-help = "The password of qBittorrent's, Prowlarr's, Radarr's and Sonarr's own logins (after Authentik)"
-type = "secret"
-required = true
-set_by = "downloads:secrets"
 [options.DOWNLOADS_SEED_RATIO]
 help = "Seed each torrent to this ratio (or the days below), then stop it"
 type = "int"
@@ -111,6 +106,21 @@ help = "Prowlarr's API key"
 type = "secret"
 required = true
 generate = "openssl rand -hex 16"
+[options.QBITTORRENT_PASSWORD]
+help = "The password of qBittorrent's own login (Bindery's way in; for you Authentik's sign-in is)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
+[options.PROWLARR_PASSWORD]
+help = "The password of Prowlarr's own login (break-glass: Authentik's sign-in is the way in)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
+[options.DOWNLOADS_NET]
+help = "The downloads apps' network: the first three numbers of a /24 in a documentation range (never a private one)"
+type = "net24"
+default = "198.51.100"
+advanced = true
 
 # What Authentik needs beyond the blueprint (lib/authentik.py): a list addition the blueprint would replace
 [authentik]

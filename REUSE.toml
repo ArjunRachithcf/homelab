@@ -23,6 +23,12 @@ SPDX-FileCopyrightText = "Dashboard Icons contributors"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
+path = "site/apps/bindery.svg"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 vavallee (Bindery's logo, github.com/vavallee/bindery)"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = ["site/fonts/inter.woff2", "site/fonts/OFL-inter.txt"]
 precedence = "override"
 SPDX-FileCopyrightText = "2016 The Inter Project Authors"
