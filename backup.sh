@@ -178,7 +178,7 @@ if component_on places; then
   pg_app dawarich dawarich-db
 fi
 # Downloads on request (opt-in, so only when listed): the apps' settings and libraries, not the downloads (media)
-# nor their logs and own backups. Their API keys and login are in .env.
+# nor their logs and own backups. Their API keys and logins are in .env.
 if component_listed downloads; then
   echo "Downloads…"
   vol_tar qbittorrent-config '^qBittorrent/(logs|data/logs|cache)'   # settings, categories, resume data
@@ -188,6 +188,10 @@ if component_listed movies-tv; then
   vol_tar radarr-config '^(logs|logs\.db|Backups|MediaCover|asp)' radarr.db
   vol_tar sonarr-config '^(logs|logs\.db|Backups|MediaCover|asp)' sonarr.db
 fi
+component_listed albums && vol_tar lidarr-config '^(logs|logs\.db|Backups|MediaCover|asp|Sentry)' lidarr.db
+component_listed subtitles && vol_tar bazarr-config '^(log|cache|backup|restore)' db/bazarr.db
+component_listed book-requests && vol_tar bindery-config "$NONE" bindery.db
+component_listed requests && vol_tar seerr-config '^(logs|cache)' db/db.sqlite3   # also settings.json: its settings
 
 # Root-only files from backup-stage.sh (only when run by homelab-backup.service)
 staged=()

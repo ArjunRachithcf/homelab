@@ -10,6 +10,7 @@ sign-in (run through ./authentik/setup-ssh.sh, as yourself, docker group). Idemp
   setup-ssh.sh files         the chosen ones of reading, files, share (RUNBOOK.md 7e)
   setup-ssh.sh family-apps   the chosen ones of Chores, Things, Family tree, Notes, Wiki, News, Games, Places (7f)
   setup-ssh.sh kid USER      USER into group kids, out of paperless-users (RUNBOOK.md 7e)
+  setup-ssh.sh members GROUP the active users of GROUP, one username a line (Seerr's permissions, downloads-wizard.sh)
   setup-ssh.sh app           the family app's browser sign-in (family-app.yaml, RUNBOOK.md "Family app")
   setup-ssh.sh terminal      = component terminal: Termix's OIDC app, admins only (RUNBOOK.md 7e)
   setup-ssh.sh n8n           = component n8n: forward-auth, admins only (RUNBOOK.md 7h)
@@ -290,6 +291,11 @@ def main(argv: list[str]) -> int:
                 print("usage: setup-ssh.sh kid USERNAME", file=sys.stderr)
                 return 2
             say("kid", name=rest[0])
+        elif cmd == "members":
+            if len(rest) != 1:
+                print("usage: setup-ssh.sh members GROUP", file=sys.stderr)
+                return 2
+            say("members", group=rest[0])
         elif cmd == "add-key":
             add_keys()
         elif cmd == "list-keys":

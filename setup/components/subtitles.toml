@@ -1,0 +1,54 @@
+title = "Subtitles (Bazarr)"
+description = "Subtitles in your languages for the films and series Radarr and Sonarr look after, saved beside them; from providers without an account. Admins, mesh only."
+category = "media"
+core = false
+# Opt-in like movies-tv, which it needs
+opt_in = true
+requires = ["movies-tv"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["bazarr"]
+public_names = []
+peer_names = ["subs"]
+blueprints = ["subtitles.yaml"]
+jobs = []
+ansible = ""
+stages = ["downloads:subtitles"]
+
+
+[[tiles]]
+order = 230
+id = "subs"
+name = "Subtitles"
+desc = "Bazarr: subtitles for films and series"
+url = "https://subs.%s/"
+icon = "/apps/bazarr.svg"
+status = "subs"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.BAZARR_TAG]
+help = "Bazarr version (LinuxServer's image)"
+type = "tag"
+default = "v1.6.2-ls371"
+advanced = true
+[options.BAZARR_LANGUAGES]
+help = "Subtitle languages, two letters each, commas between (e.g. en,de)"
+type = "text"
+default = "en"
+[options.BAZARR_API_KEY]
+help = "Bazarr's API key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 16"
+[options.BAZARR_AUTH]
+help = "Bazarr's own login, base64 of user:password: Caddy sends it after Authentik's sign-in"
+type = "secret"
+required = true
+generate = "printf 'homelab:%s' \"$(openssl rand -hex 24)\" | base64 | tr -d '\\n'"
+
+[authentik]
+outpost = ["Provider for Bazarr"]

@@ -1,0 +1,23 @@
+# caddy/components/albums/sites.caddy (component albums; copied into caddy/enabled/ by ./homelab configure)
+# Lidarr: NetBird only (no :8444 site, no NetBird service, DNS zone for the Admin group only), admins only (its
+# Authentik app), every path behind forward-auth; behind it Lidarr lets in the client Caddy forwards without its own
+# login (docker-compose.yml). Its redirects say http (it doesn't take Caddy's X-Forwarded-Proto); these listeners
+# only speak https.
+(lidarr) {
+	route {
+		import forward_auth
+		reverse_proxy lidarr:8686 {
+			header_down Location ^http:// https://
+		}
+	}
+}
+
+lidarr.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import lidarr
+}
+
+lidarr.{$DOMAIN}, lidarr.{$DOMAIN_ALIAS}, lidarr.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical lidarr
+}

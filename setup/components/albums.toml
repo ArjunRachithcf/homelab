@@ -1,0 +1,54 @@
+title = "Albums on request (Lidarr)"
+description = "Ask for an album and it arrives in Music (through Downloads), the files as downloaded; nothing downloads unless someone asks. Admins, mesh only."
+category = "media"
+core = false
+# Opt-in like downloads, which it needs
+opt_in = true
+requires = ["downloads"]
+suggests = ["music"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["lidarr"]
+public_names = []
+peer_names = ["lidarr"]
+blueprints = ["albums.yaml"]
+jobs = []
+ansible = ""
+stages = ["downloads:albums"]
+
+
+[[tiles]]
+order = 225
+id = "lidarr"
+name = "Albums"
+desc = "Lidarr: albums on request"
+url = "https://lidarr.%s/"
+icon = "/apps/lidarr.svg"
+status = "lidarr"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.LIDARR_TAG]
+help = "Lidarr version (LinuxServer's image)"
+type = "tag"
+default = "3.1.6.5079-ls47"
+advanced = true
+[options.LIDARR_QUALITY_PROFILE]
+help = "What Lidarr fetches: Standard (MP3 and the like), Lossless (FLAC) or Any"
+type = "text"
+default = "Standard"
+[options.LIDARR_API_KEY]
+help = "Lidarr's API key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 16"
+[options.LIDARR_PASSWORD]
+help = "The password of Lidarr's own login (break-glass: Authentik's sign-in is the way in)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
+
+[authentik]
+outpost = ["Provider for Lidarr"]

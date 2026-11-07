@@ -4,7 +4,7 @@
 
 Every app or feature is a component (`setup/components/<id>.toml`). Choose them with a preset and `./homelab setup --plan/--apply`, the setup app, or an assistant (docs/getting-started.md). What one needs comes along by itself.
 
-Presets: **everything** (37 components); **family** (35 components); **minimal** (5 components).
+Presets: **everything** (42 components); **family** (35 components); **minimal** (5 components).
 
 ## Always there
 
@@ -493,6 +493,50 @@ Books, comics and manga in the browser and OPDS readers; a Kids library with an 
 | `KAVITA_TAG` | default `0.9.1` | Kavita version |
 | `KAVITA_OIDC_CLIENT_SECRET` | secret, generated | Kavita's Authentik client secret |
 
+### Albums on request (Lidarr) (`albums`)
+
+Ask for an album and it arrives in Music (through Downloads), the files as downloaded; nothing downloads unless someone asks. Admins, mesh only.
+
+- needs `downloads`
+- goes well with `music`
+- runs on fedora, debian, ubuntu, arch
+- containers `lidarr`
+
+| Setting | | What it is |
+|---|---|---|
+| `LIDARR_TAG` | default `3.1.6.5079-ls47` | Lidarr version (LinuxServer's image) |
+| `LIDARR_QUALITY_PROFILE` | default `Standard` | What Lidarr fetches: Standard (MP3 and the like), Lossless (FLAC) or Any |
+| `LIDARR_API_KEY` | secret, generated | Lidarr's API key |
+| `LIDARR_PASSWORD` | secret, generated | The password of Lidarr's own login (break-glass: Authentik's sign-in is the way in) |
+
+### Books on request (Bindery) (`book-requests`)
+
+The family asks for books and audiobooks, an admin approves, and they arrive in Reading's and Audiobooks' libraries (through Downloads). Signs in with Authentik; family without kids, mesh only.
+
+- needs `downloads`
+- goes well with `reading`, `audiobooks`
+- runs on fedora, debian, ubuntu, arch
+- containers `bindery`
+
+| Setting | | What it is |
+|---|---|---|
+| `BINDERY_TAG` | default `1.48.0` | Bindery version (it fixes only its latest release: keep it current) |
+| `BINDERY_API_KEY` | secret, generated | Bindery's API key (64 hex characters) |
+| `BINDERY_OIDC_CLIENT_SECRET` | secret, generated | Bindery's Authentik client secret |
+
+### Sites behind Cloudflare (Byparr) (`byparr`)
+
+Lets Prowlarr use search sites behind Cloudflare's checks: a browser inside the VPN, only for the sites you tag cloudflare. Admins.
+
+- needs `downloads`
+- runs on fedora, debian, ubuntu, arch
+- containers `byparr`
+
+| Setting | | What it is |
+|---|---|---|
+| `BYPARR_TAG` | default `3.1.1` | Byparr version |
+| `BYPARR_LOCALE` | default `en-US` | Its browser's language (the time zone is TIME_ZONE's) |
+
 ### Downloads through a VPN (qBittorrent, Prowlarr) (`downloads`)
 
 Torrents and their search sites only through a VPN with a kill switch (gluetun; Proton's forwarded port); admins, mesh only. Needs a VPN subscription.
@@ -509,7 +553,6 @@ Torrents and their search sites only through a VPN with a kill switch (gluetun; 
 | `VPN_WIREGUARD_PRIVATE_KEY` | secret, asked | The VPN's WireGuard private key (Proton: a WireGuard configuration with NAT-PMP) |
 | `VPN_SERVER_COUNTRIES` | optional | VPN server countries, commas between (empty: any) |
 | `DOWNLOADS_PORT_FORWARDING` | default `true` | The VPN's forwarded port for incoming peers (Proton: P2P servers); false for a provider without it |
-| `DOWNLOADS_ADMIN_PASSWORD` | secret, asked | The password of qBittorrent's, Prowlarr's, Radarr's and Sonarr's own logins (after Authentik) |
 | `DOWNLOADS_SEED_RATIO` | default `2` | Seed each torrent to this ratio (or the days below), then stop it |
 | `DOWNLOADS_SEED_DAYS` | default `14` | Seed each torrent this many days at most |
 | `DOWNLOADS_KEEP_FREE_PCT` | default `15` | Stop all torrents when the media folder's disk has less than this % free |
@@ -519,6 +562,9 @@ Torrents and their search sites only through a VPN with a kill switch (gluetun; 
 | `GLUETUN_CONTROL_KEY` | secret, generated | API key of gluetun's control server (exit address, forwarded port) for the checks |
 | `QBITTORRENT_API_KEY` | secret, generated | qBittorrent's API key (Radarr, Sonarr, the VPN's port hook) |
 | `PROWLARR_API_KEY` | secret, generated | Prowlarr's API key |
+| `QBITTORRENT_PASSWORD` | secret, generated | The password of qBittorrent's own login (Bindery's way in; for you Authentik's sign-in is) |
+| `PROWLARR_PASSWORD` | secret, generated | The password of Prowlarr's own login (break-glass: Authentik's sign-in is the way in) |
+| `DOWNLOADS_NET` | default `198.51.100` | The downloads apps' network: the first three numbers of a /24 in a documentation range (never a private one) |
 
 ### Movies and TV on request (Radarr, Sonarr) (`movies-tv`)
 
@@ -535,6 +581,45 @@ Ask for a film or a series and it arrives in Movies or TV Shows (through Downloa
 | `RECYCLARR_TAG` | default `8.8.1` | Recyclarr version |
 | `RADARR_API_KEY` | secret, generated | Radarr's API key |
 | `SONARR_API_KEY` | secret, generated | Sonarr's API key |
+| `RADARR_PASSWORD` | secret, generated | The password of Radarr's own login (break-glass: Authentik's sign-in is the way in) |
+| `SONARR_PASSWORD` | secret, generated | The password of Sonarr's own login (break-glass: Authentik's sign-in is the way in) |
+
+### Requests (Seerr) (`requests`)
+
+The family's page for asking for films and series: sign in with your Jellyfin account (Authentik's); adults' requests go straight to Radarr and Sonarr, kids' wait for an admin. Public.
+
+- needs `movies-tv`, `jellyfin`
+- goes well with `ntfy`
+- runs on fedora, debian, ubuntu, arch
+- containers `seerr`
+- public at `requests.<domain>`
+
+| Setting | | What it is |
+|---|---|---|
+| `SEERR_TAG` | default `v3.5.1` | Seerr version |
+| `JELLYFIN_ADMIN_USER` | optional | Jellyfin's own admin (the local account from its setup): Seerr's first admin, its break-glass |
+| `SEERR_MOVIE_QUOTA` | default `10` | Films each family member may ask for per period (0: no limit; admins have none) |
+| `SEERR_TV_QUOTA` | default `10` | Seasons each family member may ask for per period (0: no limit) |
+| `SEERR_QUOTA_DAYS` | default `7` | The quotas' period, in days |
+| `SEERR_NTFY_TOPIC` | default `requests` | ntfy topic for requests waiting for an admin (a kid's, one over the quota) |
+| `REQUESTS_NET` | default `203.0.113` | Seerr's network: the first three numbers of a /24 in a documentation range (never a private one) |
+| `SEERR_API_KEY` | secret, generated | Seerr's API key |
+| `SEERR_NTFY_TOKEN` | secret, asked | ntfy access token of the user seerr (written by the wizard; write-only on its topic) |
+
+### Subtitles (Bazarr) (`subtitles`)
+
+Subtitles in your languages for the films and series Radarr and Sonarr look after, saved beside them; from providers without an account. Admins, mesh only.
+
+- needs `movies-tv`
+- runs on fedora, debian, ubuntu, arch
+- containers `bazarr`
+
+| Setting | | What it is |
+|---|---|---|
+| `BAZARR_TAG` | default `v1.6.2-ls371` | Bazarr version (LinuxServer's image) |
+| `BAZARR_LANGUAGES` | default `en` | Subtitle languages, two letters each, commas between (e.g. en,de) |
+| `BAZARR_API_KEY` | secret, generated | Bazarr's API key |
+| `BAZARR_AUTH` | secret, generated | Bazarr's own login, base64 of user:password: Caddy sends it after Authentik's sign-in |
 
 ## Disks
 

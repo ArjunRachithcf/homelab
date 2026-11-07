@@ -1,0 +1,73 @@
+title = "Requests (Seerr)"
+description = "The family's page for asking for films and series: sign in with your Jellyfin account (Authentik's); adults' requests go straight to Radarr and Sonarr, kids' wait for an admin. Public."
+category = "media"
+core = false
+# Opt-in like movies-tv, which it needs
+opt_in = true
+requires = ["movies-tv", "jellyfin"]
+suggests = ["ntfy"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["seerr"]
+public_names = ["requests"]
+peer_names = ["requests"]
+# No Authentik app: its sign-in is Jellyfin's, which asks Authentik (authentik/jellyfin-ldap.yaml)
+blueprints = []
+jobs = []
+ansible = ""
+stages = ["downloads:requests", "downloads:requests_proxy"]
+
+
+[[tiles]]
+order = 15
+id = "requests"
+name = "Requests"
+kids = "Ask for a film"
+desc = "Ask for a film or a series"
+url = "https://requests.%s/"
+icon = "/apps/seerr.svg"
+status = "requests"
+group = "watch"
+audience = "family-and-kids"
+
+[options.SEERR_TAG]
+help = "Seerr version"
+type = "tag"
+default = "v3.5.1"
+advanced = true
+[options.JELLYFIN_ADMIN_USER]
+help = "Jellyfin's own admin (the local account from its setup): Seerr's first admin, its break-glass"
+type = "text"
+set_by = "downloads:requests"
+[options.SEERR_MOVIE_QUOTA]
+help = "Films each family member may ask for per period (0: no limit; admins have none)"
+type = "int"
+default = "10"
+[options.SEERR_TV_QUOTA]
+help = "Seasons each family member may ask for per period (0: no limit)"
+type = "int"
+default = "10"
+[options.SEERR_QUOTA_DAYS]
+help = "The quotas' period, in days"
+type = "int"
+default = "7"
+[options.SEERR_NTFY_TOPIC]
+help = "ntfy topic for requests waiting for an admin (a kid's, one over the quota)"
+type = "text"
+default = "requests"
+advanced = true
+[options.REQUESTS_NET]
+help = "Seerr's network: the first three numbers of a /24 in a documentation range (never a private one)"
+type = "net24"
+default = "203.0.113"
+advanced = true
+[options.SEERR_API_KEY]
+help = "Seerr's API key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 24"
+[options.SEERR_NTFY_TOKEN]
+help = "ntfy access token of the user seerr (written by the wizard; write-only on its topic)"
+type = "secret"
+set_by = "downloads:requests"

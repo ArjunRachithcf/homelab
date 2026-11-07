@@ -32,6 +32,9 @@
   {{- /* SSO plugin start URL: signs in with the Authentik session, no second login */ -}}
   {{- $apps = append $apps (dict "id" "jellyfin" "name" "Jellyfin" "kids" "Films and shows" "desc" "Films and shows in the browser" "url" (printf "https://jellyfin.%s/sso/OID/start/authentik" $u) "icon" "/apps/jellyfin.svg" "status" "jellyfin" "group" "watch") -}}
 {{- end }}
+{{- if or $family $kids }}
+  {{- $apps = append $apps (dict "id" "requests" "name" "Requests" "kids" "Ask for a film" "desc" "Ask for a film or a series" "url" (printf "https://requests.%s/" $u) "icon" "/apps/seerr.svg" "status" "requests" "group" "watch") -}}
+{{- end }}
 {{- if and (or $family $kids) (not $kids) }}
   {{- $apps = append $apps (dict "id" "plex" "name" "Plex" "desc" "The same library in the Plex app" "url" "https://app.plex.tv/" "icon" "/apps/plex.svg" "status" "plex" "group" "watch" "netbird" true) -}}
 {{- end }}
@@ -43,6 +46,9 @@
 {{- end }}
 {{- if or $family $kids }}
   {{- $apps = append $apps (dict "id" "read" "name" "Reading" "kids" "Books and comics" "desc" "Books, comics and manga" "url" (printf "https://read.%s/" $u) "icon" "/apps/kavita.svg" "status" "read" "group" "watch") -}}
+{{- end }}
+{{- if and (or $family $kids) (not $kids) }}
+  {{- $apps = append $apps (dict "id" "bindery" "name" "Book requests" "desc" "Ask for a book or an audiobook" "url" (printf "https://bindery.%s/" $u) "icon" "/apps/bindery.svg" "status" "bindery" "group" "watch" "netbird" true) -}}
 {{- end }}
 {{- if and (or $family $kids) (not $kids) }}
   {{- $apps = append $apps (dict "id" "photos" "name" "Photos" "desc" "Photos and videos from your phone" "url" (printf "https://photos.%s/" $u) "icon" "/apps/immich.svg" "status" "photos" "group" "watch") -}}
@@ -130,6 +136,12 @@
 {{- end }}
 {{- if and $admin (not $kids) }}
   {{- $apps = append $apps (dict "id" "sonarr" "name" "TV" "desc" "Sonarr: series on request" "url" (printf "https://sonarr.%s/" $u) "icon" "/apps/sonarr.svg" "status" "sonarr" "group" "admin" "netbird" true) -}}
+{{- end }}
+{{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "lidarr" "name" "Albums" "desc" "Lidarr: albums on request" "url" (printf "https://lidarr.%s/" $u) "icon" "/apps/lidarr.svg" "status" "lidarr" "group" "admin" "netbird" true) -}}
+{{- end }}
+{{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "subs" "name" "Subtitles" "desc" "Bazarr: subtitles for films and series" "url" (printf "https://subs.%s/" $u) "icon" "/apps/bazarr.svg" "status" "subs" "group" "admin" "netbird" true) -}}
 {{- end }}
 {{- /* Outside status (heartbeat.sh → status/heartbeat.json). Everyone gets ok + the time; the
      list of what failed only goes to admins. */ -}}

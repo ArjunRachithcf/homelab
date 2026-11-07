@@ -4,15 +4,15 @@
 # its user.db (volume ntfy-data, in the backup). Idempotent; secrets are never printed or put on a
 # command line.
 #
-#   ./ntfy/setup.sh n8n-token    user n8n (random password nobody needs), write-only on topic bills,
-#                                its token → NTFY_N8N_TOKEN in .env (kept if it still works)
-#   ./ntfy/setup.sh user NAME    your own user: asks for its password (twice) in this terminal,
-#                                then read-only on topic bills (the phone app signs in with it)
-#   ./ntfy/setup.sh status       users and what they may read/write (no tokens shown)
+#   ./ntfy/setup.sh token NAME TOPIC KEY   user NAME (random password nobody needs), write-only on TOPIC, its token
+#                                          → KEY in .env (kept if it still works): an app that only sends
+#   ./ntfy/setup.sh n8n-token              = token n8n bills NTFY_N8N_TOKEN (RUNBOOK.md 7h)
+#   ./ntfy/setup.sh user NAME [TOPIC]      your own user: asks for its password (twice) in this terminal, then
+#                                          read-only on TOPIC (default bills; the phone app signs in with it)
+#   ./ntfy/setup.sh status                 users and what they may read/write (no tokens shown)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ENV_FILE=.env
-TOPIC=bills
 
 env_get() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n1 | sed "s/^'\(.*\)'$/\1/"; }
 # env_set KEY VALUE: replace or append, value never shown (as in authentik/setup-ssh.sh)
@@ -38,35 +38,40 @@ EOF
 ntfy() { docker compose exec -T ntfy ntfy "$@" </dev/null; }
 has_user() { ntfy user list 2>&1 | grep -qx "user $1 (.*"; }
 
-n8n_token() {
-  if ! has_user n8n; then
-    # A password is required; nobody uses it (n8n signs in with the token)
-    NTFY_PASSWORD="$(openssl rand -base64 36 | tr -d '\n/+=')" docker compose exec -T -e NTFY_PASSWORD ntfy ntfy user add n8n >/dev/null
-    echo "✓ ntfy user n8n"
+name_ok() { [[ "$1" =~ ^[a-zA-Z0-9._-]+$ ]] || { echo "✗ $2: letters, digits, . _ -" >&2; return 1; }; }
+
+token() {
+  local name=${1:-} topic=${2:-} key=${3:-}
+  [[ -n $name && -n $topic && $key =~ ^[A-Z][A-Z0-9_]*$ ]] || { echo "usage: ntfy/setup.sh token NAME TOPIC KEY" >&2; return 2; }
+  name_ok "$name" "a name" && name_ok "$topic" "a topic" || return 1
+  if ! has_user "$name"; then
+    # A password is required; nobody uses it (the app signs in with the token)
+    NTFY_PASSWORD="$(openssl rand -base64 36 | tr -d '\n/+=')" docker compose exec -T -e NTFY_PASSWORD ntfy ntfy user add "$name" >/dev/null
+    echo "✓ ntfy user $name"
   fi
-  ntfy access n8n "$TOPIC" write-only >/dev/null
-  echo "✓ n8n may write to topic $TOPIC (and nothing else)"
+  ntfy access "$name" "$topic" write-only >/dev/null
+  echo "✓ $name may write to topic $topic (and nothing else)"
   local tok
-  tok="$(env_get NTFY_N8N_TOKEN)"
-  if [[ -n "$tok" ]] && ntfy token list n8n 2>/dev/null | grep -qFf <(printf '%s\n' "$tok"); then
-    echo "✓ NTFY_N8N_TOKEN in .env still valid"
+  tok="$(env_get "$key")"
+  if [[ -n "$tok" ]] && ntfy token list "$name" 2>/dev/null | grep -qFf <(printf '%s\n' "$tok"); then
+    echo "✓ $key in .env still valid"
     return 0
   fi
-  tok="$(ntfy token add --label=n8n n8n 2>&1 | grep -o 'tk_[a-z0-9]*' | head -n1)"
+  tok="$(ntfy token add --label="$name" "$name" 2>&1 | grep -o 'tk_[a-z0-9]*' | head -n1)"
   [[ -n "$tok" ]] || { echo "✗ ntfy made no token" >&2; return 1; }
-  env_set NTFY_N8N_TOKEN "$tok"
-  echo "✓ new token for n8n → NTFY_N8N_TOKEN in .env (an ntfy credential in n8n)"
+  env_set "$key" "$tok"
+  echo "✓ new token for $name → $key in .env"
 }
 
 user() {
-  local name=${1:?usage: ntfy/setup.sh user NAME}
-  [[ "$name" =~ ^[a-zA-Z0-9._-]+$ ]] || { echo "✗ a name of letters, digits, . _ -" >&2; return 1; }
+  local name=${1:?usage: ntfy/setup.sh user NAME [TOPIC]} topic=${2:-bills}
+  name_ok "$name" "a name" && name_ok "$topic" "a topic" || return 1
   if ! has_user "$name"; then
     # ntfy asks for the password itself (needs this terminal)
     docker compose exec ntfy ntfy user add "$name"
   fi
-  ntfy access "$name" "$TOPIC" read-only >/dev/null
-  echo "✓ $name may read topic $TOPIC"
+  ntfy access "$name" "$topic" read-only >/dev/null
+  echo "✓ $name may read topic $topic"
 }
 
 status() {
@@ -74,8 +79,9 @@ status() {
 }
 
 case "${1:-}" in
-  n8n-token) n8n_token ;;
+  token) shift; token "$@" ;;
+  n8n-token) token n8n bills NTFY_N8N_TOKEN ;;
   user) shift; user "$@" ;;
   status) status ;;
-  *) sed -n '2,12p' "$0"; exit 2 ;;
+  *) sed -n '2,13p' "$0"; exit 2 ;;
 esac

@@ -1,0 +1,2 @@
+# caddy/components/albums/status.caddy (component albums; copied into caddy/enabled/ by ./homelab configure)
+import status lidarr lidarr:8686 /ping

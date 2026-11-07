@@ -67,6 +67,16 @@ help = "Sonarr's API key"
 type = "secret"
 required = true
 generate = "openssl rand -hex 16"
+[options.RADARR_PASSWORD]
+help = "The password of Radarr's own login (break-glass: Authentik's sign-in is the way in)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
+[options.SONARR_PASSWORD]
+help = "The password of Sonarr's own login (break-glass: Authentik's sign-in is the way in)"
+type = "secret"
+required = true
+generate = "openssl rand -base64 36 | tr -d '\\n/+='"
 
 [authentik]
 outpost = ["Provider for Radarr", "Provider for Sonarr"]

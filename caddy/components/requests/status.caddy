@@ -1,0 +1,2 @@
+# caddy/components/requests/status.caddy (component requests; copied into caddy/enabled/ by ./homelab configure)
+import status requests seerr:5055 /api/v1/status

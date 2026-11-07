@@ -1,0 +1,58 @@
+# caddy/components/requests/sites.caddy (component requests; copied into caddy/enabled/ by ./homelab configure)
+# Seerr: public (the NetBird reverse proxy, :8444) for the family and kids. No forward-auth (its phone app couldn't
+# pass it): its sign-in is Jellyfin's, which asks Authentik (LDAP, password;code). Shut here on both listeners: its
+# own accounts (local, Plex, password reset), Jellyfin's Quick Connect (a sign-in without the code), its API's docs,
+# the image proxies its pages don't use (Next.js's optimizer, cached posters: cacheImages is off), and anonymous
+# avatars (the signed-in pages send their session cookie). Next.js's internal middleware header never comes in, nor
+# its API key (it acts as its admin: only downloads/setup.py uses it, from Seerr's own network). Its first sign-in
+# makes its admin, so nothing reaches it here before its own step made that us (downloads-wizard.sh, stage requests,
+# writes site/status/requests-ready then): however it was started.
+(seerr) {
+	request_header -X-Middleware-Subrequest
+	request_header -X-Api-Key
+	request_header -X-Api-User
+	@unclaimed {
+		not {
+			file {
+				root /srv/site/status
+				try_files /requests-ready
+			}
+		}
+	}
+	respond @unclaimed "Requests isn't set up yet." 503
+	@shut {
+		path /api-docs /api-docs/*
+		path /api/v1/auth/local /api/v1/auth/local/* /api/v1/auth/plex /api/v1/auth/plex/*
+		path /api/v1/auth/reset-password /api/v1/auth/reset-password/*
+		path /api/v1/auth/jellyfin/quickconnect/* /api/v1/user/*/settings/linked-accounts/jellyfin/quickconnect
+		path /api/v1/user/*/settings/linked-accounts/jellyfin/quickconnect/*
+		path /_next/image /_next/image/* /imageproxy/*
+	}
+	respond @shut 403
+	@anonymous_avatar {
+		path /avatarproxy/*
+		not header Cookie *connect.sid=*
+	}
+	respond @anonymous_avatar 403
+	reverse_proxy seerr:5055
+}
+
+requests.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import seerr
+}
+
+requests.{$DOMAIN}, requests.{$DOMAIN_ALIAS}, requests.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical requests
+}
+
+requests.{$DOMAIN}:8444 {
+	import headers
+	import seerr
+}
+
+requests.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://requests.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}

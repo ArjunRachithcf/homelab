@@ -1,0 +1,30 @@
+title = "Sites behind Cloudflare (Byparr)"
+description = "Lets Prowlarr use search sites behind Cloudflare's checks: a browser inside the VPN, only for the sites you tag cloudflare. Admins."
+category = "media"
+core = false
+# Opt-in like downloads, which it needs
+opt_in = true
+requires = ["downloads"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["byparr"]
+public_names = []
+peer_names = []
+blueprints = []
+jobs = []
+ansible = ""
+# Its setup is part of these (Prowlarr's proxy; the sites you tag)
+stages = ["downloads:connect", "downloads:indexers"]
+
+[options.BYPARR_TAG]
+help = "Byparr version"
+type = "tag"
+default = "3.1.1"
+advanced = true
+[options.BYPARR_LOCALE]
+help = "Its browser's language (the time zone is TIME_ZONE's)"
+type = "text"
+default = "en-US"
+advanced = true
