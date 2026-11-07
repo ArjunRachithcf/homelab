@@ -2,6 +2,7 @@
     "adguard_enabled": true,
     "audiobooks_dir": "/srv/media/audiobooks",
     "books_dir": "/srv/media/Books",
+    "downloads_enabled": true,
     "files_copy_dir": "/srv/files-copy",
     "files_dir": "/srv/files",
     "gpu_enabled": true,
@@ -40,7 +41,9 @@
         "games",
         "places",
         "ntfy",
-        "n8n"
+        "n8n",
+        "downloads",
+        "movies-tv"
     ],
     "homelab_dir": "/home/alex/homelab",
     "homelab_home": "/home/alex",

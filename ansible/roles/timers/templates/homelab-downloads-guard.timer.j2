@@ -1,0 +1,11 @@
+# /etc/systemd/system/homelab-downloads-guard.timer: every 10 minutes (component downloads)
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab downloads guard
+
+[Timer]
+OnCalendar=*:4/10
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

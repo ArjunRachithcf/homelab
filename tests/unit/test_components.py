@@ -24,7 +24,8 @@ class Components(unittest.TestCase):
 
     def test_fields(self):
         for c, d in self.comps.items():
-            self.assertEqual(set(d) - {"options", "tiles", "authentik"}, FIELDS, c)
+            self.assertEqual(set(d) - {"options", "tiles", "authentik", "opt_in"}, FIELDS, c)
+            self.assertIn(d.get("opt_in", False), (True, False), c)
             self.assertLessEqual(set(d.get("authentik", {})), {"outpost", "admin_groups"}, c)
             for ref in d["requires"] + d["suggests"] + d["conflicts"]:
                 self.assertIn(ref, self.comps, (c, ref))
@@ -169,8 +170,12 @@ class Components(unittest.TestCase):
         self.assertEqual(profiles, ",".join(engine.profiles(self.comps, comps, "fedora")))
 
     def test_family_is_every_app(self):
+        # but the opt-in ones (the VPN downloader needs a subscription): those only Everything has
         fam = engine.resolve(self.comps, engine.preset("family", self.comps), "nvidia").enabled
-        self.assertEqual(set(fam), set(self.comps))
+        self.assertEqual(set(fam), {c for c, d in self.comps.items() if not d.get("opt_in")})
+        for c, d in self.comps.items():
+            if d.get("opt_in"):
+                self.assertTrue(all(self.comps[r].get("opt_in") or r in fam for r in d["requires"]), c)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,42 @@
+# caddy/components/movies-tv/sites.caddy (component movies-tv; copied into caddy/enabled/ by ./homelab configure)
+# Radarr and Sonarr: NetBird only (no :8444 site, no NetBird service, DNS zones for the Admin group only), admins only
+# (their Authentik apps), every path behind forward-auth (also /api and /signalr: their keys never leave the downloads
+# network), then each app's own login. Their redirects say http (they don't take Caddy's X-Forwarded-Proto); these
+# listeners only speak https.
+(radarr) {
+	route {
+		import forward_auth
+		reverse_proxy radarr:7878 {
+			header_down Location ^http:// https://
+		}
+	}
+}
+
+(sonarr) {
+	route {
+		import forward_auth
+		reverse_proxy sonarr:8989 {
+			header_down Location ^http:// https://
+		}
+	}
+}
+
+radarr.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import radarr
+}
+
+radarr.{$DOMAIN}, radarr.{$DOMAIN_ALIAS}, radarr.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical radarr
+}
+
+sonarr.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import sonarr
+}
+
+sonarr.{$DOMAIN}, sonarr.{$DOMAIN_ALIAS}, sonarr.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical sonarr
+}

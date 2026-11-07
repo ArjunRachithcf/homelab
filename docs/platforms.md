@@ -20,9 +20,9 @@ and `./homelab setup --plan` refuses one that doesn't run on the machine (`--pla
   sshd, written for Fedora's `/etc/pam.d/sshd`; a wrong PAM change locks people out, so other distros keep their
   own sshd until someone tests theirs.
 - **Plex**: not on Arch (AUR only) or macOS here; Jellyfin plays the same library.
-- **macOS**: no Home Assistant (needs the host network), AdGuard, the second disk, the Proton copy, or the jobs
-  that need btrfs/XFS (`macos = false` in `jobs/jobs.toml`). No `firewall` role: macOS's own firewall
-  (System Settings → Network → Firewall) is yours to set.
+- **macOS**: no Home Assistant (needs the host network), AdGuard, the downloads (gluetun's kernel WireGuard), the
+  second disk, the Proton copy, or the jobs that need btrfs/XFS (`macos = false` in `jobs/jobs.toml`). No
+  `firewall` role: macOS's own firewall (System Settings → Network → Firewall) is yours to set.
 
 ## Distro notes
 

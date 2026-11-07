@@ -1,0 +1,3 @@
+# caddy/components/movies-tv/status.caddy (component movies-tv; copied into caddy/enabled/ by ./homelab configure)
+import status radarr radarr:7878 /ping
+import status sonarr sonarr:8989 /ping

@@ -7,6 +7,7 @@
 # Home Assistant, AdGuard Home, Navidrome, Audiobookshelf, Actual, Karakeep, BentoPDF: RUNBOOK.md 7d.
 # Kavita, OpenCloud, Sharry: RUNBOOK.md 7e.
 # Donetick, Homebox, Gramps Web, Memos, Outline, FreshRSS, RomM, Dawarich: RUNBOOK.md 7f.
+# gluetun (VPN) with qBittorrent and Prowlarr, Radarr, Sonarr, Recyclarr: downloads-wizard.sh (downloads on request).
 # New variables all have defaults, so an old .env keeps working (hourly backup.sh runs compose).
 # Every app belongs to a component (setup/components/*.toml) and has its compose profile: only the
 # components in COMPOSE_PROFILES (.env, written by ./homelab setup or ./homelab configure) run. Their
@@ -30,6 +31,10 @@ networks:
   # Paperless and its converters (Tika, Gotenberg) only: no internet, no other container
   paperless-convert:
     internal: true
+  # The downloads components only (gluetun with qBittorrent and Prowlarr, Radarr, Sonarr, Recyclarr) and Caddy:
+  # Radarr, Sonarr and Prowlarr trust whatever reaches them on it (their API keys), so no other app may.
+  # Not internal: Radarr and Sonarr fetch metadata, gluetun reaches the VPN.
+  downloads: {}
 
 volumes:
   caddy-data: {}
@@ -83,10 +88,28 @@ volumes:
   dawarich-storage: {}
   dawarich-watched: {}
   dawarich-db: {}
+  gluetun-data: {}
+  qbittorrent-config: {}
+  prowlarr-config: {}
+  radarr-config: {}
+  sonarr-config: {}
+  recyclarr-config: {}
 
 # Every container: a process can never gain privileges (setuid binaries, file capabilities).
 x-hardening: &hardening
   security_opt: ["no-new-privileges:true"]
+
+# qBittorrent and Prowlarr: in gluetun's network namespace. A restarted gluetun is a new namespace and theirs keeps
+# only lo (eth0 gone): the healthcheck says so, and downloads-guard recreates them.
+x-in-gluetun: &in-gluetun
+  network_mode: service:gluetun
+  depends_on:
+    gluetun: {condition: service_healthy, restart: true}
+  healthcheck:
+    test: ["CMD-SHELL", "test -e /sys/class/net/eth0"]
+    interval: 30s
+    timeout: 5s
+    retries: 2
 
 x-authentik-env: &authentik-env
   AUTHENTIK_SECRET_KEY: ${AK_SECRET_KEY:?set AK_SECRET_KEY in .env}
@@ -149,6 +172,10 @@ services:
         aliases: ["auth.${DOMAIN}"]
         # Fixed: Navidrome (login header) and Home Assistant (trusted proxy) trust exactly this address
         ipv4_address: 172.21.1.11
+        # Its default route and published ports stay here with a second network (Docker 28+)
+        gw_priority: 1
+      # Radarr, Sonarr, Prowlarr and qBittorrent (components downloads, movies-tv)
+      downloads: {}
     # Optional apps (compose profiles, COMPOSE_PROFILES in .env): waited for only when they're on
     depends_on:
       authentik-server:
@@ -1133,6 +1160,155 @@ services:
     volumes:
       - n8n-data:/home/node/.n8n
     networks: [internal]
+
+  # ── Downloads on request (components downloads and movies-tv, downloads-wizard.sh) ─────────────
+  # The VPN tunnel (gluetun) holds qBittorrent and Prowlarr in its network namespace: torrent peers and search sites
+  # only ever see the VPN's address, and with the tunnel down neither reaches anything (gluetun's firewall is the kill
+  # switch, its DNS goes through the tunnel). Radarr and Sonarr only fetch metadata. On the downloads network with
+  # Caddy and nothing else; each keeps its own login behind Authentik forward-auth (admins). Their volumes' first
+  # owner and their settings over the APIs: downloads/run.sh (not a compose service).
+  gluetun:
+    profiles: [downloads]
+    <<: *hardening
+    image: docker.io/qmcgaw/gluetun:${GLUETUN_TAG:-v3.41.3}
+    restart: unless-stopped
+    # Root with the one capability the tunnel and its firewall need; kernel WireGuard, so no /dev/net/tun
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      # Its status files (forwarded port, public IP) stay root's: a chown to another user would need CHOWN
+      PUID: "0"
+      PGID: "0"
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER:-protonvpn}
+      VPN_TYPE: wireguard
+      WIREGUARD_IMPLEMENTATION: kernelspace
+      WIREGUARD_PRIVATE_KEY: ${VPN_WIREGUARD_PRIVATE_KEY:-}
+      SERVER_COUNTRIES: ${VPN_SERVER_COUNTRIES:-}
+      # The provider's forwarded port (Proton: NAT-PMP): open on the VPN's address, never on this PC or the router
+      VPN_PORT_FORWARDING: ${DOWNLOADS_PORT_FORWARDING:-true}
+      # ...set as qBittorrent's listening port. Its API key from the environment ($$: gluetun logs its settings, this
+      # command included), handed to wget in a file, not on a command line. No down command: with gluetun 3.41.3's
+      # port-forward restarts (its #3462) it would unbind qBittorrent several times an hour.
+      QBT_API_KEY: ${QBITTORRENT_API_KEY:-}
+      VPN_PORT_FORWARDING_UP_COMMAND: >-
+        /bin/sh -c 'printf "header = Authorization: Bearer %s\n" "$$QBT_API_KEY" > /tmp/qbt.wgetrc &&
+        WGETRC=/tmp/qbt.wgetrc wget -qO- --retry-connrefused --post-data
+        "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}"
+        http://127.0.0.1:8080/api/v2/app/setPreferences'
+      HEALTH_SMALL_CHECK_TYPE: dns   # ICMP would need NET_RAW
+      # Its control server (exit address, forwarded port) for the wizard's checks: keyless, a neighbour could stop the VPN
+      HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE: '{"auth":"apikey","apikey":"${GLUETUN_CONTROL_KEY:-}"}'
+    # gluetun makes /tmp/gluetun 0644: without DAC_OVERRIDE its root couldn't enter it, so it's there already
+    tmpfs: ["/tmp/gluetun:mode=0755"]
+    volumes:
+      - gluetun-data:/gluetun
+    networks: [downloads]
+
+  # qBittorrent's own image: non-root, read-only. Its sign-in (hash and API key) comes from downloads/run.sh init,
+  # the rest from apply; no localhost bypass (Prowlarr shares that address).
+  qbittorrent:
+    profiles: [downloads]
+    <<: [*hardening, *in-gluetun]
+    image: docker.io/qbittorrentofficial/qbittorrent-nox:${QBITTORRENT_TAG:-5.3.0-2}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    # As its image asks: it writes every torrent's resume data on the way out
+    stop_grace_period: 30m
+    environment:
+      QBT_LEGAL_NOTICE: confirm
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+    volumes:
+      # nocopy: the volume stays as downloads/run.sh init left it (HOST_UID's)
+      - {type: volume, source: qbittorrent-config, target: /config, volume: {nocopy: true}}
+      - ${MEDIA_DIR:-/srv/media}/torrents:/data/torrents:z
+
+  # LinuxServer's images in their non-root mode (no PUID/PGID; /run their own, as s6 needs with no-new-privileges).
+  # Each its own login (set by downloads/run.sh apply), not "External": that hands the API key to anything that
+  # reaches it (/initialize.json). The API key is fixed from .env, so the setup and the others know it.
+  prowlarr:
+    profiles: [downloads]
+    <<: [*hardening, *in-gluetun]
+    image: lscr.io/linuxserver/prowlarr:${PROWLARR_TAG:-2.7.0.5723-ls167}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    tmpfs: ["/run:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000},exec"]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      PROWLARR__AUTH__METHOD: Forms
+      PROWLARR__AUTH__REQUIRED: Enabled
+      PROWLARR__AUTH__APIKEY: ${PROWLARR_API_KEY:-}
+      PROWLARR__LOG__ANALYTICSENABLED: "false"
+      # Radarr and Sonarr call it gluetun (its network namespace)
+      PROWLARR__SERVER__ALLOWEDHOSTS: prowlarr.${DOMAIN},gluetun
+    volumes:
+      - {type: volume, source: prowlarr-config, target: /config, volume: {nocopy: true}}
+
+  radarr:
+    profiles: [movies-tv]
+    <<: *hardening
+    image: lscr.io/linuxserver/radarr:${RADARR_TAG:-6.4.4.10685-ls325}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    tmpfs: ["/run:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000},exec"]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      RADARR__AUTH__METHOD: Forms
+      RADARR__AUTH__REQUIRED: Enabled
+      RADARR__AUTH__APIKEY: ${RADARR_API_KEY:-}
+      RADARR__LOG__ANALYTICSENABLED: "false"
+      RADARR__SERVER__ALLOWEDHOSTS: radarr.${DOMAIN},radarr
+    volumes:
+      - {type: volume, source: radarr-config, target: /config, volume: {nocopy: true}}
+      # Read-write, the whole media folder: a hardlink from torrents/ into Movies/ can't cross two mounts
+      - ${MEDIA_DIR:-/srv/media}:/data:z
+    networks: [downloads]
+
+  sonarr:
+    profiles: [movies-tv]
+    <<: *hardening
+    image: lscr.io/linuxserver/sonarr:${SONARR_TAG:-4.0.20.3014-ls3}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    tmpfs: ["/run:uid=${HOST_UID:-1000},gid=${HOST_GID:-1000},exec"]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      SONARR__AUTH__METHOD: Forms
+      SONARR__AUTH__REQUIRED: Enabled
+      SONARR__AUTH__APIKEY: ${SONARR_API_KEY:-}
+      SONARR__LOG__ANALYTICSENABLED: "false"
+      SONARR__SERVER__ALLOWEDHOSTS: sonarr.${DOMAIN},sonarr
+    volumes:
+      - {type: volume, source: sonarr-config, target: /config, volume: {nocopy: true}}
+      - ${MEDIA_DIR:-/srv/media}:/data:z
+    networks: [downloads]
+
+  # TRaSH Guides' qualities and sizes into Radarr and Sonarr (recyclarr/recyclarr.yml), weekly by its own schedule
+  recyclarr:
+    profiles: [movies-tv]
+    <<: *hardening
+    image: ghcr.io/recyclarr/recyclarr:${RECYCLARR_TAG:-8.8.1}
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      TZ: ${TIME_ZONE:-Europe/Zurich}
+      CRON_SCHEDULE: "@weekly"
+      RADARR_API_KEY: ${RADARR_API_KEY:-}
+      SONARR_API_KEY: ${SONARR_API_KEY:-}
+    volumes:
+      # its copy of the guides
+      - {type: volume, source: recyclarr-config, target: /config, volume: {nocopy: true}}
+      - ./recyclarr/recyclarr.yml:/config/recyclarr.yml:ro,Z
+    networks: [downloads]
 
   # --- ops (RUNBOOK.md 7e, "Details"): the home page's detail sheets for admins. Serves the reports
   # in ops/data (written on the host) and drops job requests (only a name) into ops/requests, where

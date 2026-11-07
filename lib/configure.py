@@ -165,9 +165,9 @@ def main() -> None:
     elif rel:
         print("✓ configure updated: " + ", ".join(rel))
         if any(r.startswith("caddy/enabled/") for r in rel):
-            print("  Caddy's sites changed: docker compose up -d --force-recreate caddy")
+            print("  Caddy's sites changed: docker compose up -d --force-recreate --no-deps caddy")
         if "authentik/mail-logo.png" in rel:
-            print("  new mail logo: docker compose up -d --force-recreate authentik-worker")
+            print("  new mail logo: docker compose up -d --force-recreate --no-deps authentik-worker")
         if any(r.startswith("family-app/") for r in rel):
             print("  the family app changed: rebuild it (RUNBOOK.md \"Family app\")")
     else:

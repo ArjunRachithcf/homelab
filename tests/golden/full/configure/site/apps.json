@@ -119,6 +119,18 @@
 {{- if and $admin (not $kids) }}
   {{- $apps = append $apps (dict "id" "n8n" "name" "Automations" "desc" "Workflows" "url" (printf "https://n8n.%s/" $u) "icon" "/apps/n8n.svg" "status" "n8n" "group" "admin" "netbird" true) -}}
 {{- end }}
+{{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "qbit" "name" "Downloads" "desc" "qBittorrent, behind the VPN" "url" (printf "https://qbit.%s/" $u) "icon" "/apps/qbittorrent.svg" "status" "qbit" "group" "admin" "netbird" true) -}}
+{{- end }}
+{{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "prowlarr" "name" "Search sites" "desc" "Prowlarr, behind the VPN" "url" (printf "https://prowlarr.%s/" $u) "icon" "/apps/prowlarr.svg" "status" "prowlarr" "group" "admin" "netbird" true) -}}
+{{- end }}
+{{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "radarr" "name" "Movies" "desc" "Radarr: films on request" "url" (printf "https://radarr.%s/" $u) "icon" "/apps/radarr.svg" "status" "radarr" "group" "admin" "netbird" true) -}}
+{{- end }}
+{{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "sonarr" "name" "TV" "desc" "Sonarr: series on request" "url" (printf "https://sonarr.%s/" $u) "icon" "/apps/sonarr.svg" "status" "sonarr" "group" "admin" "netbird" true) -}}
+{{- end }}
 {{- /* Outside status (heartbeat.sh → status/heartbeat.json). Everyone gets ok + the time; the
      list of what failed only goes to admins. */ -}}
 {{- $health := dict "known" false -}}

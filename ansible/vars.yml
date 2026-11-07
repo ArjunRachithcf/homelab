@@ -43,5 +43,7 @@ smarthome_enabled: "{{ 'all' in homelab_components or 'home-assistant' in homela
 adguard_enabled: "{{ 'all' in homelab_components or 'adblock' in homelab_components }}"
 # The second NVMe for photos and files (storage role, PHOTOS_UUID)
 second_disk_enabled: "{{ 'all' in homelab_components or 'second-disk' in homelab_components }}"
+# The VPN downloader (component downloads, opt-in: never part of "all"): kernel WireGuard at boot (docker role)
+downloads_enabled: "{{ 'downloads' in homelab_components }}"
 # What the LAN may reach on this machine itself (firewall role): firewalld services or PORT/PROTO
 lan_allow: "{{ lookup('homelab_env', 'LAN_ALLOW', file=homelab_env, default='').split() }}"

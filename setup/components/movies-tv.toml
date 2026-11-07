@@ -1,0 +1,72 @@
+title = "Movies and TV on request (Radarr, Sonarr)"
+description = "Ask for a film or a series and it arrives in Movies or TV Shows (through Downloads); nothing downloads unless someone asks. Admins, mesh only."
+category = "media"
+core = false
+# Opt-in like downloads, which it needs
+opt_in = true
+requires = ["downloads"]
+suggests = []
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["radarr", "sonarr", "recyclarr"]
+public_names = []
+peer_names = ["radarr", "sonarr"]
+blueprints = ["movies-tv.yaml"]
+jobs = []
+ansible = ""
+stages = ["downloads:library", "downloads:quality", "downloads:try"]
+
+
+[[tiles]]
+order = 215
+id = "radarr"
+name = "Movies"
+desc = "Radarr: films on request"
+url = "https://radarr.%s/"
+icon = "/apps/radarr.svg"
+status = "radarr"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[[tiles]]
+order = 220
+id = "sonarr"
+name = "TV"
+desc = "Sonarr: series on request"
+url = "https://sonarr.%s/"
+icon = "/apps/sonarr.svg"
+status = "sonarr"
+group = "admin"
+netbird = true
+audience = "admin"
+
+[options.RADARR_TAG]
+help = "Radarr version (LinuxServer's image)"
+type = "tag"
+default = "6.4.4.10685-ls325"
+advanced = true
+[options.SONARR_TAG]
+help = "Sonarr version (LinuxServer's image)"
+type = "tag"
+default = "4.0.20.3014-ls3"
+advanced = true
+[options.RECYCLARR_TAG]
+help = "Recyclarr version"
+type = "tag"
+default = "8.8.1"
+advanced = true
+[options.RADARR_API_KEY]
+help = "Radarr's API key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 16"
+[options.SONARR_API_KEY]
+help = "Sonarr's API key"
+type = "secret"
+required = true
+generate = "openssl rand -hex 16"
+
+[authentik]
+outpost = ["Provider for Radarr", "Provider for Sonarr"]

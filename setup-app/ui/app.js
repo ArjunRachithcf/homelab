@@ -389,7 +389,7 @@
   // ── 4. Set up: the wizards' protocol ──
   var feed = $("feed"), ask = $("ask");
   function add(node) { feed.appendChild(node); node.scrollIntoView({ block: "nearest" }); return node; }
-  var WIZ = { wizard: "The machine", public: "Public access", hardening: "Sign-in, firewall and backups", immich: "Photos", apps: "Apps", music: "Music", files: "Files and reading", family: "Family life" };
+  var WIZ = { wizard: "The machine", public: "Public access", hardening: "Sign-in, firewall and backups", immich: "Photos", apps: "Apps", music: "Music", files: "Files and reading", family: "Family life", downloads: "Downloads on request" };
 
   function toRun(applied) { go("run"); renderApplied(applied); renderParts(); }
 

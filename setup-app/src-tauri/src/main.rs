@@ -34,7 +34,7 @@ const REPO: &str = env!("HOMELAB_REPO");
 const REF: &str = env!("HOMELAB_REF");
 const COMMIT: &str = env!("HOMELAB_COMMIT");
 const BOOTSTRAP: &str = include_str!("../../../setup/bootstrap.sh");
-const WIZARDS: &[&str] = &["wizard", "public", "hardening", "immich", "apps", "music", "files", "family"];
+const WIZARDS: &[&str] = &["wizard", "public", "hardening", "immich", "apps", "music", "files", "family", "downloads"];
 
 #[derive(Default)]
 struct App {
