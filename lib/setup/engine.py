@@ -579,7 +579,7 @@ def main() -> int:
         if dropped:
             print(f"! Switched off, but their containers still run: {', '.join(dropped)}. To stop and remove them"
                   f" (volumes stay):\n    {stop}")
-        print("Next: ./homelab configure, then ./homelab setup (the wizards for the stages above).")
+        print("Next: ./homelab configure and ./homelab refresh-console, then ./homelab setup (the wizards for the stages above).")
     return 1 if p.missing else 0
 
 

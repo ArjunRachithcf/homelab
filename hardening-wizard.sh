@@ -84,6 +84,27 @@ timer_ok()      { systemctl is-enabled -q homelab-backup.timer && systemctl is-a
 backup_exists() { compgen -G 'backups/homelab-*.tar.age' >/dev/null; }
 latest_backup() { ls -t backups/homelab-*.tar.age 2>/dev/null | head -n1; }
 
+# The LAN firewall (Ansible's firewall role): its two timers, and /etc/firewalld as it was before the first run
+LAN_UNDO=homelab-firewall-undo
+LAN_LOG_OFF=homelab-firewall-log-off
+LAN_SNAP=/root/firewalld.before-homelab
+nb_connected() { netbird status 2>/dev/null | grep -q '^Management: Connected'; }
+home_answers() { [[ "$(code home /)" =~ ^(200|302)$ ]]; }   # the home page, or its sign-in, over NetBird
+lan_dev() { ip route show default 2>/dev/null | awk '{print $5; exit}'; }
+lan_ip()  { ip -4 -o addr show dev "$(lan_dev)" 2>/dev/null | awk '{split($4, a, "/"); print a[1]; exit}'; }
+# The TCP ports the LAN reaches on this PC today: listening on every address, or on the LAN's own
+lan_listeners() {
+  local own; own=$(ip -o addr show dev "$(lan_dev)" 2>/dev/null | awk '{split($4, a, "/"); print a[1]}' | paste -sd'|' -)
+  ss -tlnH 2>/dev/null | awk -v own="^(${own:-none})$" '{a = $4; p = a; sub(/.*:/, "", p); sub(/:[^:]*$/, "", a)
+    gsub(/[][]/, "", a); sub(/%.*/, "", a); if (a == "0.0.0.0" || a == "::" || a == "*" || a ~ own) print p "/tcp"}' \
+    | sort -un | paste -sd' ' -
+}
+ansible_firewall() {   # the firewall role alone; -K: the BECOME password is the sudo password
+  command -v ansible-playbook >/dev/null \
+    || install_pkgs ansible-core ansible-collection-ansible-posix ansible-collection-community-general
+  ansible-playbook -K ansible/site.yml --tags firewall "$@"
+}
+
 run_checks() {
   ak_refresh
   say "${BOLD}Authentik${RESET}"
@@ -251,6 +272,100 @@ stage_test() {
   pause
 }
 
+stage_firewall() {
+  stage "LAN firewall: what the LAN may reach on this PC" || return 0
+  if [[ $(uname -s) != Linux ]]; then say "Ansible's firewall role is for Linux (firewalld); a Mac has its own firewall."; return 0; fi
+  say "Ansible's firewall role closes the LAN side of this PC: the LAN gets DHCPv6, mDNS, NetBird's WireGuard and what"
+  say "LAN_ALLOW names, and nothing from it is routed; this PC's NetBird address answers only NetBird, this PC and its"
+  say "containers. NetBird peers keep everything."
+  if ! nb_connected; then
+    warn "NetBird isn't connected (netbird status). It comes first: without it, the LAN is how you reach this PC."
+    FAILED+=("the LAN firewall: NetBird first"); return 0
+  fi
+  local listen services t ok out changed prev back lan undo=0 toks=()
+  listen=$(lan_listeners || true)
+  [[ -z $listen ]] || note "The LAN reaches these TCP ports here today: $listen"
+  say "LAN_ALLOW: firewalld services or PORT/PROTO the LAN still reaches, spaces between: e.g. ${BOLD}samba-client${RESET}"
+  say "(browsing Windows shares from this PC), ${BOLD}transmission-client${RESET} (a torrent client's peers); ${BOLD}none${RESET}: nothing more."
+  services=" $(firewall-cmd --get-services 2>/dev/null || true) "
+  while :; do
+    ask LAN_ALLOW "What else the LAN may reach (LAN_ALLOW):" || { FAILED+=("the LAN firewall: LAN_ALLOW"); return 0; }
+    [[ $LAN_ALLOW != none ]] || LAN_ALLOW=""
+    read -ra toks <<<"$LAN_ALLOW"
+    ok=1
+    for t in "${toks[@]}"; do
+      [[ $services == "  " || $services == *" $t "* || $t =~ ^[0-9]+(-[0-9]+)?/(tcp|udp)$ ]] \
+        || { warn "$t is neither a firewalld service (firewall-cmd --get-services) nor PORT/PROTO"; ok=0; }
+    done
+    (( ok )) && break
+  done
+  [[ $LAN_ALLOW == "$(_existing LAN_ALLOW || true)" ]] || write_env LAN_ALLOW "$LAN_ALLOW"
+  say "First a dry run, which changes nothing. BECOME password: your sudo password."
+  out=$(mktemp)
+  if ! ansible_firewall --check --diff 2>&1 | tee "$out"; then
+    rm -f "$out"; warn "The dry run stopped (above): nothing changed."
+    FAILED+=("the LAN firewall: the dry run"); return 0
+  fi
+  changed=$(grep -Eo 'changed=[0-9]+' "$out" | tail -n1 | cut -d= -f2 || true); rm -f "$out"
+  if [[ $changed == 0 ]] && lan_closed; then
+    say "Nothing to change: the LAN is closed, as LAN_ALLOW says."
+    check "LAN closed: zone homelab-lan, wt0 in trusted, the mesh guard on" lan_closed || true
+    return 0
+  fi
+  say "The first time, expect above: zone homelab-lan, policy homelab-no-route, service homelab-netbird, the mesh guard"
+  say "(its nft file and unit), DefaultZone=homelab-lan, wt0 in zone trusted for good, passim masked."
+  confirm "Make the change now?" || { SKIPPED+=("the LAN firewall: not applied"); return 0; }
+  bash ansible/live-safe.sh "$HOME" 1800 || warn "busy; Ansible may refuse, try again later"
+  prev=$(firewall-cmd --get-default-zone 2>/dev/null || true)
+  back=$prev; [[ $back =~ ^[A-Za-z0-9_-]+$ && $back != homelab-lan ]] || back="<DefaultZone in $LAN_SNAP/firewalld.conf>"
+  if sudo test -d /etc/firewalld && ! sudo test -e "$LAN_SNAP"; then
+    sudo cp -a /etc/firewalld "$LAN_SNAP" && note "/etc/firewalld as it was: $LAN_SNAP"
+  fi
+  if systemctl is-active -q "$LAN_UNDO.timer"; then
+    note "An undo timer from an earlier run is still on: the checks below can stop it."; undo=1
+  elif [[ -n ${SSH_CONNECTION:-} && $back == "$prev" ]]; then
+    say "Over SSH, an undo timer first: in 15 minutes zone $prev comes back, unless the checks below stop it."
+    sudo systemd-run --collect --unit="$LAN_UNDO" --on-active=15min \
+      /bin/sh -c "firewall-cmd --set-default-zone=$prev; systemctl stop homelab-mesh-guard" >/dev/null && undo=1
+  fi
+  if ! ansible_firewall; then
+    warn "It stopped (above). The old LAN behaviour back: sudo firewall-cmd --set-default-zone=$back"
+    warn "and sudo systemctl stop homelab-mesh-guard."
+    FAILED+=("the LAN firewall: ansible --tags firewall"); return 0
+  fi
+  if ! retry_check "LAN closed: zone homelab-lan, wt0 in trusted, the mesh guard on" lan_closed; then
+    while IFS= read -r t; do warn "$t"; done < <(lan_problems)
+  fi
+  check "NetBird still connected" nb_connected || true
+  check "this PC's home page answers over NetBird" home_answers || true
+  if (( undo )); then
+    if [[ -n ${SSH_CONNECTION:-} ]]; then say "Now open a second SSH session to this PC, the way you opened this one."
+    else say "From another device, log in to this PC over SSH (through NetBird)."; fi
+    if confirm "Does the new login work?"; then sudo systemctl stop "$LAN_UNDO.timer" && step "the undo timer is off"
+    else warn "Keep this session open: in 15 minutes zone $prev comes back by itself."; FAILED+=("the LAN firewall: a new SSH login"); fi
+  fi
+  lan=$(lan_ip || true)
+  if [[ -n $lan ]] && confirm "Check from another computer on the LAN that this PC's NetBird address is closed to it? (optional)"; then
+    say "There, with NetBird off, in a terminal (it sends that address through this PC, as a router on the LAN could):"
+    step "a Mac: ${BOLD}sudo route add -host $NB_IP $lan; nc -vz -G 3 $NB_IP 443; sudo route delete -host $NB_IP${RESET}"
+    step "Linux: ${BOLD}sudo ip route add $NB_IP/32 via $lan; nc -vz -w 3 $NB_IP 443; sudo ip route del $NB_IP/32${RESET}"
+    confirm "Did nc time out?" || FAILED+=("the LAN firewall: the LAN reaches $NB_IP")
+  fi
+  if systemctl is-active -q "$LAN_LOG_OFF.timer"; then
+    note "firewalld already logs what it refuses, until $LAN_LOG_OFF.timer switches that off."
+  elif confirm "Log what the firewall refuses for 48 hours, to find anything on the LAN that stopped working?"; then
+    if sudo firewall-cmd --set-log-denied=unicast >/dev/null && sudo systemd-run --collect --unit="$LAN_LOG_OFF" \
+         --on-active=48h /usr/bin/firewall-cmd --set-log-denied=off >/dev/null; then
+      step "logging for 48 hours, then it stops by itself: ${BOLD}sudo journalctl -k -g REJECT --since -1h${RESET}"
+    else FAILED+=("the LAN firewall: logging what it refuses"); fi
+  fi
+  note "Something on the LAN stopped working: add its firewalld service to LAN_ALLOW, then run this step again."
+  note "A program here that opens router ports (UPnP, NAT-PMP: a torrent client, a game) makes what LAN_ALLOW allows"
+  note "reachable from the internet too: switch that off in the program."
+  note "To undo: sudo firewall-cmd --set-default-zone=$back; sudo systemctl stop homelab-mesh-guard (Ansible's next"
+  note "run puts both back: --skip-tags firewall until it's fixed). The old files: $LAN_SNAP."
+}
+
 stage_dnssec() {
   stage "Infomaniak: DNSSEC on both zones" || return 0
   if dnssec_ok "$DOMAIN" && dnssec_ok "$ALIAS"; then say "DNSSEC already validates."; skip_offer && return; fi
@@ -355,7 +470,7 @@ stage_verify() {
 
 run_wizard() {
 
-TOTAL_STAGES=11
+TOTAL_STAGES=12
 
 if [[ ${1:-} == --check ]]; then
   run_checks
@@ -371,6 +486,7 @@ stage_keys
 stage_netbird
 stage_host
 stage_test
+stage_firewall
 stage_dnssec
 stage_caa
 stage_backups

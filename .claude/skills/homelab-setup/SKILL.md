@@ -17,7 +17,7 @@ do here, the terminal and the app see the same `.env` and the same stages.
 2. **Plan, then show it.** `plan` with a preset or `components`, plus `add`/`remove`/`options`. Tell
    them in plain words what gets added and why (the `notes`), and what's still needed (`missing`).
    Non-secret values (domain, mesh IP, their name, mail address) go in `options`; ask for each one.
-3. **Apply only after a yes.** `apply` writes `.env` and runs `./homelab configure`. Secrets are
+3. **Apply only after a yes.** `apply` writes `.env`, runs `./homelab configure` and refreshes a running console's backend. Secrets are
    generated on the machine and never shown to you.
 4. **Stages, one at a time.** `stages` gives the order. For each one, say what it does, then
    `run_stage`. Read its messages to the person; for a question, ask them and `answer` with what they

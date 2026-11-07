@@ -13,7 +13,7 @@ peer_names = []
 blueprints = []
 jobs = []
 ansible = ""
-stages = ["wizard:netbird", "hardening:netbird"]
+stages = ["wizard:netbird", "hardening:netbird", "hardening:firewall"]
 
 [options.NETBIRD_PEER]
 help = "This machine's peer name in the NetBird dashboard"

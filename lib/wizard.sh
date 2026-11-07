@@ -156,7 +156,7 @@ _existing() {
 # a default on re-runs (Enter keeps it). Visible input (non-secret), edited
 # with Readline. Fails at EOF with no input.
 ask() {
-  local key="$1" prompt="$2" current input s=$'\001' e=$'\002' p rc=0
+  local key="$1" prompt="$2" current input="" s=$'\001' e=$'\002' p rc=0
   current=$(_existing "$key" || true)
   if _proto; then
     _emit "\"t\":\"input\",\"key\":$(_js "$key"),\"prompt\":$(_js "$prompt"),\"current\":$(_js "$current")"

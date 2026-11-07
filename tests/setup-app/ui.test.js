@@ -32,7 +32,7 @@ const lastJson = s => JSON.parse(s.trim().split('\n').filter(l => l.startsWith('
       case 'probe': return { dir: '/home/you/homelab', repo: 'yes', root: 'no', os: 'Linux', distro: 'Fedora Linux 43', python: 'ok', git: 'yes', env: 'no', label: 'this computer' };
       case 'catalogue': return lastJson(engine(['components', '--json']).out);
       case 'plan': return lastJson(engine(['plan', '--answers', '-', '--json'], args.answers).out);
-      case 'apply': { const r = lastJson(engine(['apply', '--answers', '-', '--json'], args.answers).out); r.configure = { code: 0, output: '✓ configure: nothing to change\n' }; return r; }
+      case 'apply': { const r = lastJson(engine(['apply', '--answers', '-', '--json'], args.answers).out); r.configure = { code: 0, output: '✓ configure: nothing to change\n' }; r.console = { code: 0, output: "✓ the console's backend restarted: it offers the components now chosen\n" }; return r; }
       case 'set_secret': { sent.secrets.push(args.key); const r = engine(['secret', args.key], args.value + '\n'); if (r.code) throw r.err; return null; }
       case 'set_sudo': sent.sudo.push(args.password.length); return null;
       case 'start_setup': sent.start = args; return 'replay';

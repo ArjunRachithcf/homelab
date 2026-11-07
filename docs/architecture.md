@@ -33,7 +33,8 @@ flowchart LR
 - **The LAN sees the machine, not the homelab.** The Ansible `firewall` role makes `homelab-lan` firewalld's
   default zone (DHCPv6, mDNS, NetBird's port, Matter devices, whatever `LAN_ALLOW` adds), routes nothing from
   the LAN, and drops anything for the NetBird address that doesn't come from NetBird, the machine itself or its
-  containers: firewalld accepts Docker's published ports (DNAT) before any zone.
+  containers: firewalld accepts Docker's published ports (DNAT) before any zone. The step `hardening:firewall`
+  (the setup app's "LAN firewall") runs it: a dry run first, an undo timer over SSH, then the checks.
 - **One sign-in.** Caddy asks Authentik's outpost for every request (forward-auth) or the app speaks OIDC to
   Authentik itself; Jellyfin's apps use LDAP. Groups decide who sees what (`site/apps.json`).
 - **Apps** are Docker containers on one compose network, none with a published port; Caddy and the fixed

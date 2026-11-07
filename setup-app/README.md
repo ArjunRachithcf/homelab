@@ -19,12 +19,13 @@ same commands a person would type, so the app, the terminal (`./homelab setup`) 
    every option and the graphics card. The panel on the right is `./homelab setup --plan --json`, live.
    **Save answers…** writes the choice as an answers file for `./homelab setup --apply --answers FILE`
    on another machine (never a secret in it). **Apply** writes `.env` there (secrets are generated
-   there and never shown; a secret you type, like a DNS token, goes over stdin with `--set-secret`) and
-   runs `./homelab configure`. A machine that is already set up, with nothing chosen differently, goes on
+   there and never shown; a secret you type, like a DNS token, goes over stdin with `--set-secret`), runs
+   `./homelab configure` and gives a running console the new choice (`./homelab refresh-console`: its
+   backend reads the components when it starts). A machine that is already set up, with nothing chosen differently, goes on
    with **Set up without changes**. On a machine with a `.env` the panel lists what the choice switches on
    and off against it (a preset replaces the whole choice), and Apply asks before it switches anything off:
    that leaves the home page and Caddy (once recreated), backups and timed jobs may leave it out, and its
-   containers keep running. After Apply the Set up page shows what `./homelab configure` said and the
+   containers keep running. After Apply the Set up page shows what `./homelab configure` and the console said and the
    command that stops what was switched off.
 4. **Set up.** `./homelab setup --protocol`: the wizards' stages of what you chose. The page lists them by
    part (wizard), titled as in the wizards: **Start everything** runs them all in order, a part's **Start**
