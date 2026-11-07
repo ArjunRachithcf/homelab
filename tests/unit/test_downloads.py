@@ -199,9 +199,10 @@ class KillSwitch(unittest.TestCase):
     @unittest.skipUnless(shutil.which("docker"), "docker compose not installed")
     def test_gluetun_reads_them(self):
         gluetun = compose_config()["services"]["gluetun"]
-        self.assertIn({"type": "bind", "source": str(ROOT / "downloads/gluetun-post-rules.txt"),
-                       "target": "/iptables/post-rules.txt", "read_only": True, "bind": {"selinux": "Z"}},
-                      gluetun["volumes"])
+        rules = next(v for v in gluetun["volumes"] if v["target"] == "/iptables/post-rules.txt")
+        # (compose versions differ in the rest of the entry: create_host_path)
+        self.assertEqual((rules["type"], rules["source"], rules.get("read_only"), rules["bind"]["selinux"]),
+                         ("bind", str(ROOT / "downloads/gluetun-post-rules.txt"), True, "Z"))
 
 
 class Ranges(unittest.TestCase):
