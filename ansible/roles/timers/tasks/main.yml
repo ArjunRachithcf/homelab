@@ -17,7 +17,7 @@
     group: polkitd
     mode: "0640"
 
-- name: The home page's inboxes and reports (ops/requests, ops/keys: the ops container writes there)
+- name: The home page's inboxes and reports (ops/requests, ops/keys; the ops container writes there)
   ansible.builtin.file:
     path: "{{ homelab_dir }}/ops/{{ item }}"
     state: directory
