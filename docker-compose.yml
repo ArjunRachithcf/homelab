@@ -393,6 +393,9 @@ services:
       # A first SSO login creates the Paperless user. Safe because Authentik only lets the
       # group paperless-users into the paperless app (every family sign-up joins it).
       PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      # ... into Paperless' group of the same name, with a family member's rights (paperless/family.py makes it): without
+      # them a new account sees an error and nothing else
+      PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS: paperless-users
       # Flip both to "true" once your SSO login is linked and tested (runbook step 6)
       PAPERLESS_DISABLE_REGULAR_LOGIN: ${PAPERLESS_SSO_ONLY:-false}
       PAPERLESS_REDIRECT_LOGIN_TO_SSO: ${PAPERLESS_SSO_ONLY:-false}

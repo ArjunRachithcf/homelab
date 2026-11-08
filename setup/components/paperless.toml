@@ -13,7 +13,7 @@ peer_names = ["paperless"]
 blueprints = []
 jobs = []
 ansible = ""
-stages = ["wizard:oidc", "wizard:paperless_sso"]
+stages = ["wizard:oidc", "wizard:paperless_sso", "wizard:paperless_family"]
 
 
 [[tiles]]
@@ -66,6 +66,10 @@ help = "Only Authentik sign-in (after linking your account)"
 type = "bool"
 default = "false"
 set_by = "wizard:paperless_sso"
+[options.PAPERLESS_FAMILY_SHARING]
+help = "Every document shared with the family by default (they may view and edit it, only its owner deletes it); false: each person's own, shared by hand"
+type = "bool"
+default = "false"
 [options.OCR_LANGUAGES]
 help = "OCR languages, Tesseract codes joined with + (deu, fra, eng, ita, spa, …)"
 type = "text"

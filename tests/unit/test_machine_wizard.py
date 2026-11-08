@@ -2,7 +2,9 @@
 - stage oidc on a box whose Paperless already signs in through Authentik: answering No to "skip" doesn't
   replace the sign-in without a second yes, a replacement gets today's URLs (HTTPS, the public port with public
   access), and a missing setting is never "already done";
-- stage dns by the DNS's state: step 2's A records until the public cutover, none after it."""
+- stage dns by the DNS's state: step 2's A records until the public cutover, none after it;
+- stage paperless_family: paperless/family.py in Paperless' shell with the .env's PAPERLESS_FAMILY_SHARING (false when
+  missing), a failure counted."""
 import json
 import os
 import shutil
@@ -24,19 +26,21 @@ STUBS = {
 
 
 def run(answers: list[str], components: str, stage: str = "oidc", oidc: str | None = WORKING,
-        dig_ns11: str = "", dig_public: str = "", domain: str = "example.org") -> tuple[str, dict[str, str], str]:
+        dig_ns11: str = "", dig_public: str = "", domain: str = "example.org", extra_env: str = "",
+        stubs: dict[str, str] | None = None) -> tuple[str, dict[str, str], str]:
     with tempfile.TemporaryDirectory() as d:
         box = Path(d) / "box"
         box.mkdir()
         shutil.copy(ROOT / "wizard.sh", box)
         shutil.copytree(ROOT / "lib", box / "lib")
+        shutil.copytree(ROOT / "paperless", box / "paperless")
         (box / ".env").write_text(
             f"DOMAIN={domain}\nDOMAIN_ALIAS=example.net\nNETBIRD_IP=100.64.0.5\nBRAND=Home\n"
             f"NETBIRD_PROXY_PORT=9443\nNETBIRD_PROXY_CLUSTER=eu1.proxy.example\nCOMPONENTS={components}\n"
-            f"PAPERLESS_SSO_ONLY=true\n" + (f"PAPERLESS_OIDC_JSON='{oidc}'\n" if oidc else ""))
+            f"PAPERLESS_SSO_ONLY=true\n" + (f"PAPERLESS_OIDC_JSON='{oidc}'\n" if oidc else "") + extra_env)
         bin_ = Path(d) / "bin"
         bin_.mkdir()
-        for name, body in STUBS.items():
+        for name, body in {**STUBS, **(stubs or {})}.items():
             (bin_ / name).write_text(body)
             (bin_ / name).chmod(0o755)
         log = Path(d) / "docker.log"
@@ -87,6 +91,36 @@ class PaperlessProvider(unittest.TestCase):
         app = json.loads(env["PAPERLESS_OIDC_JSON"])["openid_connect"]["APPS"][0]
         self.assertEqual(app["settings"]["server_url"],
                          "https://auth.example.org/application/o/paperless/.well-known/openid-configuration")
+
+
+# docker: what the stage runs, with the variable it hands on and the script on stdin; FAIL_EXEC makes the exec fail
+FAMILY_DOCKER = """#!/bin/sh
+case "$*" in
+  *"manage.py shell"*"-c"*) exit 0 ;;
+  *"manage.py shell"*) echo "$* SHARING=$PAPERLESS_FAMILY_SHARING STDIN=$(head -n 1)" >> "$STUB_LOG"
+                       echo "objects imported automatically"; echo "✓ group paperless-users: 48 rights"
+                       [ -n "$FAIL_EXEC" ] && exit 1; exit 0 ;;
+esac
+echo "$*" >> "$STUB_LOG"
+"""
+
+
+class PaperlessFamily(unittest.TestCase):
+    def test_the_choice_reaches_the_script(self):
+        for extra, want in (("PAPERLESS_FAMILY_SHARING=true\n", "SHARING=true"), ("", "SHARING=false")):
+            out, _, docker = run(["", "", ""], "core,mesh,paperless", stage="paperless_family", extra_env=extra,
+                                 stubs={"docker": FAMILY_DOCKER})
+            self.assertIn("compose exec -T -e PAPERLESS_FAMILY_SHARING paperless python3 manage.py shell", docker)
+            self.assertIn(want, docker)
+            self.assertIn("STDIN=# The family's Paperless accounts", docker)
+            self.assertIn("✓ group paperless-users: 48 rights", out)
+            self.assertNotIn("objects imported", out)
+            self.assertIn("shared with the family by default" if want == "SHARING=true" else "each person's own", out)
+
+    def test_a_failure_is_counted(self):
+        out, _, _ = run(["", "", ""], "core,mesh,paperless", stage="paperless_family",
+                        stubs={"docker": FAMILY_DOCKER.replace('[ -n "$FAIL_EXEC" ] && exit 1; exit 0', "exit 1")})
+        self.assertIn("Paperless: the family's accounts (paperless/family.py)", out)
 
 
 class Dns(unittest.TestCase):
