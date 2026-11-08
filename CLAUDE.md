@@ -90,6 +90,11 @@ two differ, `INSTANCE.md` wins.
   build from Proton's source + `live-photos.patch`), `README.md`. Patched build = Proton Photos only.
 - `photos-local.sh` + `homelab-photos-local.{service,timer}`: nightly duperemove of the Immich
   library (two accounts, same photos) + rsync copy to `/srv/photos-copy` on the primary SSD.
+- `paperless/`: run in Paperless' own shell (`docker compose exec -T paperless python3 manage.py shell < FILE`):
+  `ai-workflow.py` (step 6b), `family.py` (wizard.sh stage `paperless_family`: the group `paperless-users` with a
+  family member's rights, every account in it, `PAPERLESS_FAMILY_SHARING` = the workflow "Share with the family",
+  existing documents shared once; new SSO sign-ins join the group by `PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS`; test
+  `tests/paperless/run.sh`, a real Paperless in project homelab-pltest, CI `.github/workflows/paperless.yml`).
 - `immich/setup.sh`: Immich settings over its API (`init`, `sso-only`, `status`; uses `IMMICH_API_KEY`).
 - `immich-wizard.sh`: the walkthrough for Immich (disk, NetBird, logins, Proton Drive, local copy); `--check`.
 - `music-wizard.sh`: the walkthrough for Navidrome (zones, first login = admin, public services,

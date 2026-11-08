@@ -126,6 +126,7 @@ Scan, OCR and find every letter and bill; sign-in through Authentik.
 | `PAPERLESS_ADMIN_PASSWORD` | secret, generated | Its password |
 | `PAPERLESS_OIDC_JSON` | secret, asked | Paperless's Authentik client (written by the wizard) |
 | `PAPERLESS_SSO_ONLY` | default `false` | Only Authentik sign-in (after linking your account) |
+| `PAPERLESS_FAMILY_SHARING` | default `false` | Every document shared with the family by default (they may view and edit it, only its owner deletes it); false: each person's own, shared by hand |
 | `OCR_LANGUAGES` | default `deu+fra+eng` | OCR languages, Tesseract codes joined with + (deu, fra, eng, ita, spa, …) |
 
 ### Local AI (Ollama) (`local-ai`)

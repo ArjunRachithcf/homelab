@@ -5,8 +5,10 @@ family automatically and the admins get a mail.
 
 1. Send them to the home page address. They choose **Sign up**, confirm their mail, set a password
    and an authenticator (or a passkey).
-2. Documents: they're in `paperless-users` automatically. Budget: an admin adds them to the
-   `budget` group.
+2. Documents: they're in `paperless-users` automatically, and their first Paperless sign-in puts them into Paperless'
+   group of the same name (their own documents, tags, saved views; never the admin's rights). Whether they see the
+   family's documents too is `PAPERLESS_FAMILY_SHARING` (step "Paperless: the family's accounts and sharing").
+   Budget: an admin adds them to the `budget` group.
 3. A child: the admin runs `./authentik/setup-ssh.sh kid <username>`: their own home page, the
    kids' library only.
 4. An operator (may open this console): an admin adds them to the `operators` group in the

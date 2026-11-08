@@ -1,0 +1,38 @@
+# The family's Paperless accounts in a real Paperless (tests/paperless/run.sh): the group and its rights, sharing on and
+# off, a document made private staying private, a new document through Paperless' own consumer coming out shared.
+# Only when their parts change, and on every PAPERLESS_TAG bump (docker-compose.yml). Nothing here reaches a real
+# machine (compose project homelab-pltest on the runner).
+name: paperless
+
+on:
+  pull_request:
+    paths: &paths
+      - docker-compose.yml
+      - paperless/**
+      - setup/components/paperless.toml
+      - wizard.sh
+      - tests/paperless/**
+      - tests/fixtures/full.env
+      - .github/workflows/paperless.yml
+  push:
+    branches: [main]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  real-paperless:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: tests/paperless/run.sh
+        run: bash tests/paperless/run.sh

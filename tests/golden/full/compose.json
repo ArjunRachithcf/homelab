@@ -2148,6 +2148,7 @@
         "PAPERLESS_REDIS": "redis://paperless-redis:6379",
         "PAPERLESS_SECRET_KEY": "golden-paperless-secret-key",
         "PAPERLESS_SOCIALACCOUNT_PROVIDERS": "{\"openid_connect\":{\"OAUTH_PKCE_ENABLED\":true,\"APPS\":[{\"provider_id\":\"authentik\",\"name\":\"Example account\",\"client_id\":\"CHANGE_ME\",\"secret\":\"CHANGE_ME\",\"settings\":{\"server_url\":\"http://auth.example.com/application/o/paperless/.well-known/openid-configuration\"}}]}}",
+        "PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS": "paperless-users",
         "PAPERLESS_SOCIAL_AUTO_SIGNUP": "true",
         "PAPERLESS_TIKA_ENABLED": "true",
         "PAPERLESS_TIKA_ENDPOINT": "http://paperless-tika:9998",

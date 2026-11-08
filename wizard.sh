@@ -65,6 +65,17 @@ all_containers_up() {
 }
 nb_connected() { netbird status | grep -q 'Management: Connected'; }
 oidc_ok() { via_caddy auth /application/o/paperless/.well-known/openid-configuration 200; }
+# paperless_family_ok: Paperless' group paperless-users has a family member's rights and every account that signs in
+# is in it (paperless/family.py; without them a new account sees an error and nothing else)
+paperless_family_ok() {
+  running paperless || return 1
+  docker compose exec -T paperless python3 manage.py shell -c '
+from django.contrib.auth.models import Group, User
+g = Group.objects.filter(name="paperless-users").first()
+ok = g is not None and g.permissions.filter(codename__in=["view_document", "view_uisettings", "view_savedview"]).count() == 3
+ok = ok and not User.objects.filter(is_active=True, is_superuser=False).exclude(username="AnonymousUser").exclude(groups=g).exists()
+print("FAMILY-OK" if ok else "FAMILY-NO")' 2>/dev/null | grep -qx FAMILY-OK
+}
 # oidc_in_env: .env has Paperless' sign-in with a real client ID (not missing, not .env.example's CHANGE_ME)
 oidc_in_env() {
   local j; j=$(_existing PAPERLESS_OIDC_JSON || true)
@@ -83,6 +94,7 @@ run_checks() {
   if component_on paperless; then
     check "Authentik's Paperless provider exists" oidc_ok || true
     check "Paperless answers via Caddy"           via_caddy paperless / 302 || true
+    check "every Paperless account has a family member's rights" paperless_family_ok || true
   fi
   if component_on jellyfin; then check "Jellyfin answers via Caddy" via_caddy jellyfin / 302 || true; fi
   if component_on plex; then
@@ -99,7 +111,7 @@ fi
 
 # ── Stages ────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=11
+TOTAL_STAGES=12
 
 stage_dns() {
   stage "DNS records at Infomaniak (runbook step 2)" || return 0
@@ -227,6 +239,26 @@ stage_paperless_sso() {
   else
     SKIPPED+=("Paperless: switch to SSO-only once the Authentik login works")
   fi
+  pause
+}
+
+stage_paperless_family() {
+  stage "Paperless: the family's accounts and sharing (runbook step 6)" || return 0
+  say "Everyone who signs in gets a family member's rights in Paperless (their documents, tags, saved views),"
+  say "never the admin's. New sign-ins join the group by themselves; this makes it and puts the others in."
+  local share out rc=0
+  share=$(_existing PAPERLESS_FAMILY_SHARING || echo false)
+  if [[ $share == true ]]; then
+    say "Documents: shared with the family by default (view and edit; only a document's owner deletes it)."
+  else
+    say "Documents: each person's own; to share one, select it in Paperless → Permissions."
+  fi
+  note "To change that: PAPERLESS_FAMILY_SHARING in .env (true or false), then this step again."
+  out=$(PAPERLESS_FAMILY_SHARING=$share docker compose exec -T -e PAPERLESS_FAMILY_SHARING paperless \
+          python3 manage.py shell < paperless/family.py 2>&1) || rc=$?
+  grep -E '^(✓|✗)' <<<"$out" | sed 's/^/  /' || true
+  (( rc == 0 )) || FAILED+=("Paperless: the family's accounts (paperless/family.py)")
+  retry_check "every Paperless account has a family member's rights" paperless_family_ok || true
   pause
 }
 
@@ -365,6 +397,7 @@ stage_authentik_setup
 stage_netbird
 stage_oidc
 stage_paperless_sso
+stage_paperless_family
 stage_plex
 stage_jellyfin
 stage_backups
