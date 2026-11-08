@@ -654,7 +654,7 @@ Hourly and after every change: every app's data, encrypted to a key that never l
 
 ### Off-site copy (Proton Drive) (`offsite`)
 
-Nightly: the encrypted backups, photos and files to Proton Drive, a restore test every Sunday.
+Nightly: the encrypted backups, photos, files and Paperless' documents (as plain files, also every 4 hours) to Proton Drive, a restore test every Sunday.
 
 - needs `backups`
 - runs on fedora, debian, ubuntu, arch

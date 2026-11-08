@@ -35,7 +35,9 @@ source lib/components.sh   # component_on: only the chosen components (COMPONENT
 core=()   # archive members besides the apps, in this order
 if component_on paperless; then
   echo "Paperless export…"
-  docker compose exec -T paperless document_exporter ../export >/dev/null
+  # --delete: only what the manifest names. Without it every old export name stayed (a title the AI or someone changed,
+  # a deleted document): on one box 717 of 825 files, 593 MB of every hourly archive, found 2026-11-08
+  docker compose exec -T paperless document_exporter ../export --delete >/dev/null
   chmod 700 export; chmod -R go-rwx export          # manifest holds users/password hashes
 fi
 
