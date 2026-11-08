@@ -84,14 +84,17 @@ two differ, `INSTANCE.md` wins.
   change (quiet 10 min, max 30) starts `homelab-backup`, `homelab-photos-copy`, `homelab-offbox` (polkit rule allows
   exactly these). Off-box fallback `homelab-offbox.timer` every 4 h (`backup-photos.sh quick`).
 - `backup-photos.sh` + `homelab-photos-backup.{service,timer}`: nightly: age tars to Proton
-  Drive (60-day prune), photos to Proton Photos + album Family (`photos-only [N]` by hand), Sunday restore test.
+  Drive (60-day prune), photos to Proton Photos + album Family (`photos-only [N]` by hand), OpenCloud's files, and
+  Paperless' documents as plain files (each original, `homelab/paperless/<owner>/`, also in the 4-hourly quick runs;
+  deletions not mirrored), Sunday restore tests.
 - `immich/restore-from-proton.sh`: rebuild the Immich library from Proton Photos + Immich's DB (`plan`, `verify`, `restore`).
 - `proton-drive/`: `update.sh` (weekly: official CLI from Proton's version.json + SHA-512, patched
   build from Proton's source + `live-photos.patch`), `README.md`. Patched build = Proton Photos only.
 - `photos-local.sh` + `homelab-photos-local.{service,timer}`: nightly duperemove of the Immich
   library (two accounts, same photos) + rsync copy to `/srv/photos-copy` on the primary SSD.
 - `paperless/`: run in Paperless' own shell (`docker compose exec -T paperless python3 manage.py shell < FILE`):
-  `ai-workflow.py` (step 6b), `family.py` (wizard.sh stage `paperless_family`: the group `paperless-users` with a
+  `ai-workflow.py` (step 6b), `originals.py` (not in the shell: the export's originals by owner, hard links, for
+  backup-photos.sh's plain copy in Proton Drive), `family.py` (wizard.sh stage `paperless_family`: the group `paperless-users` with a
   family member's rights, every account in it, `PAPERLESS_FAMILY_SHARING` = the workflow "Share with the family",
   existing documents shared once; new SSO sign-ins join the group by `PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS`; test
   `tests/paperless/run.sh`, a real Paperless in project homelab-pltest, CI `.github/workflows/paperless.yml`).

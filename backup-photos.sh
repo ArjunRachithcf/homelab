@@ -12,6 +12,11 @@
 # no longer go to /my-files/homelab/photos: Immich's library is rebuilt from Proton Photos + the
 # DB in the archive (immich/restore-from-proton.sh, tested every Sunday below).
 #
+# Paperless' documents go to /my-files/homelab/paperless/<owner>/ as plain files: each one's original, as scanned or
+# uploaded, from backup.sh's hourly export (paperless/originals.py), also in quick runs, so a new letter is in Proton
+# within hours. Only new and changed files travel; what Paperless deletes (or a document's old name after a rename)
+# stays in Proton. Sundays, 20 random documents come back and are compared by hash.
+#
 # OpenCloud's files (RUNBOOK.md 7e) go to /my-files/homelab/files one by one, from the newest
 # snapshot (files-local.sh): Proton encrypts them end to end and skips files with the same content,
 # so only new and changed files travel (a nightly tar of everything would upload it all again).
@@ -63,6 +68,21 @@ up() {
     || { echo "✗ $name: upload had errors, see $LOG/$name.json" >&2; failed=1; }
 }
 
+# restore_test WHAT DIR REMOTE: 20 random files of DIR (under 200 MB) downloaded from REMOTE, compared by hash
+restore_test() {
+  local what=$1 dir=$2 remote=$3 check bad=0 n=0 f rel
+  check=$(mktemp -d)
+  while IFS= read -r f; do
+    rel=${f#"$dir/"}
+    "$PD" filesystem download -f remove "$remote/$rel" "$check/" >/dev/null 2>&1 || { bad=$((bad + 1)); continue; }
+    [[ "$(sha256sum < "$f")" == "$(sha256sum < "$check/${f##*/}")" ]] || bad=$((bad + 1))
+    n=$((n + 1)); rm -f "$check/${f##*/}"
+  done < <(find "$dir" -type f -size -200M | shuf -n 20)
+  rm -rf "$check"
+  if (( bad )); then echo "✗ $what restore test: $bad of 20 files missing or different in Proton" >&2; failed=1
+  else echo "$what restore test: $n file(s) identical in Proton."; fi
+}
+
 KEEP_HOURS=48  # encrypted archives in Proton: all from the last 48 h,
 KEEP_DAYS=60   # then the first of each day for 60 days; the newest KEEP_MIN always stay
 KEEP_MIN=14
@@ -95,6 +115,25 @@ fi
 fi
 fi
 
+# ── Paperless' documents ──────────────────────────────────────────────────
+if component_on paperless && [[ $MODE != photos-only && -f export/manifest.json ]]; then
+  PL_STAGE=${STATE_DIRECTORY:-$HOME/.local/state/homelab}/paperless-originals
+  # backup.sh rewrites the export: never read it half-written (its lock; fd 9 is this script's own)
+  exec 8>"$HOME/.local/state/homelab/backup.lock"
+  if flock -w 1800 8; then
+    python3 paperless/originals.py export "$PL_STAGE" || failed=1
+    exec 8>&-
+    if [[ -d $PL_STAGE/paperless ]]; then
+      echo "Paperless documents → $REMOTE/paperless…"
+      up paperless "$PL_STAGE/paperless" "$REMOTE"
+      [[ $MODE != all || $(date +%u) != 7 ]] || restore_test Paperless "$PL_STAGE/paperless" "$REMOTE/paperless"
+    fi
+  else
+    exec 8>&-
+    echo "✗ Paperless documents: backup.sh still busy after 30 min" >&2; failed=1
+  fi
+fi
+
 # ── OpenCloud's files ─────────────────────────────────────────────────────
 # shellcheck disable=SC2010  # snapshot names are fixed date stamps
 FILES_SNAP=$(ls -d "${NVME1_DIR:-/srv/nvme1}"/files-snap/20* 2>/dev/null | grep -v '\.part$' | tail -n1 || true)
@@ -103,18 +142,7 @@ if component_on files && [[ $MODE == all && -n "$FILES_SNAP" && -d "$FILES_SNAP/
   echo "OpenCloud files ($(basename "$FILES_SNAP")) → $REMOTE/files…"
   # The folder itself goes up: $REMOTE/files/users/<person>/…
   up files "$FILES_SNAP/storage/users" "$REMOTE/files"
-  if [[ $(date +%u) == 7 ]]; then
-    check=$(mktemp -d); bad=0; n=0
-    while IFS= read -r f; do
-      rel=${f#"$FILES_SNAP/storage/users/"}
-      "$PD" filesystem download -f remove "$REMOTE/files/users/$rel" "$check/" >/dev/null 2>&1 || { bad=$((bad + 1)); continue; }
-      [[ "$(sha256sum < "$f")" == "$(sha256sum < "$check/${f##*/}")" ]] || bad=$((bad + 1))
-      n=$((n + 1)); rm -f "$check/${f##*/}"
-    done < <(find "$FILES_SNAP/storage/users" -type f -size -200M | shuf -n 20)
-    rm -rf "$check"
-    if (( bad )); then echo "✗ OpenCloud restore test: $bad of 20 files missing or different in Proton" >&2; failed=1
-    else echo "OpenCloud restore test: $n file(s) identical in Proton."; fi
-  fi
+  [[ $(date +%u) != 7 ]] || restore_test OpenCloud "$FILES_SNAP/storage/users" "$REMOTE/files/users"
 fi
 
 # ── Proton Photos ─────────────────────────────────────────────────────────
