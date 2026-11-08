@@ -14,8 +14,10 @@ sign-in (run through ./authentik/setup-ssh.sh, as yourself, docker group). Idemp
   setup-ssh.sh app           the family app's browser sign-in (family-app.yaml, RUNBOOK.md "Family app")
   setup-ssh.sh terminal      = component terminal: Termix's OIDC app, admins only (RUNBOOK.md 7e)
   setup-ssh.sh n8n           = component n8n: forward-auth, admins only (RUNBOOK.md 7h)
-  setup-ssh.sh add-key       append public keys (one per line on stdin) to your user
-  setup-ssh.sh list-keys     show the keys stored on your user
+  setup-ssh.sh add-key       append public keys (one per line on stdin, the comment as title) to your user
+  setup-ssh.sh remove-key FP… remove keys by fingerprint (SHA256:…, as list-keys shows them)
+  setup-ssh.sh list-keys     show the keys stored on your user (type, fingerprint, title)
+  (The home page's SSH keys sheet does the same over NetBird: authentik/ssh-sso.yaml, lib/ssh_keys.py.)
   setup-ssh.sh status        MFA devices, groups, phone, outpost token present
   setup-ssh.sh cert          (re)make the outpost certificate, export it to ssh/ldap-ssh.pem
 
@@ -40,6 +42,7 @@ sys.path.insert(0, str(ROOT / "lib"))
 sys.path.insert(0, str(ROOT / "lib/setup"))
 import engine  # noqa: E402
 import render  # noqa: E402
+import ssh_keys  # noqa: E402
 
 ENV_FILE = ROOT / ".env"
 TASKS = ROOT / "lib/authentik_tasks.py"
@@ -237,18 +240,42 @@ def clean_keys(text: str) -> list[str]:
     return [line for line in lines if re.match(r"(ssh-|sk-|ecdsa-)", line)]
 
 
+def keys_changed() -> None:
+    """After a change: the SSH outpost reloads its users (saving its provider: seconds, no restart), SSSD follows
+    within a minute (ssh/sssd.conf), and the job ssh-keys mails what changed and updates the home page's sheet."""
+    try:
+        say("ldap_refresh")
+    except Failed:
+        if docker("restart", "authentik-ldap-ssh", check=False).returncode == 0:
+            print("✓ outpost restarted instead")
+    trigger = ROOT / "ops/keys/refresh"
+    if trigger.parent.is_dir():
+        trigger.write_text("command line\n")
+        print("✓ SSH takes the change within a minute; you'll get a mail")
+
+
 def add_keys() -> None:
+    """The same checks as the SSH keys sheet (lib/ssh_keys.py); each line stored rebuilt, its comment as title"""
     keys = clean_keys(sys.stdin.read())
     if not keys:
         raise Failed("✗ no public key lines on stdin")
+    lines = []
     for k in keys:
-        if subprocess.run(["ssh-keygen", "-l", "-f", "-"], input=k + "\n", text=True,
-                          capture_output=True).returncode != 0:
-            raise Failed(f"✗ not a valid public key: {k[:40]}…")
-    say("add_keys", name=admin(), keys=keys)
-    # the outpost answers from a cache refreshed every 5 minutes; reload it now
-    if docker("restart", "authentik-ldap-ssh", check=False).returncode == 0:
-        print("✓ outpost reloaded, key active now")
+        try:
+            kind, blob = ssh_keys.parse(k)
+        except ssh_keys.Refused as err:
+            raise Failed(f"✗ {err}") from None
+        lines.append(ssh_keys.stored_line(kind, blob, ssh_keys.cli_title(" ".join(k.split()[2:]))))
+    say("add_keys", name=admin(), keys=lines)
+    keys_changed()
+
+
+def remove_keys(fps: list[str]) -> None:
+    bad = [f for f in fps if not ssh_keys.FINGERPRINT.fullmatch(f)]
+    if not fps or bad:
+        raise Failed("✗ usage: setup-ssh.sh remove-key SHA256:… (the fingerprints list-keys shows)")
+    say("remove_keys", name=admin(), fps=fps)
+    keys_changed()
 
 
 def everything() -> None:
@@ -298,6 +325,8 @@ def main(argv: list[str]) -> int:
             say("members", group=rest[0])
         elif cmd == "add-key":
             add_keys()
+        elif cmd == "remove-key":
+            remove_keys(rest)
         elif cmd == "list-keys":
             say("list_keys", name=admin())
         elif cmd == "status":

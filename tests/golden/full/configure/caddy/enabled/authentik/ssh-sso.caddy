@@ -1,0 +1,11 @@
+# caddy/components/ssh-sso/authentik.caddy (component ssh-sso; copied into caddy/enabled/ by ./homelab configure)
+# The SSH keys flows (authentik/ssh-sso.yaml) only for NetBird peers and this PC, checked on every request here
+# (Authentik's own check of a flow is cached per session; the form checks again); on :8444 the PROXY header
+# gives the real, public client.
+@ssh_keys_off_mesh {
+	path /if/flow/ssh-key-* /api/v3/flows/executor/ssh-key-*
+	not remote_ip 100.64.0.0/10 172.21.0.1/32
+}
+respond @ssh_keys_off_mesh "Adding and removing SSH keys works over NetBird." 403
+# Where both flows end (?next=/ssh-keys/done): back to the home page's sheet
+redir /ssh-keys/done https://home.{$DOMAIN}:{$PUBLIC_PORT}/#keys 302

@@ -1,5 +1,5 @@
 title = "SSH with your sign-in"
-description = "SSH into this machine with the key in your Authentik profile plus password and authenticator code; admins only, mesh only."
+description = "SSH into this machine with the key in your Authentik profile plus password and authenticator code; admins only, mesh only. Keys are added and removed on the home page (SSH keys), with your passkey."
 category = "access"
 core = false
 requires = ["core"]
@@ -10,10 +10,24 @@ platforms = ["fedora"]
 services = ["authentik-ldap-ssh"]
 public_names = []
 peer_names = []
-blueprints = ["ssh-ldap.yaml"]
-jobs = []
+blueprints = ["ssh-ldap.yaml", "ssh-sso.yaml"]
+jobs = ["ssh-keys"]
 ansible = ""
 stages = ["hardening:keys", "hardening:host", "hardening:test", "wizard:ssh"]
+
+# The SSH keys sheet on the home page (site/index.html, #keys): add and remove keys through Authentik's flows
+# (authentik/ssh-sso.yaml), over NetBird only
+[[tiles]]
+order = 175
+id = "keys"
+name = "SSH keys"
+desc = "Add or remove the keys you SSH in with"
+url = "https://home.%s/#keys"
+icon = "/apps/ssh-keys.svg"
+status = "ops"
+group = "admin"
+netbird = true
+audience = "admin"
 
 [options.SSH_LDAP_BIND_PASSWORD]
 help = "Password of SSSD's bind user (written by authentik/setup-ssh.sh)"

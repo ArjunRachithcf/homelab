@@ -141,6 +141,10 @@ x-authentik-env: &authentik-env
   AUTHENTIK_POSTGRESQL__NAME: authentik
   AUTHENTIK_POSTGRESQL__PASSWORD: ${AK_PG_PASS:?set AK_PG_PASS in .env}
   AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+  # Only Caddy (its fixed address) may say who the client is (X-Forwarded-For): Authentik's default trusts all of
+  # 172.16.0.0/12, so any container could claim to be a NetBird peer (the SSH keys flows, authentik/ssh-sso.yaml,
+  # allow only those). The LDAP outposts pass their clients' addresses with their own token, not this header.
+  AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS: 172.21.1.11/32
   # Mail (sign-up verification, password recovery, sign-up and security alerts) via Proton SMTP
   AUTHENTIK_EMAIL__HOST: ${AUTHENTIK_EMAIL__HOST:-smtp.protonmail.ch}
   AUTHENTIK_EMAIL__PORT: ${AUTHENTIK_EMAIL__PORT:-587}
@@ -1504,7 +1508,8 @@ services:
 
   # --- ops (RUNBOOK.md 7e, "Details"): the home page's detail sheets for admins. Serves the reports
   # in ops/data (written on the host) and drops job requests (only a name) into ops/requests, where
-  # homelab-ops.path starts ops-run.sh. No Docker socket, no host access, no port: Caddy only, admins only.
+  # homelab-ops.path starts ops-run.sh, and the SSH keys sheet's "look again" into ops/keys, where
+  # homelab-ssh-keys.path starts lib/ssh_keys.py. No Docker socket, no host access, no port: Caddy only, admins only.
   ops:
     <<: *hardening
     image: docker.io/library/python:3.13.9-alpine3.22
@@ -1528,6 +1533,7 @@ services:
       - ./setup/components:/app/components:ro,z
       - ./ops/data:/data:ro,z
       - ./ops/requests:/requests:Z
+      - ./ops/keys:/keys:Z
     networks: [internal]
 
   # --- Immich (photos; family via Authentik OIDC). From the upstream release compose

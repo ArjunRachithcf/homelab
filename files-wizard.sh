@@ -370,7 +370,9 @@ stage_terminal() {
   local keys=""
   ask_lines keys "Copy its ${BOLD}public key${RESET} (one line, ssh-ed25519 …) and paste it here, then an empty line:"
   if [[ -n "$keys" ]]; then
-    printf '%s' "$keys" | ./authentik/setup-ssh.sh add-key || { warn "add-key failed (see above)"; FAILED+=("termix key → Authentik"); }
+    # its title on the home page's SSH keys sheet (a line's comment is its title)
+    awk 'NF == 2 { print $0 " Termix"; next } { print }' <<<"$keys" | ./authentik/setup-ssh.sh add-key \
+      || { warn "add-key failed (see above)"; FAILED+=("termix key → Authentik"); }
   fi
   step "Termix → ${BOLD}Hosts${RESET} → New: name ${BOLD}homelab${RESET}, address ${BOLD}$NB_IP${RESET}, port 22,"
   step "  user ${BOLD}$(whoami)${RESET}, authentication: the ${BOLD}termix${RESET} credential → Save → Connect."

@@ -17,14 +17,14 @@
     group: polkitd
     mode: "0640"
 
-- name: The home page's job inbox and reports (homelab-ops.path watches ops/requests; the ops container writes there)
+- name: The home page's inboxes and reports (ops/requests, ops/keys; the ops container writes there)
   ansible.builtin.file:
     path: "{{ homelab_dir }}/ops/{{ item }}"
     state: directory
     owner: "{{ homelab_user }}"
     group: "{{ homelab_user }}"
     mode: "0755"
-  loop: [requests, data]
+  loop: [requests, data, keys]
 
 - name: Reload systemd now, before enabling
   ansible.builtin.meta: flush_handlers

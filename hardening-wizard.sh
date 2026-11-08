@@ -202,7 +202,8 @@ stage_keys() {
     say "Keys already stored:"; ./authentik/setup-ssh.sh list-keys | sed 's/^/    /'
     confirm "Add more" || return 0
   fi
-  say "One key per device, so a lost phone is revoked by deleting one line."
+  say "One key per device, so a lost phone's key is removed alone."
+  say "Once this PC is set up, the home page's ${BOLD}SSH keys${RESET} adds and removes them (over NetBird, with your passkey)."
   say "${BOLD}Laptop${RESET} (with a FIDO2 key like a YubiKey: touch per login):"
   note "  ssh-keygen -t ed25519-sk -O resident -C $SSH_USER-laptop-yubikey"
   note "  or without: ssh-keygen -t ed25519 -a 100 -C $SSH_USER-laptop   (set a passphrase)"
@@ -212,7 +213,7 @@ stage_keys() {
   if [[ -n "$keys" ]]; then
     printf '%s' "$keys" | ./authentik/setup-ssh.sh add-key || warn "add-key failed (see above)"
   fi
-  note "Revoke later: Authentik admin → Directory → Users → $SSH_USER → Attributes → sshPublicKey."
+  note "Later: the home page's SSH keys (Remove), or ./authentik/setup-ssh.sh list-keys, then remove-key SHA256:…"
   ak_refresh
   retry_check "at least one key stored" bash -c "./authentik/setup-ssh.sh status | grep -q '^keys=[1-9]'" || true
   pause

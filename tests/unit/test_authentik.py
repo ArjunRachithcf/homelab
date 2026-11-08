@@ -26,6 +26,8 @@ for i, x in enumerate(a):
 with open(os.environ["CALLS"], "a") as f:
     f.write(json.dumps(rec) + "\n")
 task = rec.get("task", {}).get("task")
+if task and task == os.environ.get("FAIL_TASK"):
+    print("Traceback: boom"); sys.exit(1)
 if task == "cert_state":
     print("OUT:ok")
 elif task == "export_ca":
@@ -42,7 +44,7 @@ class Authentik(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         r = self.repo = self.tmp / "repo"
-        for rel in ["lib/authentik.py", "lib/authentik_tasks.py", "lib/render.py", "lib/setup/engine.py"]:
+        for rel in ["lib/authentik.py", "lib/authentik_tasks.py", "lib/render.py", "lib/setup/engine.py", "lib/ssh_keys.py"]:
             (r / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / rel, r / rel)
         shutil.copytree(ROOT / "setup", r / "setup")
@@ -135,12 +137,48 @@ class Authentik(unittest.TestCase):
         k = self.tmp / "k"
         subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "laptop", "-f", str(k)], check=True)
         pub = (k.with_suffix(".pub")).read_text().strip()
+        (self.repo / "ops/keys").mkdir(parents=True)
         out, calls = self.run_cmd("add-key", stdin=f"junk\n\x1b[A{pub}  \r\n\n")
-        (task,) = self.tasks(calls)
-        self.assertEqual(task, {"task": "add_keys", "args": {"name": "alex", "keys": [pub]}})
-        self.assertIn(["compose", "restart", "authentik-ldap-ssh"], [c["argv"] for c in calls])
+        add, refresh = self.tasks(calls)
+        # stored rebuilt from the key, its comment as title (here the same line), then the outpost reloads
+        self.assertEqual(add, {"task": "add_keys", "args": {"name": "alex", "keys": [pub]}})
+        self.assertEqual(refresh, {"task": "ldap_refresh", "args": {}})
+        self.assertNotIn(["compose", "restart", "authentik-ldap-ssh"], [c["argv"] for c in calls])
+        # the job ssh-keys looks again (a mail, the sheet)
+        self.assertEqual((self.repo / "ops/keys/refresh").read_text(), "command line\n")
         self.run_cmd("add-key", stdin="ssh-ed25519 notakey\n", rc=1)
         self.run_cmd("add-key", stdin="nothing here\n", rc=1)
+        # a comment that isn't a title is cleaned up; a line with options in front isn't a key line (refused), and
+        # nothing of a paste is shown
+        self.calls.unlink()
+        blob = pub.split()[1]
+        self.run_cmd("add-key", stdin=f"ssh-ed25519 {blob} <b>me</b>\n")
+        self.assertEqual(self.tasks(json.loads(l) for l in self.calls.read_text().splitlines())[0]["args"]["keys"],
+                         [f"ssh-ed25519 {blob} b me b"])
+        out, _ = self.run_cmd("add-key", stdin=f'command="/bin/sh" ssh-ed25519 {blob} x\n', rc=1)
+        self.assertIn("no public key lines", out)
+        self.assertNotIn(blob, out)
+        out, _ = self.run_cmd("add-key", stdin=f"ssh-rsa {blob} x\n", rc=1)
+        self.assertIn("isn't a public key", out)
+        self.assertNotIn(blob, out)
+
+    def test_outpost_restarted_when_its_provider_cant_be_saved(self):
+        if not shutil.which("ssh-keygen"):
+            self.skipTest("no ssh-keygen")
+        k = self.tmp / "k"
+        subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "laptop", "-f", str(k)], check=True)
+        self.env["FAIL_TASK"] = "ldap_refresh"
+        _, calls = self.run_cmd("add-key", stdin=k.with_suffix(".pub").read_text())
+        self.assertIn(["compose", "restart", "authentik-ldap-ssh"], [c["argv"] for c in calls])
+
+    def test_remove_key_by_fingerprint(self):
+        fp = "SHA256:" + "A" * 43
+        _, calls = self.run_cmd("remove-key", fp)
+        self.assertEqual(self.tasks(calls), [{"task": "remove_keys", "args": {"name": "alex", "fps": [fp]}},
+                                             {"task": "ldap_refresh", "args": {}}])
+        for bad in ([], ["laptop"], ["SHA256:short"]):
+            out, _ = self.run_cmd("remove-key", *bad, rc=1)
+            self.assertIn("usage: setup-ssh.sh remove-key", out)
 
     def test_everything_generates_the_bind_password_and_saves_the_token(self):
         if not shutil.which("openssl"):

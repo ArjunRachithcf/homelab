@@ -100,22 +100,100 @@ def outpost_token():
     out(Outpost.objects.get(name="ldap-ssh").token.key)
 
 
+# SSH keys: the attribute sshPublicKey, one line per key (the flows in authentik/ssh-sso.yaml change it too). Keys
+# are compared by the key itself, not the line, and every change re-reads the user under a row lock, so the sheet
+# and the command line never undo each other's change.
+def _lines(u):
+    v = u.attributes.get("sshPublicKey") or []
+    return [v] if isinstance(v, str) else [x for x in v if isinstance(x, str)]
+
+
+def _blob(line):
+    import base64
+    import binascii
+    p = line.split()
+    try:
+        return base64.b64decode(p[1], validate=True) if len(p) >= 2 else None
+    except (binascii.Error, ValueError):
+        return None
+
+
+def _fp(line):
+    import base64
+    import hashlib
+    b = _blob(line)
+    return "SHA256:" + base64.b64encode(hashlib.sha256(b).digest()).decode().rstrip("=") if b else None
+
+
+def _change_keys(name, change):
+    from django.db import transaction
+    from authentik.core.models import User
+    with transaction.atomic():
+        u = User.objects.select_for_update().get(pk=user(name).pk)
+        have = _lines(u)
+        new = change(have)
+        if new != have:
+            u.attributes["sshPublicKey"] = new
+            u.save(update_fields=["attributes"])
+    return u, new
+
+
 def add_keys(name, keys):
-    u = user(name)
-    have = list(u.attributes.get("sshPublicKey", []))
-    for k in keys:
-        if k not in have:
-            have.append(k)
-            out("✓ added", " ".join(k.split()[2:]) or k.split()[0])
-    u.attributes["sshPublicKey"] = have
-    u.save()
+    def change(have):
+        blobs = {_blob(x) for x in have}
+        for k in keys:
+            if _blob(k) not in blobs:
+                have = have + [k]
+                blobs.add(_blob(k))
+                out("✓ added", " ".join(k.split()[2:]) or k.split()[0], _fp(k))
+        return have
+    u, have = _change_keys(name, change)
+    out(len(have), "key(s) on", u.username)
+
+
+def remove_keys(name, fps):
+    def change(have):
+        keep = [x for x in have if _fp(x) not in fps]
+        for x in have:
+            if x not in keep:
+                out("✓ removed", " ".join(x.split()[2:]) or x.split()[0], _fp(x))
+        return keep
+    u, have = _change_keys(name, change)
     out(len(have), "key(s) on", u.username)
 
 
 def list_keys(name):
-    for k in user(name).attributes.get("sshPublicKey", []):
+    for k in _lines(user(name)):
         p = k.split()
-        out(p[0], " ".join(p[2:]))
+        out(p[0], _fp(k) or "(not a key)", " ".join(p[2:]))
+
+
+def keys(name):
+    """One JSON line for lib/ssh_keys.py: the lines, and the latest change to the user in the last half hour (when,
+    from which address, by whom: "authentik-shell" for setup-ssh.sh) for its mail. Authentik's events don't say what
+    changed; the job asks right after it saw the keys change."""
+    from datetime import timedelta
+    from django.utils.timezone import now
+    from authentik.events.models import Event
+    u = user(name)
+    e = (Event.objects.filter(action="model_updated", context__model__model_name="user", context__model__pk=u.pk,
+                              created__gte=now() - timedelta(minutes=30))
+         .order_by("-created").first())
+    ev = {"time": e.created.isoformat(timespec="seconds"), "client_ip": e.client_ip,
+          "by": (e.user or {}).get("username")} if e else None
+    out(json.dumps({"user": u.username, "keys": _lines(u), "event": ev}))
+
+
+def ldap_refresh():
+    """The SSH outpost reloads its users within seconds when its provider is saved (it reloads only every few
+    minutes otherwise)"""
+    from authentik.providers.ldap.models import LDAPProvider
+    p = LDAPProvider.objects.filter(name="ssh-ldap").first()
+    if p:
+        p.save()
+        out("✓ outpost ldap-ssh reloads its users")
+    else:
+        out("· no provider ssh-ldap yet")
 
 
 def status(name):
@@ -202,7 +280,8 @@ def members(group):
 
 
 TASKS = {f.__name__: f for f in (rename_admin, cert_state, set_cert, list_additions, export_ca, outpost_token,
-                                 add_keys, list_keys, status, brand, on_outpost, join_groups, kid, members)}
+                                 add_keys, remove_keys, list_keys, keys, ldap_refresh, status, brand, on_outpost,
+                                 join_groups, kid, members)}
 
 
 def run():

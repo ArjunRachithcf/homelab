@@ -10,6 +10,7 @@ auth.example.com:443 GET /.well-known/openid-configuration user=anna → 200 - U
 auth.example.com:443 GET /.well-known/openid-configuration user=kim → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.com:443 GET /.well-known/openid-configuration user=nog → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.com:443 GET /.well-known/openid-configuration user=op → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
+auth.example.com:443 GET /IF/FLOW/SSH-KEY-ADD/ user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:443 GET /api/server/ping user=- → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.com:443 GET /api/server/ping user=admin → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.com:443 GET /api/server/ping user=anna → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
@@ -58,6 +59,7 @@ auth.example.com:443 GET /example/fonts/inter.woff2 user=anna → 200 - font/wof
 auth.example.com:443 GET /example/fonts/inter.woff2 user=kim → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.com:443 GET /example/fonts/inter.woff2 user=nog → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.com:443 GET /example/fonts/inter.woff2 user=op → 200 - font/woff2 sha=2a06f61c2b98
+auth.example.com:443 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F user=- → 200 - UPSTREAM authentik-server:9000 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F xau=forged xag=authentik Admins
 auth.example.com:443 GET /home/fonts/inter.woff2 user=- → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.com:443 GET /home/fonts/inter.woff2 user=admin → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.com:443 GET /home/fonts/inter.woff2 user=anna → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
@@ -70,6 +72,8 @@ auth.example.com:443 GET /if/admin/ user=anna → 200 - UPSTREAM authentik-serve
 auth.example.com:443 GET /if/admin/ user=kim → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.com:443 GET /if/admin/ user=nog → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.com:443 GET /if/admin/ user=op → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
+auth.example.com:443 GET /if/flow/ssh-key-add/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:443 GET /if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:443 GET /logo.png user=- → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.com:443 GET /logo.png user=admin → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.com:443 GET /logo.png user=anna → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
@@ -118,6 +122,7 @@ auth.example.com:443 GET /s/abc user=anna → 200 - UPSTREAM authentik-server:90
 auth.example.com:443 GET /s/abc user=kim → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.com:443 GET /s/abc user=nog → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.com:443 GET /s/abc user=op → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
+auth.example.com:443 GET /ssh-keys/done user=- → 302 https://home.example.com:9443/#keys -
 auth.example.com:443 GET /status/heartbeat.json user=- → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.com:443 GET /status/heartbeat.json user=admin → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.com:443 GET /status/heartbeat.json user=anna → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -160,6 +165,8 @@ auth.example.com:443 POST /api/v2/sec/share/abc/validity user=anna → 200 - UPS
 auth.example.com:443 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.com:443 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.com:443 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+auth.example.com:443 POST /api/v3/flows/executor/%73sh-key-remove/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:443 POST /api/v3/flows/executor/ssh-key-add/?query= user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.com:443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.com:443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -430,6 +437,7 @@ auth.example.com:8444 GET /.well-known/openid-configuration user=anna → 200 - 
 auth.example.com:8444 GET /.well-known/openid-configuration user=kim → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.com:8444 GET /.well-known/openid-configuration user=nog → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.com:8444 GET /.well-known/openid-configuration user=op → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
+auth.example.com:8444 GET /IF/FLOW/SSH-KEY-ADD/ user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:8444 GET /api/server/ping user=- → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.com:8444 GET /api/server/ping user=admin → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.com:8444 GET /api/server/ping user=anna → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
@@ -478,6 +486,7 @@ auth.example.com:8444 GET /example/fonts/inter.woff2 user=anna → 200 - font/wo
 auth.example.com:8444 GET /example/fonts/inter.woff2 user=kim → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.com:8444 GET /example/fonts/inter.woff2 user=nog → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.com:8444 GET /example/fonts/inter.woff2 user=op → 200 - font/woff2 sha=2a06f61c2b98
+auth.example.com:8444 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F user=- → 200 - UPSTREAM authentik-server:9000 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F xau=forged xag=authentik Admins
 auth.example.com:8444 GET /home/fonts/inter.woff2 user=- → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.com:8444 GET /home/fonts/inter.woff2 user=admin → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.com:8444 GET /home/fonts/inter.woff2 user=anna → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
@@ -490,6 +499,9 @@ auth.example.com:8444 GET /if/admin/ user=anna → 403 - text/plain sha=7c8fd594
 auth.example.com:8444 GET /if/admin/ user=kim → 403 - text/plain sha=7c8fd594bc07
 auth.example.com:8444 GET /if/admin/ user=nog → 403 - text/plain sha=7c8fd594bc07
 auth.example.com:8444 GET /if/admin/ user=op → 403 - text/plain sha=7c8fd594bc07
+auth.example.com:8444 GET /if/flow/ssh-key-add/ [from 100.64.1.2] user=- → 200 - UPSTREAM authentik-server:9000 GET /if/flow/ssh-key-add/ xau=forged xag=authentik Admins
+auth.example.com:8444 GET /if/flow/ssh-key-add/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:8444 GET /if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:8444 GET /logo.png user=- → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.com:8444 GET /logo.png user=admin → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.com:8444 GET /logo.png user=anna → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
@@ -538,6 +550,7 @@ auth.example.com:8444 GET /s/abc user=anna → 200 - UPSTREAM authentik-server:9
 auth.example.com:8444 GET /s/abc user=kim → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.com:8444 GET /s/abc user=nog → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.com:8444 GET /s/abc user=op → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
+auth.example.com:8444 GET /ssh-keys/done user=- → 302 https://home.example.com:9443/#keys -
 auth.example.com:8444 GET /status/heartbeat.json user=- → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.com:8444 GET /status/heartbeat.json user=admin → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.com:8444 GET /status/heartbeat.json user=anna → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -580,6 +593,9 @@ auth.example.com:8444 POST /api/v2/sec/share/abc/validity user=anna → 200 - UP
 auth.example.com:8444 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.com:8444 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.com:8444 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+auth.example.com:8444 POST /api/v3/flows/executor/%73sh-key-remove/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:8444 POST /api/v3/flows/executor/ssh-key-add/?query= user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:8444 POST /api/v3/flows/executor/ssh-key-remove/ [from 100.64.1.2] user=- → 200 - UPSTREAM authentik-server:9000 POST /api/v3/flows/executor/ssh-key-remove/ xau=forged xag=authentik Admins
 auth.example.com:8444 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.com:8444 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.com:8444 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -641,6 +657,7 @@ auth.example.com:9443 GET /.well-known/openid-configuration user=anna → 200 - 
 auth.example.com:9443 GET /.well-known/openid-configuration user=kim → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.com:9443 GET /.well-known/openid-configuration user=nog → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.com:9443 GET /.well-known/openid-configuration user=op → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
+auth.example.com:9443 GET /IF/FLOW/SSH-KEY-ADD/ user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:9443 GET /api/server/ping user=- → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.com:9443 GET /api/server/ping user=admin → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.com:9443 GET /api/server/ping user=anna → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
@@ -689,6 +706,7 @@ auth.example.com:9443 GET /example/fonts/inter.woff2 user=anna → 200 - font/wo
 auth.example.com:9443 GET /example/fonts/inter.woff2 user=kim → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.com:9443 GET /example/fonts/inter.woff2 user=nog → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.com:9443 GET /example/fonts/inter.woff2 user=op → 200 - font/woff2 sha=2a06f61c2b98
+auth.example.com:9443 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F user=- → 200 - UPSTREAM authentik-server:9000 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F xau=forged xag=authentik Admins
 auth.example.com:9443 GET /home/fonts/inter.woff2 user=- → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.com:9443 GET /home/fonts/inter.woff2 user=admin → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.com:9443 GET /home/fonts/inter.woff2 user=anna → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
@@ -701,6 +719,8 @@ auth.example.com:9443 GET /if/admin/ user=anna → 200 - UPSTREAM authentik-serv
 auth.example.com:9443 GET /if/admin/ user=kim → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.com:9443 GET /if/admin/ user=nog → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.com:9443 GET /if/admin/ user=op → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
+auth.example.com:9443 GET /if/flow/ssh-key-add/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:9443 GET /if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:9443 GET /logo.png user=- → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.com:9443 GET /logo.png user=admin → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.com:9443 GET /logo.png user=anna → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
@@ -749,6 +769,7 @@ auth.example.com:9443 GET /s/abc user=anna → 200 - UPSTREAM authentik-server:9
 auth.example.com:9443 GET /s/abc user=kim → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.com:9443 GET /s/abc user=nog → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.com:9443 GET /s/abc user=op → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
+auth.example.com:9443 GET /ssh-keys/done user=- → 302 https://home.example.com:9443/#keys -
 auth.example.com:9443 GET /status/heartbeat.json user=- → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.com:9443 GET /status/heartbeat.json user=admin → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.com:9443 GET /status/heartbeat.json user=anna → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -791,6 +812,8 @@ auth.example.com:9443 POST /api/v2/sec/share/abc/validity user=anna → 200 - UP
 auth.example.com:9443 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.com:9443 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.com:9443 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+auth.example.com:9443 POST /api/v3/flows/executor/%73sh-key-remove/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.com:9443 POST /api/v3/flows/executor/ssh-key-add/?query= user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.com:9443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.com:9443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.com:9443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -851,6 +874,7 @@ auth.example.org:443 GET /.well-known/openid-configuration user=anna → 200 - U
 auth.example.org:443 GET /.well-known/openid-configuration user=kim → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.org:443 GET /.well-known/openid-configuration user=nog → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.org:443 GET /.well-known/openid-configuration user=op → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
+auth.example.org:443 GET /IF/FLOW/SSH-KEY-ADD/ user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:443 GET /api/server/ping user=- → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.org:443 GET /api/server/ping user=admin → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.org:443 GET /api/server/ping user=anna → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
@@ -899,6 +923,7 @@ auth.example.org:443 GET /example/fonts/inter.woff2 user=anna → 200 - font/wof
 auth.example.org:443 GET /example/fonts/inter.woff2 user=kim → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.org:443 GET /example/fonts/inter.woff2 user=nog → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.org:443 GET /example/fonts/inter.woff2 user=op → 200 - font/woff2 sha=2a06f61c2b98
+auth.example.org:443 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F user=- → 200 - UPSTREAM authentik-server:9000 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F xau=forged xag=authentik Admins
 auth.example.org:443 GET /home/fonts/inter.woff2 user=- → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.org:443 GET /home/fonts/inter.woff2 user=admin → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.org:443 GET /home/fonts/inter.woff2 user=anna → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
@@ -911,6 +936,8 @@ auth.example.org:443 GET /if/admin/ user=anna → 200 - UPSTREAM authentik-serve
 auth.example.org:443 GET /if/admin/ user=kim → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.org:443 GET /if/admin/ user=nog → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.org:443 GET /if/admin/ user=op → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
+auth.example.org:443 GET /if/flow/ssh-key-add/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:443 GET /if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:443 GET /logo.png user=- → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.org:443 GET /logo.png user=admin → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.org:443 GET /logo.png user=anna → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
@@ -959,6 +986,7 @@ auth.example.org:443 GET /s/abc user=anna → 200 - UPSTREAM authentik-server:90
 auth.example.org:443 GET /s/abc user=kim → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.org:443 GET /s/abc user=nog → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.org:443 GET /s/abc user=op → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
+auth.example.org:443 GET /ssh-keys/done user=- → 302 https://home.example.com:9443/#keys -
 auth.example.org:443 GET /status/heartbeat.json user=- → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.org:443 GET /status/heartbeat.json user=admin → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.org:443 GET /status/heartbeat.json user=anna → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -1001,6 +1029,8 @@ auth.example.org:443 POST /api/v2/sec/share/abc/validity user=anna → 200 - UPS
 auth.example.org:443 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.org:443 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.org:443 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+auth.example.org:443 POST /api/v3/flows/executor/%73sh-key-remove/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:443 POST /api/v3/flows/executor/ssh-key-add/?query= user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.org:443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.org:443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -1271,6 +1301,7 @@ auth.example.org:8444 GET /.well-known/openid-configuration user=anna → 200 - 
 auth.example.org:8444 GET /.well-known/openid-configuration user=kim → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.org:8444 GET /.well-known/openid-configuration user=nog → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.org:8444 GET /.well-known/openid-configuration user=op → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
+auth.example.org:8444 GET /IF/FLOW/SSH-KEY-ADD/ user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:8444 GET /api/server/ping user=- → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.org:8444 GET /api/server/ping user=admin → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.org:8444 GET /api/server/ping user=anna → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
@@ -1319,6 +1350,7 @@ auth.example.org:8444 GET /example/fonts/inter.woff2 user=anna → 200 - font/wo
 auth.example.org:8444 GET /example/fonts/inter.woff2 user=kim → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.org:8444 GET /example/fonts/inter.woff2 user=nog → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.org:8444 GET /example/fonts/inter.woff2 user=op → 200 - font/woff2 sha=2a06f61c2b98
+auth.example.org:8444 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F user=- → 200 - UPSTREAM authentik-server:9000 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F xau=forged xag=authentik Admins
 auth.example.org:8444 GET /home/fonts/inter.woff2 user=- → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.org:8444 GET /home/fonts/inter.woff2 user=admin → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.org:8444 GET /home/fonts/inter.woff2 user=anna → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
@@ -1331,6 +1363,9 @@ auth.example.org:8444 GET /if/admin/ user=anna → 403 - text/plain sha=7c8fd594
 auth.example.org:8444 GET /if/admin/ user=kim → 403 - text/plain sha=7c8fd594bc07
 auth.example.org:8444 GET /if/admin/ user=nog → 403 - text/plain sha=7c8fd594bc07
 auth.example.org:8444 GET /if/admin/ user=op → 403 - text/plain sha=7c8fd594bc07
+auth.example.org:8444 GET /if/flow/ssh-key-add/ [from 100.64.1.2] user=- → 200 - UPSTREAM authentik-server:9000 GET /if/flow/ssh-key-add/ xau=forged xag=authentik Admins
+auth.example.org:8444 GET /if/flow/ssh-key-add/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:8444 GET /if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:8444 GET /logo.png user=- → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.org:8444 GET /logo.png user=admin → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.org:8444 GET /logo.png user=anna → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
@@ -1379,6 +1414,7 @@ auth.example.org:8444 GET /s/abc user=anna → 200 - UPSTREAM authentik-server:9
 auth.example.org:8444 GET /s/abc user=kim → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.org:8444 GET /s/abc user=nog → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.org:8444 GET /s/abc user=op → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
+auth.example.org:8444 GET /ssh-keys/done user=- → 302 https://home.example.com:9443/#keys -
 auth.example.org:8444 GET /status/heartbeat.json user=- → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.org:8444 GET /status/heartbeat.json user=admin → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.org:8444 GET /status/heartbeat.json user=anna → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -1421,6 +1457,9 @@ auth.example.org:8444 POST /api/v2/sec/share/abc/validity user=anna → 200 - UP
 auth.example.org:8444 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.org:8444 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.org:8444 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+auth.example.org:8444 POST /api/v3/flows/executor/%73sh-key-remove/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:8444 POST /api/v3/flows/executor/ssh-key-add/?query= user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:8444 POST /api/v3/flows/executor/ssh-key-remove/ [from 100.64.1.2] user=- → 200 - UPSTREAM authentik-server:9000 POST /api/v3/flows/executor/ssh-key-remove/ xau=forged xag=authentik Admins
 auth.example.org:8444 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.org:8444 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.org:8444 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -1481,6 +1520,7 @@ auth.example.org:9443 GET /.well-known/openid-configuration user=anna → 200 - 
 auth.example.org:9443 GET /.well-known/openid-configuration user=kim → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.org:9443 GET /.well-known/openid-configuration user=nog → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
 auth.example.org:9443 GET /.well-known/openid-configuration user=op → 200 - UPSTREAM authentik-server:9000 GET /application/o/opencloud/.well-known/openid-configuration xau=forged xag=authentik Admins
+auth.example.org:9443 GET /IF/FLOW/SSH-KEY-ADD/ user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:9443 GET /api/server/ping user=- → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.org:9443 GET /api/server/ping user=admin → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
 auth.example.org:9443 GET /api/server/ping user=anna → 200 - UPSTREAM authentik-server:9000 GET /api/server/ping xau=forged xag=authentik Admins
@@ -1529,6 +1569,7 @@ auth.example.org:9443 GET /example/fonts/inter.woff2 user=anna → 200 - font/wo
 auth.example.org:9443 GET /example/fonts/inter.woff2 user=kim → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.org:9443 GET /example/fonts/inter.woff2 user=nog → 200 - font/woff2 sha=2a06f61c2b98
 auth.example.org:9443 GET /example/fonts/inter.woff2 user=op → 200 - font/woff2 sha=2a06f61c2b98
+auth.example.org:9443 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F user=- → 200 - UPSTREAM authentik-server:9000 GET /flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F xau=forged xag=authentik Admins
 auth.example.org:9443 GET /home/fonts/inter.woff2 user=- → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.org:9443 GET /home/fonts/inter.woff2 user=admin → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
 auth.example.org:9443 GET /home/fonts/inter.woff2 user=anna → 200 - UPSTREAM authentik-server:9000 GET /home/fonts/inter.woff2 xau=forged xag=authentik Admins
@@ -1541,6 +1582,8 @@ auth.example.org:9443 GET /if/admin/ user=anna → 200 - UPSTREAM authentik-serv
 auth.example.org:9443 GET /if/admin/ user=kim → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.org:9443 GET /if/admin/ user=nog → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
 auth.example.org:9443 GET /if/admin/ user=op → 200 - UPSTREAM authentik-server:9000 GET /if/admin/ xau=forged xag=authentik Admins
+auth.example.org:9443 GET /if/flow/ssh-key-add/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:9443 GET /if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:9443 GET /logo.png user=- → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.org:9443 GET /logo.png user=admin → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
 auth.example.org:9443 GET /logo.png user=anna → 200 - UPSTREAM authentik-server:9000 GET /logo.png xau=forged xag=authentik Admins
@@ -1589,6 +1632,7 @@ auth.example.org:9443 GET /s/abc user=anna → 200 - UPSTREAM authentik-server:9
 auth.example.org:9443 GET /s/abc user=kim → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.org:9443 GET /s/abc user=nog → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
 auth.example.org:9443 GET /s/abc user=op → 200 - UPSTREAM authentik-server:9000 GET /s/abc xau=forged xag=authentik Admins
+auth.example.org:9443 GET /ssh-keys/done user=- → 302 https://home.example.com:9443/#keys -
 auth.example.org:9443 GET /status/heartbeat.json user=- → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.org:9443 GET /status/heartbeat.json user=admin → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
 auth.example.org:9443 GET /status/heartbeat.json user=anna → 200 - UPSTREAM authentik-server:9000 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -1631,6 +1675,8 @@ auth.example.org:9443 POST /api/v2/sec/share/abc/validity user=anna → 200 - UP
 auth.example.org:9443 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.org:9443 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 auth.example.org:9443 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM authentik-server:9000 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+auth.example.org:9443 POST /api/v3/flows/executor/%73sh-key-remove/ user=- → 403 - text/plain sha=6bf96a369fed
+auth.example.org:9443 POST /api/v3/flows/executor/ssh-key-add/?query= user=- → 403 - text/plain sha=6bf96a369fed
 auth.example.org:9443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.org:9443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 auth.example.org:9443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM authentik-server:9000 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -15367,6 +15413,10 @@ home.example.com:443 GET /ops/data/jobs.json user=anna → 302 https://home.exam
 home.example.com:443 GET /ops/data/jobs.json user=kim → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.com:443 GET /ops/data/jobs.json user=nog → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.com:443 GET /ops/data/jobs.json user=op → 302 https://home.example.com:9443/ops/data/jobs.json -
+home.example.com:443 GET /ops/keys [X-Matrix-Probe: mesh] [X-Homelab-Mesh: 1] user=sshadm → 302 https://home.example.com:9443/ops/keys -
+home.example.com:443 GET /ops/keys user=anna → 302 https://home.example.com:9443/ops/keys -
+home.example.com:443 GET /ops/keys user=op → 302 https://home.example.com:9443/ops/keys -
+home.example.com:443 GET /ops/keys/ user=admin → 302 https://home.example.com:9443/ops/keys/ -
 home.example.com:443 GET /outpost.goauthentik.io/start user=- → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.com:443 GET /outpost.goauthentik.io/start user=admin → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.com:443 GET /outpost.goauthentik.io/start user=anna → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
@@ -15463,6 +15513,7 @@ home.example.com:443 POST /graph/v1beta1/drives/d/root/createLink user=anna → 
 home.example.com:443 POST /graph/v1beta1/drives/d/root/createLink user=kim → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.com:443 POST /graph/v1beta1/drives/d/root/createLink user=nog → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.com:443 POST /graph/v1beta1/drives/d/root/createLink user=op → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
+home.example.com:443 POST /ops/keys/refresh user=sshadm → 302 https://home.example.com:9443/ops/keys/refresh -
 home.example.com:443 POST /ops/run/backup user=- → 302 https://home.example.com:9443/ops/run/backup -
 home.example.com:443 POST /ops/run/backup user=admin → 302 https://home.example.com:9443/ops/run/backup -
 home.example.com:443 POST /ops/run/backup user=anna → 302 https://home.example.com:9443/ops/run/backup -
@@ -15698,11 +15749,11 @@ home.example.com:80 POST /ops/run/run-backup user=kim → 308 https://home.examp
 home.example.com:80 POST /ops/run/run-backup user=nog → 308 https://home.example.com/ops/run/run-backup -
 home.example.com:80 POST /ops/run/run-backup user=op → 308 https://home.example.com/ops/run/run-backup -
 home.example.com:8444 GET / user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
-home.example.com:8444 GET / user=admin → 200 - text/html sha=9ca62afc09e9
-home.example.com:8444 GET / user=anna → 200 - text/html sha=ddb1d75c5441
-home.example.com:8444 GET / user=kim → 200 - text/html sha=896f35b43583
-home.example.com:8444 GET / user=nog → 200 - text/html sha=da05aa2aa687
-home.example.com:8444 GET / user=op → 200 - text/html sha=b9de77e748ae
+home.example.com:8444 GET / user=admin → 200 - text/html sha=e6851fff8724
+home.example.com:8444 GET / user=anna → 200 - text/html sha=48efe43958e2
+home.example.com:8444 GET / user=kim → 200 - text/html sha=8164be1cd5c1
+home.example.com:8444 GET / user=nog → 200 - text/html sha=3bcbb9f4f5fa
+home.example.com:8444 GET / user=op → 200 - text/html sha=3cf02c5df563
 home.example.com:8444 GET /.well-known/openid-configuration user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
 home.example.com:8444 GET /.well-known/openid-configuration user=admin → 404 - -
 home.example.com:8444 GET /.well-known/openid-configuration user=anna → 404 - -
@@ -15722,7 +15773,7 @@ home.example.com:8444 GET /api/token/create_owner/ user=kim → 404 - -
 home.example.com:8444 GET /api/token/create_owner/ user=nog → 404 - -
 home.example.com:8444 GET /api/token/create_owner/ user=op → 404 - -
 home.example.com:8444 GET /apps.json user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
-home.example.com:8444 GET /apps.json user=admin → 200 - application/json sha=adcb0819bdcc
+home.example.com:8444 GET /apps.json user=admin → 200 - application/json sha=c7cbe742fc63
 home.example.com:8444 GET /apps.json user=anna → 200 - application/json sha=dcc85c0dffee
 home.example.com:8444 GET /apps.json user=kim → 200 - application/json sha=e101fa213fff
 home.example.com:8444 GET /apps.json user=nog → 200 - application/json sha=03b5cd631472
@@ -15787,6 +15838,11 @@ home.example.com:8444 GET /ops/data/jobs.json user=anna → 403 - -
 home.example.com:8444 GET /ops/data/jobs.json user=kim → 403 - -
 home.example.com:8444 GET /ops/data/jobs.json user=nog → 403 - -
 home.example.com:8444 GET /ops/data/jobs.json user=op → 200 - UPSTREAM ops:8080 GET /ops/data/jobs.json xau=olga xag=family|operators
+home.example.com:8444 GET /ops/keys [X-Matrix-Probe: mesh] [X-Homelab-Mesh: 1] user=sshadm → 200 - UPSTREAM ops:8080 GET /ops/keys xau=sam xag=authentik Admins|ssh-admins|family x-homelab-mesh=-
+home.example.com:8444 GET /ops/keys [X-Matrix-Probe: mesh] [from 100.64.1.2] user=sshadm → 200 - UPSTREAM ops:8080 GET /ops/keys xau=sam xag=authentik Admins|ssh-admins|family x-homelab-mesh=1
+home.example.com:8444 GET /ops/keys user=anna → 403 - -
+home.example.com:8444 GET /ops/keys user=op → 403 - -
+home.example.com:8444 GET /ops/keys/ user=admin → 403 - -
 home.example.com:8444 GET /outpost.goauthentik.io/start user=- → 200 - UPSTREAM authentik-server:9000 GET /outpost.goauthentik.io/start xau=- xag=-
 home.example.com:8444 GET /outpost.goauthentik.io/start user=admin → 200 - UPSTREAM authentik-server:9000 GET /outpost.goauthentik.io/start xau=- xag=-
 home.example.com:8444 GET /outpost.goauthentik.io/start user=anna → 200 - UPSTREAM authentik-server:9000 GET /outpost.goauthentik.io/start xau=- xag=-
@@ -15883,6 +15939,7 @@ home.example.com:8444 POST /graph/v1beta1/drives/d/root/createLink user=anna →
 home.example.com:8444 POST /graph/v1beta1/drives/d/root/createLink user=kim → 404 - -
 home.example.com:8444 POST /graph/v1beta1/drives/d/root/createLink user=nog → 404 - -
 home.example.com:8444 POST /graph/v1beta1/drives/d/root/createLink user=op → 404 - -
+home.example.com:8444 POST /ops/keys/refresh user=sshadm → 200 - UPSTREAM ops:8080 POST /ops/keys/refresh xau=sam xag=authentik Admins|ssh-admins|family
 home.example.com:8444 POST /ops/run/backup user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
 home.example.com:8444 POST /ops/run/backup user=admin → 200 - UPSTREAM ops:8080 POST /ops/run/backup xau=alex xag=authentik Admins|family|paperless-users|budget
 home.example.com:8444 POST /ops/run/backup user=anna → 403 - text/plain sha=0ddc976b94f7
@@ -15909,11 +15966,11 @@ home.example.com:8444 POST /ops/run/run-backup user=nog → 403 - text/plain sha
 home.example.com:8444 POST /ops/run/run-backup user=op → 403 - text/plain sha=5a491bb4d93e
 home.example.com:8444-noproxy GET / user=- → ERR ConnectionResetError
 home.example.com:9443 GET / user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
-home.example.com:9443 GET / user=admin → 200 - text/html sha=9ca62afc09e9
-home.example.com:9443 GET / user=anna → 200 - text/html sha=ddb1d75c5441
-home.example.com:9443 GET / user=kim → 200 - text/html sha=896f35b43583
-home.example.com:9443 GET / user=nog → 200 - text/html sha=da05aa2aa687
-home.example.com:9443 GET / user=op → 200 - text/html sha=b9de77e748ae
+home.example.com:9443 GET / user=admin → 200 - text/html sha=e6851fff8724
+home.example.com:9443 GET / user=anna → 200 - text/html sha=48efe43958e2
+home.example.com:9443 GET / user=kim → 200 - text/html sha=8164be1cd5c1
+home.example.com:9443 GET / user=nog → 200 - text/html sha=3bcbb9f4f5fa
+home.example.com:9443 GET / user=op → 200 - text/html sha=3cf02c5df563
 home.example.com:9443 GET /.well-known/openid-configuration user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
 home.example.com:9443 GET /.well-known/openid-configuration user=admin → 404 - -
 home.example.com:9443 GET /.well-known/openid-configuration user=anna → 404 - -
@@ -15933,7 +15990,7 @@ home.example.com:9443 GET /api/token/create_owner/ user=kim → 404 - -
 home.example.com:9443 GET /api/token/create_owner/ user=nog → 404 - -
 home.example.com:9443 GET /api/token/create_owner/ user=op → 404 - -
 home.example.com:9443 GET /apps.json user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
-home.example.com:9443 GET /apps.json user=admin → 200 - application/json sha=adcb0819bdcc
+home.example.com:9443 GET /apps.json user=admin → 200 - application/json sha=c7cbe742fc63
 home.example.com:9443 GET /apps.json user=anna → 200 - application/json sha=dcc85c0dffee
 home.example.com:9443 GET /apps.json user=kim → 200 - application/json sha=e101fa213fff
 home.example.com:9443 GET /apps.json user=nog → 200 - application/json sha=03b5cd631472
@@ -15998,6 +16055,10 @@ home.example.com:9443 GET /ops/data/jobs.json user=anna → 403 - -
 home.example.com:9443 GET /ops/data/jobs.json user=kim → 403 - -
 home.example.com:9443 GET /ops/data/jobs.json user=nog → 403 - -
 home.example.com:9443 GET /ops/data/jobs.json user=op → 200 - UPSTREAM ops:8080 GET /ops/data/jobs.json xau=olga xag=family|operators
+home.example.com:9443 GET /ops/keys [X-Matrix-Probe: mesh] [X-Homelab-Mesh: 1] user=sshadm → 200 - UPSTREAM ops:8080 GET /ops/keys xau=sam xag=authentik Admins|ssh-admins|family x-homelab-mesh=-
+home.example.com:9443 GET /ops/keys user=anna → 403 - -
+home.example.com:9443 GET /ops/keys user=op → 403 - -
+home.example.com:9443 GET /ops/keys/ user=admin → 403 - -
 home.example.com:9443 GET /outpost.goauthentik.io/start user=- → 200 - UPSTREAM authentik-server:9000 GET /outpost.goauthentik.io/start xau=- xag=-
 home.example.com:9443 GET /outpost.goauthentik.io/start user=admin → 200 - UPSTREAM authentik-server:9000 GET /outpost.goauthentik.io/start xau=- xag=-
 home.example.com:9443 GET /outpost.goauthentik.io/start user=anna → 200 - UPSTREAM authentik-server:9000 GET /outpost.goauthentik.io/start xau=- xag=-
@@ -16094,6 +16155,7 @@ home.example.com:9443 POST /graph/v1beta1/drives/d/root/createLink user=anna →
 home.example.com:9443 POST /graph/v1beta1/drives/d/root/createLink user=kim → 404 - -
 home.example.com:9443 POST /graph/v1beta1/drives/d/root/createLink user=nog → 404 - -
 home.example.com:9443 POST /graph/v1beta1/drives/d/root/createLink user=op → 404 - -
+home.example.com:9443 POST /ops/keys/refresh user=sshadm → 200 - UPSTREAM ops:8080 POST /ops/keys/refresh xau=sam xag=authentik Admins|ssh-admins|family
 home.example.com:9443 POST /ops/run/backup user=- → 302 https://auth.example.com/outpost.goauthentik.io/start?rd=stub -
 home.example.com:9443 POST /ops/run/backup user=admin → 200 - UPSTREAM ops:8080 POST /ops/run/backup xau=alex xag=authentik Admins|family|paperless-users|budget
 home.example.com:9443 POST /ops/run/backup user=anna → 403 - text/plain sha=0ddc976b94f7
@@ -16208,6 +16270,10 @@ home.example.org:443 GET /ops/data/jobs.json user=anna → 302 https://home.exam
 home.example.org:443 GET /ops/data/jobs.json user=kim → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.org:443 GET /ops/data/jobs.json user=nog → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.org:443 GET /ops/data/jobs.json user=op → 302 https://home.example.com:9443/ops/data/jobs.json -
+home.example.org:443 GET /ops/keys [X-Matrix-Probe: mesh] [X-Homelab-Mesh: 1] user=sshadm → 302 https://home.example.com:9443/ops/keys -
+home.example.org:443 GET /ops/keys user=anna → 302 https://home.example.com:9443/ops/keys -
+home.example.org:443 GET /ops/keys user=op → 302 https://home.example.com:9443/ops/keys -
+home.example.org:443 GET /ops/keys/ user=admin → 302 https://home.example.com:9443/ops/keys/ -
 home.example.org:443 GET /outpost.goauthentik.io/start user=- → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.org:443 GET /outpost.goauthentik.io/start user=admin → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.org:443 GET /outpost.goauthentik.io/start user=anna → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
@@ -16304,6 +16370,7 @@ home.example.org:443 POST /graph/v1beta1/drives/d/root/createLink user=anna → 
 home.example.org:443 POST /graph/v1beta1/drives/d/root/createLink user=kim → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.org:443 POST /graph/v1beta1/drives/d/root/createLink user=nog → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.org:443 POST /graph/v1beta1/drives/d/root/createLink user=op → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
+home.example.org:443 POST /ops/keys/refresh user=sshadm → 302 https://home.example.com:9443/ops/keys/refresh -
 home.example.org:443 POST /ops/run/backup user=- → 302 https://home.example.com:9443/ops/run/backup -
 home.example.org:443 POST /ops/run/backup user=admin → 302 https://home.example.com:9443/ops/run/backup -
 home.example.org:443 POST /ops/run/backup user=anna → 302 https://home.example.com:9443/ops/run/backup -
@@ -16628,6 +16695,11 @@ home.example.org:8444 GET /ops/data/jobs.json user=anna → 302 https://home.exa
 home.example.org:8444 GET /ops/data/jobs.json user=kim → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.org:8444 GET /ops/data/jobs.json user=nog → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.org:8444 GET /ops/data/jobs.json user=op → 302 https://home.example.com:9443/ops/data/jobs.json -
+home.example.org:8444 GET /ops/keys [X-Matrix-Probe: mesh] [X-Homelab-Mesh: 1] user=sshadm → 302 https://home.example.com:9443/ops/keys -
+home.example.org:8444 GET /ops/keys [X-Matrix-Probe: mesh] [from 100.64.1.2] user=sshadm → 302 https://home.example.com:9443/ops/keys -
+home.example.org:8444 GET /ops/keys user=anna → 302 https://home.example.com:9443/ops/keys -
+home.example.org:8444 GET /ops/keys user=op → 302 https://home.example.com:9443/ops/keys -
+home.example.org:8444 GET /ops/keys/ user=admin → 302 https://home.example.com:9443/ops/keys/ -
 home.example.org:8444 GET /outpost.goauthentik.io/start user=- → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.org:8444 GET /outpost.goauthentik.io/start user=admin → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.org:8444 GET /outpost.goauthentik.io/start user=anna → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
@@ -16724,6 +16796,7 @@ home.example.org:8444 POST /graph/v1beta1/drives/d/root/createLink user=anna →
 home.example.org:8444 POST /graph/v1beta1/drives/d/root/createLink user=kim → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.org:8444 POST /graph/v1beta1/drives/d/root/createLink user=nog → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.org:8444 POST /graph/v1beta1/drives/d/root/createLink user=op → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
+home.example.org:8444 POST /ops/keys/refresh user=sshadm → 302 https://home.example.com:9443/ops/keys/refresh -
 home.example.org:8444 POST /ops/run/backup user=- → 302 https://home.example.com:9443/ops/run/backup -
 home.example.org:8444 POST /ops/run/backup user=admin → 302 https://home.example.com:9443/ops/run/backup -
 home.example.org:8444 POST /ops/run/backup user=anna → 302 https://home.example.com:9443/ops/run/backup -
@@ -16838,6 +16911,10 @@ home.example.org:9443 GET /ops/data/jobs.json user=anna → 302 https://home.exa
 home.example.org:9443 GET /ops/data/jobs.json user=kim → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.org:9443 GET /ops/data/jobs.json user=nog → 302 https://home.example.com:9443/ops/data/jobs.json -
 home.example.org:9443 GET /ops/data/jobs.json user=op → 302 https://home.example.com:9443/ops/data/jobs.json -
+home.example.org:9443 GET /ops/keys [X-Matrix-Probe: mesh] [X-Homelab-Mesh: 1] user=sshadm → 302 https://home.example.com:9443/ops/keys -
+home.example.org:9443 GET /ops/keys user=anna → 302 https://home.example.com:9443/ops/keys -
+home.example.org:9443 GET /ops/keys user=op → 302 https://home.example.com:9443/ops/keys -
+home.example.org:9443 GET /ops/keys/ user=admin → 302 https://home.example.com:9443/ops/keys/ -
 home.example.org:9443 GET /outpost.goauthentik.io/start user=- → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.org:9443 GET /outpost.goauthentik.io/start user=admin → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
 home.example.org:9443 GET /outpost.goauthentik.io/start user=anna → 302 https://home.example.com:9443/outpost.goauthentik.io/start -
@@ -16934,6 +17011,7 @@ home.example.org:9443 POST /graph/v1beta1/drives/d/root/createLink user=anna →
 home.example.org:9443 POST /graph/v1beta1/drives/d/root/createLink user=kim → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.org:9443 POST /graph/v1beta1/drives/d/root/createLink user=nog → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
 home.example.org:9443 POST /graph/v1beta1/drives/d/root/createLink user=op → 302 https://home.example.com:9443/graph/v1beta1/drives/d/root/createLink -
+home.example.org:9443 POST /ops/keys/refresh user=sshadm → 302 https://home.example.com:9443/ops/keys/refresh -
 home.example.org:9443 POST /ops/run/backup user=- → 302 https://home.example.com:9443/ops/run/backup -
 home.example.org:9443 POST /ops/run/backup user=admin → 302 https://home.example.com:9443/ops/run/backup -
 home.example.org:9443 POST /ops/run/backup user=anna → 302 https://home.example.com:9443/ops/run/backup -
