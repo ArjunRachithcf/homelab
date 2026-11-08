@@ -42,8 +42,11 @@ FAILED=()
 # ── Helpers for this wizard (shared: lib/wizard.sh, lib/wizard-checks.sh) ──
 
 # findmnt names a bind mount (RUNBOOK.md 7e: /srv/photos = <second disk>/photos) as /dev/…p1[/photos]
-disk_ok()     { local src; src=$(findmnt -n -o SOURCE "$PHOTOS"); [[ "${src%%\[*}" == "$(readlink -f "$DISK-part1")" ]] && [[ -w "$PHOTOS" ]] \
-                  && grep -q "[[:space:]]${PHOTOS}[[:space:]]" /etc/fstab; }
+# $PHOTOS comes from the disk's first partition: directly, or through an encryption (dm-crypt) mapping on it, so lsblk
+# -s walks from the mount's source down to the disk and the partition must be on that way
+disk_ok()     { local src part; src=$(findmnt -n -o SOURCE "$PHOTOS"); src=${src%%\[*}; part=$(readlink -f "$DISK-part1")
+                  [[ -n "$src" && -n "$part" ]] && lsblk -nsrpo NAME "$src" 2>/dev/null | grep -qxF "$part" \
+                  && [[ -w "$PHOTOS" ]] && grep -q "[[:space:]]${PHOTOS}[[:space:]]" "${FSTAB:-/etc/fstab}"; }
 # The disk already carries the photo filesystem: PHOTOS_UUID from .env, or the label photos that
 # immich:disk gives it (lsblk reads udev's database: no sudo)
 holds_library() { local uuid pairs; [[ -n "$DISK" ]] || return 1; uuid=$(_existing PHOTOS_UUID || true)

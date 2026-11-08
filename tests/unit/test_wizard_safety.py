@@ -1,5 +1,6 @@
 """Wizard steps that could destroy something, run in a copy with the disk tools stubbed (DOCKER_HOST to nowhere):
-- immich:disk never offers the wipe for a disk that already holds the photo library and is only unmounted;
+- immich:disk never offers the wipe for a disk that already holds the photo library and is only unmounted, and its
+  check knows the photos disk also behind an encryption mapping;
 - the Memos check asks with validateOnly, so it can't create a user (an admin, on an empty Memos)."""
 import os
 import re
@@ -65,6 +66,50 @@ class ImmichDisk(unittest.TestCase):
         out, _ = disk_stage('UUID="" LABEL=""\nUUID="2222-3333" LABEL="data"')
         self.assertNotIn("already holds the photo library", out)
         self.assertIn("Set PHOTOS_DISK", out)
+
+
+class DiskCheck(unittest.TestCase):
+    """immich:disk's check: $PHOTOS mounted from the disk's first partition, directly or through an encryption
+    (dm-crypt) mapping on it, writable, and in fstab"""
+
+    def disk_ok(self, source, chain, in_fstab=True, writable=True):
+        fn = re.search(r"^disk_ok\(\).*?; \}$", (ROOT / "immich-wizard.sh").read_text(), re.S | re.M).group(0)
+        with tempfile.TemporaryDirectory() as d:
+            photos = Path(d) / "photos"
+            photos.mkdir()
+            if not writable:
+                photos.chmod(0o555)
+            fstab = Path(d) / "fstab"
+            fstab.write_text(f"/srv/nvme1/photos {photos if in_fstab else '/srv/other'} none bind,nofail 0 0\n")
+            bin_ = Path(d) / "bin"
+            bin_.mkdir()
+            # findmnt: the mount's source; readlink: the by-id link of the disk's first partition; lsblk -s: the
+            # devices from that source down to the disk
+            stubs = {"findmnt": f"#!/bin/sh\necho '{source}'\n", "readlink": "#!/bin/sh\necho /dev/nvme1n1p1\n",
+                     "lsblk": "#!/bin/sh\nprintf '%s\\n' " + " ".join(f"'{x}'" for x in chain) + "\n"}
+            for name, body in stubs.items():
+                (bin_ / name).write_text(body)
+                (bin_ / name).chmod(0o755)
+            env = dict(os.environ, PATH=f"{bin_}:{os.environ['PATH']}", PHOTOS=str(photos),
+                       DISK="/dev/disk/by-id/nvme-EXAMPLE_0001", FSTAB=str(fstab), DOCKER_HOST="unix:///nonexistent")
+            r = subprocess.run(["bash", "-c", fn + "\ndisk_ok"], env=env, capture_output=True, text=True, timeout=30)
+            photos.chmod(0o755)
+            return r.returncode == 0
+
+    def test_the_partition_itself(self):
+        self.assertTrue(self.disk_ok("/dev/nvme1n1p1[/photos]", ["/dev/nvme1n1p1", "/dev/nvme1n1"]))
+
+    def test_through_an_encryption_mapping_on_it(self):
+        self.assertTrue(self.disk_ok("/dev/mapper/photos[/photos]",
+                                     ["/dev/mapper/photos", "/dev/nvme1n1p1", "/dev/nvme1n1"]))
+
+    def test_anything_else_isnt_the_photos_disk(self):
+        self.assertFalse(self.disk_ok("/dev/nvme0n1p3[/root/srv/photos]", ["/dev/nvme0n1p3", "/dev/nvme0n1"]))
+        self.assertFalse(self.disk_ok("", []))   # not mounted
+        self.assertFalse(self.disk_ok("/dev/nvme1n1p1[/photos]", ["/dev/nvme1n1p1", "/dev/nvme1n1"], in_fstab=False))
+        if os.geteuid():
+            self.assertFalse(self.disk_ok("/dev/nvme1n1p1[/photos]", ["/dev/nvme1n1p1", "/dev/nvme1n1"],
+                                          writable=False))
 
 
 class MemosCheck(unittest.TestCase):
