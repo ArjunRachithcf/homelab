@@ -63,6 +63,8 @@ USERS = {
     # The outpost sends no groups header for her: the client's forged one must not survive
     "nog": ("nina", "", "Nina Example"),
 }
+# Signed-in users only the rows below use (not every host × path): an admin who may SSH (ssh-admins)
+ROW_USERS = {"sshadm": ("sam", "authentik Admins|ssh-admins|family", "Sam Example")}
 # Requests that sign in with something other than the cookie: (host, method, path, headers), on every TLS listener
 CREDENTIALS = [
     ("paperless", "GET", "/api/documents/", {"Authorization": "Basic YWRtaW46eA=="}),
@@ -116,6 +118,29 @@ SIGNED_IN = [
     # Bazarr: its Basic login is Caddy's (BAZARR_AUTH), whatever the browser sends
     ("subs", "GET", "/", {"X-Matrix-Probe": "auth"}, "admin"),
     ("subs", "GET", "/api/system/status", {"X-Matrix-Probe": "auth", "Authorization": "Basic Zm9yZ2VkOmZvcmdlZA=="}, "admin"),
+]
+# SSH keys (component ssh-sso): Authentik's two flows only for NetBird peers (here every client is 127.0.0.1 or, on
+# :8444, the PROXY header's public address), however the path is spelled; where they end leads back to the sheet;
+# the sheet's data only for ssh-admins, never a client's own word on being on NetBird
+SSH_KEYS = [
+    ("auth", "GET", "/if/flow/ssh-key-add/", {}),
+    ("auth", "GET", "/if/flow/ssh-key-remove/?fp=SHA256%3Ax&next=%2Fssh-keys%2Fdone", {}),
+    ("auth", "POST", "/api/v3/flows/executor/ssh-key-add/?query=", {}),
+    ("auth", "POST", "/api/v3/flows/executor/%73sh-key-remove/", {}),
+    ("auth", "GET", "/IF/FLOW/SSH-KEY-ADD/", {}),
+    ("auth", "GET", "/flows/-/cancel/?next=%2Fif%2Fflow%2Fssh-key-add%2F", {}),
+    ("auth", "GET", "/ssh-keys/done", {}),
+    ("home", "GET", "/ops/keys", {"X-Matrix-Probe": "mesh", "X-Homelab-Mesh": "1"}, "sshadm"),
+    ("home", "POST", "/ops/keys/refresh", {}, "sshadm"),
+    ("home", "GET", "/ops/keys/", {}, "admin"),
+    ("home", "GET", "/ops/keys", {}, "op"),
+    ("home", "GET", "/ops/keys", {}, "anna"),
+]
+# The same over :8444 with a NetBird address in the PROXY header: how Caddy treats a NetBird peer
+FROM_NETBIRD = [
+    ("auth", "GET", "/if/flow/ssh-key-add/", {}),
+    ("auth", "POST", "/api/v3/flows/executor/ssh-key-remove/", {}),
+    ("home", "GET", "/ops/keys", {"X-Matrix-Probe": "mesh"}, "sshadm"),
 ]
 # OpenCloud: every way a public link's token opens it, refused; what the apps and signed-in people need, open
 PUBLIC_LINKS = [
@@ -172,7 +197,7 @@ def stub_handler(name: str, domain: str):
                 self.rfile.read(n)
             if self.path.startswith("/outpost.goauthentik.io/auth/caddy"):
                 m = re.search(r"stub_user=(\w+)", self.headers.get("Cookie", ""))
-                user = USERS.get(m.group(1)) if m else None
+                user = (USERS.get(m.group(1)) or ROW_USERS.get(m.group(1))) if m else None
                 if user:
                     self.send_response(200)
                     self.send_header("X-Authentik-Username", user[0])
@@ -196,6 +221,8 @@ def stub_handler(name: str, domain: str):
             elif probe == "seerr":   # Next.js's own subrequests' header, Seerr's API key (its admin)
                 body += "".join(f" {h.lower()}={self.headers.get(h, '-')}"
                                 for h in ("X-Middleware-Subrequest", "X-Api-Key", "X-Api-User"))
+            elif probe == "mesh":    # the SSH keys sheet: whether Caddy told ops the client is on NetBird
+                body += " x-homelab-mesh=" + self.headers.get("X-Homelab-Mesh", "-")
             elif probe == "auth":    # the Authorization the app got: Caddy's own (BAZARR_AUTH) or something else
                 got = self.headers.get("Authorization", "")
                 body += " authorization=" + ("caddy's" if got and got == EXPECTED_AUTH
@@ -212,10 +239,10 @@ def stub_handler(name: str, domain: str):
     return H
 
 
-def connect(port: int, real_port: int, host: str, proxy: bool = True) -> http.client.HTTPConnection:
+def connect(port: int, real_port: int, host: str, proxy: bool = True, src: str = "203.0.113.7") -> http.client.HTTPConnection:
     s = socket.create_connection(("127.0.0.1", port), timeout=5)
     if real_port == 8444 and proxy:
-        s.sendall(f"PROXY TCP4 203.0.113.7 127.0.0.1 40000 {real_port}\r\n".encode())
+        s.sendall(f"PROXY TCP4 {src} 127.0.0.1 40000 {real_port}\r\n".encode())
     if real_port != 80:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -385,7 +412,7 @@ def main() -> None:
                     r = f"ERR {type(e).__name__}"
                 jobs.append((PORTS[8444], "8444-noproxy", host, "GET", "/", ""))
                 results.append(r)
-            for h, method, path, extra, *as_user in CREDENTIALS + FORWARDING + PUBLIC_LINKS + SIGNED_IN:
+            for h, method, path, extra, *as_user in CREDENTIALS + FORWARDING + PUBLIC_LINKS + SIGNED_IN + SSH_KEYS:
                 if h not in HOSTS:   # that component isn't chosen in this instance
                     continue
                 user = as_user[0] if as_user else ""
@@ -401,6 +428,19 @@ def main() -> None:
                         label = "".join(f" [{k}: {v}]" for k, v in extra.items())
                         jobs.append((port, real, host, method, path + label, user))
                         results.append(r)
+            for h, method, path, extra, *as_user in FROM_NETBIRD:
+                if h not in HOSTS:
+                    continue
+                user = as_user[0] if as_user else ""
+                for d in (domain, alias):
+                    host = f"{h}.{d}"
+                    try:
+                        r = one(connect(PORTS[8444], 8444, host, src="100.64.1.2"), 8444, host, method, path, user, extra)
+                    except (OSError, ssl.SSLError, http.client.HTTPException) as e:
+                        r = f"ERR {type(e).__name__}"
+                    label = "".join(f" [{k}: {v}]" for k, v in extra.items())
+                    jobs.append((PORTS[8444], 8444, host, method, path + label + " [from 100.64.1.2]", user))
+                    results.append(r)
             (tmp / "site/status/requests-ready").unlink()
             for h, method, path, extra in UNCLAIMED:
                 if h not in HOSTS:

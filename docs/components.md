@@ -79,11 +79,12 @@ Family members reach the apps from anywhere, through NetBird's reverse proxy in 
 
 ### SSH with your sign-in (`ssh-sso`)
 
-SSH into this machine with the key in your Authentik profile plus password and authenticator code; admins only, mesh only.
+SSH into this machine with the key in your Authentik profile plus password and authenticator code; admins only, mesh only. Keys are added and removed on the home page (SSH keys), with your passkey.
 
 - needs `core`
 - runs on fedora
 - containers `authentik-ldap-ssh`
+- jobs `ssh-keys`
 
 | Setting | | What it is |
 |---|---|---|

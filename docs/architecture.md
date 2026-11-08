@@ -37,6 +37,10 @@ flowchart LR
   (the setup app's "LAN firewall") runs it: a dry run first, an undo timer over SSH, then the checks.
 - **One sign-in.** Caddy asks Authentik's outpost for every request (forward-auth) or the app speaks OIDC to
   Authentik itself; Jellyfin's apps use LDAP. Groups decide who sees what (`site/apps.json`).
+- **SSH, if chosen, also through Authentik**: a key from your Authentik profile, then your password and code
+  (SSSD and an LDAP outpost on the host, NetBird only). The home page's SSH keys sheet lists the keys; adding or
+  removing one happens in Authentik's own flows, with your passkey every time and only from NetBird, and every
+  change is mailed to you.
 - **Apps** are Docker containers on one compose network (the downloads apps and the request page on networks of
   their own), none with a published port; Caddy and the fixed addresses in `docker-compose.yml` are the only ways in.
 - **Downloads, if chosen, only through a VPN.** gluetun's WireGuard tunnel holds qBittorrent, Prowlarr and Byparr

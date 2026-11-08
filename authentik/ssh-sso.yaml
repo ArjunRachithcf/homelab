@@ -1,0 +1,392 @@
+# ~/homelab/authentik/ssh-sso.yaml
+# The home page's SSH keys sheet (site/index.html, #keys) changes your keys here, inside Authentik: flows
+# ssh-key-add and ssh-key-remove, each your passkey first (every time, like GitHub's "sudo mode"), then a form whose
+# validation policy checks it and writes the one change into your attribute `sshPublicKey` (the list SSSD reads over
+# LDAP, ssh-ldap.yaml). Only `ssh-admins`, only from NetBird peers or this PC: the flows' own check is cached per
+# session for 5 minutes, so the form's policy checks again on every submit, and Caddy refuses both flows to anyone
+# else (caddy/components/ssh-sso/authentik.caddy). The host follows each change (lib/ssh_keys.py: the outpost
+# reloaded, a mail). The sheet starts each flow afresh (Authentik's /flows/-/cancel/) with ?next=/ssh-keys/done, which
+# Caddy turns into the sheet again (caddy/components/ssh-sso/authentik.caddy). Applied by `authentik/setup-ssh.sh
+# component ssh-sso` (also part of `hardening`). RUNBOOK.md step 10.
+version: 1
+metadata:
+  name: homelab - SSH keys
+  labels:
+    blueprints.goauthentik.io/instantiate: "false"
+entries:
+  # Also made by ssh-ldap.yaml; a first install applies this one before it (hardening comes first)
+  - model: authentik_core.group
+    id: ssh-admins
+    identifiers:
+      name: ssh-admins
+    state: created
+
+  # NetBird peers, or this PC itself (a browser here comes in through Docker's bridge gateway). Authentik takes the
+  # client from Caddy's X-Forwarded-For only (AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS in docker-compose.yml).
+  - model: authentik_policies_expression.expressionpolicy
+    id: from-netbird
+    identifiers:
+      name: ssh-keys-from-netbird
+    attrs:
+      expression: |
+        if ak_client_ip in ip_network("100.64.0.0/10") or ak_client_ip == ip_address("172.21.0.1"):
+            return True
+        ak_message("Adding and removing SSH keys works over NetBird.")
+        return False
+
+  # Your passkey, every time (no grace period), whatever the session's age; no passkey, no change
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: passkey
+    identifiers:
+      name: ssh-keys-passkey
+    attrs:
+      device_classes: [webauthn]
+      webauthn_user_verification: required
+      not_configured_action: deny
+      last_auth_threshold: seconds=0
+
+  # Both forms' policy: checked again here (uncached), then the one change, under a row lock (two tabs, or the CLI's
+  # add-key, never undo each other). The passkey must have been used in the last 5 minutes: a flow left at its form
+  # stays in the session, and anyone holding the session could otherwise finish it later without one. Never raises (an exception's event would hold the form, i.e. the paste) and
+  # never repeats what was pasted; fields named *key* are masked in Authentik's events. "Test policy" in the admin UI
+  # (request.debug) checks without writing.
+  - model: authentik_policies_expression.expressionpolicy
+    id: change
+    identifiers:
+      name: ssh-key-change
+    attrs:
+      expression: |
+        import base64
+        import binascii
+        import hashlib
+        import re
+        import struct
+        from datetime import timedelta
+        from django.db import transaction
+        from django.utils.timezone import now
+        from authentik.core.models import User
+        from authentik.stages.authenticator_static.models import StaticDevice
+        from authentik.stages.authenticator_totp.models import TOTPDevice
+        from authentik.stages.authenticator_validate.models import AuthenticatorValidateStage
+        from authentik.stages.authenticator_webauthn.models import WebAuthnDevice
+
+        KINDS = ("ssh-ed25519", "sk-ssh-ed25519@openssh.com", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384",
+                 "ecdsa-sha2-nistp521", "sk-ecdsa-sha2-nistp256@openssh.com", "ssh-rsa")
+        POINT = {"nistp256": 65, "nistp384": 97, "nistp521": 133}
+        NOT_A_KEY = "That isn't a public key: paste the line from the .pub file."
+
+        def refuse(text):
+            ak_message(text)
+            return False
+
+        def fields(blob):
+            out, i = [], 0
+            while i < len(blob):
+                if len(blob) - i < 4:
+                    return None
+                n = struct.unpack(">I", blob[i:i + 4])[0]
+                i += 4
+                if n > len(blob) - i:
+                    return None
+                out.append(blob[i:i + n])
+                i += n
+            return out
+
+        def decoded(b64):
+            try:
+                return base64.b64decode(b64, validate=True)
+            except (binascii.Error, ValueError):
+                return None
+
+        def blob_of(line):
+            """The key of a line already stored (whatever its comment), or None"""
+            p = line.split() if isinstance(line, str) else []
+            return decoded(p[1]) if len(p) >= 2 else None
+
+        def fingerprint(blob):
+            return "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+
+        def check(kind, blob):
+            """None if SSH here takes this key, else why not"""
+            f = fields(blob) if blob else None
+            if not f or f[0] != kind.encode():
+                return NOT_A_KEY
+            if kind == "ssh-ed25519" and len(f) == 2 and len(f[1]) == 32:
+                return None
+            if kind == "sk-ssh-ed25519@openssh.com" and len(f) == 3 and len(f[1]) == 32:
+                return None
+            if kind.startswith("ecdsa-sha2-") and len(f) == 3 and f[1] == kind[11:].encode() \
+                    and len(f[2]) == POINT.get(kind[11:]) and f[2][:1] == b"\x04":
+                return None
+            if kind == "sk-ecdsa-sha2-nistp256@openssh.com" and len(f) == 4 and f[1] == b"nistp256" \
+                    and len(f[2]) == 65 and f[2][:1] == b"\x04":
+                return None
+            if kind == "ssh-rsa" and len(f) == 3:
+                if int.from_bytes(f[2], "big").bit_length() >= 3072:
+                    return None
+                return "RSA keys need 3072 bits or more; an ed25519 key is better anyway."
+            return NOT_A_KEY
+
+        def fresh(user):
+            """A device of the passkey stage's kinds was used in the last 5 minutes"""
+            stage = AuthenticatorValidateStage.objects.filter(name="ssh-keys-passkey").first()
+            kinds = {"webauthn": WebAuthnDevice, "totp": TOTPDevice, "static": StaticDevice}
+            since = now() - timedelta(minutes=5)
+            return any(kinds[c].objects.filter(user=user, last_used__gte=since).exists()
+                       for c in (stage.device_classes if stage else ["webauthn"]) if c in kinds)
+
+        def stored(u):
+            v = u.attributes.get("sshPublicKey") or []
+            return [v] if isinstance(v, str) else [x for x in v if isinstance(x, str)]
+
+        def add(data):
+            text = str(data.get("ssh_key") or "")
+            if "PRIVATE KEY" in text or "Private-Lines" in text:
+                return refuse("That's a private key: never paste it anywhere. Paste the line from the .pub file.")
+            if "BEGIN SSH2 PUBLIC KEY" in text:
+                return refuse("Paste the OpenSSH form: ssh-keygen -i -f key.pub turns this one into it.")
+            lines = [x for x in text.splitlines() if x.strip()]
+            if len(lines) != 1:
+                return refuse("One key at a time: the single line from the .pub file.")
+            p = lines[0].split()
+            if len(p) < 2:
+                return refuse(NOT_A_KEY)
+            if p[0] not in KINDS:
+                if "-cert-" in p[0]:
+                    return refuse("A certificate won't do here: paste the key itself, the line from the .pub file.")
+                if any(c in p[0] for c in "=,\""):
+                    return refuse("Just the key, with nothing in front of it.")
+                return refuse("SSH here takes ed25519, ecdsa and RSA keys of 3072 bits or more, also on a security key.")
+            blob = decoded(p[1])
+            why = check(p[0], blob)
+            if why:
+                return refuse(why)
+            title = " ".join(str(data.get("ssh_key_title") or "").split())
+            if not re.fullmatch(r"[A-Za-z0-9 ._@()'+,-]{1,50}", title):
+                return refuse("Title: up to 50 letters, digits and spaces, and . _ @ ( ) ' + , -")
+            if request.debug:
+                return True
+            line = "%s %s %s" % (p[0], base64.b64encode(blob).decode(), title)
+            with transaction.atomic():
+                u = User.objects.select_for_update().get(pk=request.user.pk)
+                have = stored(u)
+                if any(blob_of(x) == blob for x in have):
+                    ak_message("That key is on your account already.")
+                    return True
+                if len(have) >= 20:
+                    return refuse("20 keys at most: remove one first.")
+                u.attributes["sshPublicKey"] = have + [line]
+                u.save(update_fields=["attributes"])
+            return True
+
+        def remove(data):
+            fp = str(data.get("ssh_key_fp") or "")
+            if not re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}", fp):
+                return refuse("Pick one of your keys.")
+            if request.debug:
+                return True
+            with transaction.atomic():
+                u = User.objects.select_for_update().get(pk=request.user.pk)
+                have = stored(u)
+                keep = [x for x in have if not (blob_of(x) and fingerprint(blob_of(x)) == fp)]
+                if len(keep) == len(have):
+                    ak_message("That key wasn't on your account any more.")
+                    return True
+                u.attributes["sshPublicKey"] = keep
+                u.save(update_fields=["attributes"])
+            return True
+
+        def main():
+            data = request.context.get("prompt_data") or {}
+            http = request.http_request
+            if not (ak_client_ip in ip_network("100.64.0.0/10") or ak_client_ip == ip_address("172.21.0.1")):
+                return refuse("Adding and removing SSH keys works over NetBird.")
+            if http is None or not http.user.is_authenticated or http.user.pk != request.user.pk:
+                return refuse("Sign in again, then try once more.")
+            if "authentik/impersonate/user" in http.session:
+                return refuse("Not while impersonating someone.")
+            if not fresh(request.user):
+                return refuse("Confirm with your passkey again: start over from the SSH keys sheet.")
+            if "ssh_key" in data:
+                return add(data)
+            if "ssh_key_fp" in data:
+                return remove(data)
+            return refuse("Nothing to change.")
+
+        try:
+            return main()
+        except Exception as exc:
+            ak_logger.warning("ssh-key-change failed", error=type(exc).__name__)
+            return refuse("Something went wrong; nothing was changed.")
+
+  # ── Add: the title and the line from the .pub file ──
+  - model: authentik_stages_prompt.prompt
+    id: f-title
+    identifiers:
+      name: ssh-key-title
+    attrs:
+      field_key: ssh_key_title
+      label: Title
+      type: text
+      required: true
+      placeholder: Laptop
+      order: 10
+  - model: authentik_stages_prompt.prompt
+    id: f-key
+    identifiers:
+      name: ssh-key-line
+    attrs:
+      field_key: ssh_key
+      label: Key
+      type: text_area
+      required: true
+      placeholder: ssh-ed25519 … laptop
+      sub_text: The single line of your .pub file, never the private key.
+      order: 20
+  # Fixed text only: Authentik shows static fields as HTML
+  - model: authentik_stages_prompt.prompt
+    id: f-help
+    identifiers:
+      name: ssh-key-help
+    attrs:
+      field_key: ssh_key_help
+      # Not shown (static fields have none), but required
+      label: How to make a key
+      type: static
+      required: false
+      initial_value: >-
+        <p>No key yet? With a security key: <code>ssh-keygen -t ed25519-sk -O resident</code>, without one:
+        <code>ssh-keygen -t ed25519 -a 100</code> (with a passphrase). Then paste the line of the <code>.pub</code>
+        file. On a phone (Termius): Keychain → Generate key → Ed25519 → Export public key.</p>
+      order: 30
+  - model: authentik_stages_prompt.promptstage
+    id: add-form
+    identifiers:
+      name: ssh-key-add-form
+    attrs:
+      fields: [!KeyOf f-title, !KeyOf f-key, !KeyOf f-help]
+      validation_policies: [!KeyOf change]
+
+  # ── Remove: one of your keys, preselected by the sheet (?fp=) ──
+  - model: authentik_stages_prompt.prompt
+    id: f-fp
+    identifiers:
+      name: ssh-key-fingerprint
+    attrs:
+      field_key: ssh_key_fp
+      label: Key
+      type: dropdown
+      required: true
+      placeholder_expression: true
+      placeholder: |
+        import base64
+        import hashlib
+        out = []
+        try:
+            v = user.attributes.get("sshPublicKey") or []
+            for line in [v] if isinstance(v, str) else v:
+                p = line.split() if isinstance(line, str) else []
+                if len(p) < 2:
+                    continue
+                try:
+                    blob = base64.b64decode(p[1], validate=True)
+                except ValueError:
+                    continue
+                fp = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+                out.append({"label": "%s · %s…" % ((" ".join(p[2:]) or "no title")[:50], fp[:19]), "value": fp})
+        except Exception:
+            return []
+        return out
+      initial_value_expression: true
+      initial_value: |
+        from django.http import QueryDict
+        http = getattr(request, "http_request", None) or (request if hasattr(request, "GET") else None)
+        try:
+            return QueryDict(http.GET.get("query", "")).get("fp", "") if http is not None else ""
+        except Exception:
+            return ""
+      order: 10
+  - model: authentik_stages_prompt.prompt
+    id: f-warn
+    identifiers:
+      name: ssh-key-remove-warning
+    attrs:
+      field_key: ssh_key_warning
+      label: Note
+      type: alert_warning
+      required: false
+      initial_value: The device holding this key can't SSH in any more. Your other keys keep working.
+      order: 20
+  - model: authentik_stages_prompt.promptstage
+    id: remove-form
+    identifiers:
+      name: ssh-key-remove-form
+    attrs:
+      fields: [!KeyOf f-fp, !KeyOf f-warn]
+      validation_policies: [!KeyOf change]
+
+  # ── The two flows: ssh-admins only, from NetBird or this PC ──
+  - model: authentik_flows.flow
+    id: add-flow
+    identifiers:
+      slug: ssh-key-add
+    attrs:
+      name: Add an SSH key
+      title: Add an SSH key
+      designation: stage_configuration
+      authentication: require_authenticated
+      policy_engine_mode: all
+      denied_action: message
+      layout: stacked
+  - model: authentik_flows.flow
+    id: remove-flow
+    identifiers:
+      slug: ssh-key-remove
+    attrs:
+      name: Remove an SSH key
+      title: Remove an SSH key
+      designation: stage_configuration
+      authentication: require_authenticated
+      policy_engine_mode: all
+      denied_action: message
+      layout: stacked
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf add-flow
+      group: !KeyOf ssh-admins
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf add-flow
+      policy: !KeyOf from-netbird
+      order: 10
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf remove-flow
+      group: !KeyOf ssh-admins
+      order: 0
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf remove-flow
+      policy: !KeyOf from-netbird
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf add-flow
+      stage: !KeyOf passkey
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf add-flow
+      stage: !KeyOf add-form
+      order: 20
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf remove-flow
+      stage: !KeyOf passkey
+      order: 10
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf remove-flow
+      stage: !KeyOf remove-form
+      order: 20

@@ -1,0 +1,15 @@
+# /etc/systemd/system/homelab-ssh-keys.service (component ssh-sso, RUNBOOK.md step 10): lib/ssh_keys.py follows the
+# SSH keys in Authentik for the home page's SSH keys sheet: what SSH accepts now, when each key was last used, and a
+# mail whenever the keys changed, however they were changed. No root: SSSD answers any user, the journal the admin.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: SSH keys (the home page's sheet, a mail on every change)
+OnFailure=homelab-notify@%n.service
+After=docker.service sssd.service
+
+[Service]
+Type=oneshot
+User=alex
+WorkingDirectory=/home/alex/homelab
+ExecStart=/usr/bin/python3 /home/alex/homelab/lib/ssh_keys.py
+TimeoutStartSec=5min

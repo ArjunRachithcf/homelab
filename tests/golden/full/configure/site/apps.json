@@ -117,6 +117,9 @@
   {{- $apps = append $apps (dict "id" "dns" "name" "Ad blocking" "desc" "AdGuard Home for NetBird devices" "url" (printf "https://dns.%s/" $u) "icon" "/apps/adguard-home.svg" "status" "dns" "group" "admin" "netbird" true) -}}
 {{- end }}
 {{- if and $admin (not $kids) }}
+  {{- $apps = append $apps (dict "id" "keys" "name" "SSH keys" "desc" "Add or remove the keys you SSH in with" "url" (printf "https://home.%s/#keys" $u) "icon" "/apps/ssh-keys.svg" "status" "ops" "group" "admin" "netbird" true) -}}
+{{- end }}
+{{- if and $admin (not $kids) }}
   {{- $apps = append $apps (dict "id" "term" "name" "Terminal" "desc" "SSH into this PC from the browser" "url" (printf "https://term.%s/" $u) "icon" "/apps/termix.svg" "status" "term" "group" "admin" "netbird" true) -}}
 {{- end }}
 {{- if and $admin (not $kids) }}

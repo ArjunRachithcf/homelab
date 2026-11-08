@@ -1,0 +1,13 @@
+# /etc/systemd/system/homelab-ssh-keys.path (component ssh-sso): the home page's SSH keys sheet asks for a fresh
+# look (the ops container drops ops/keys/refresh), and so does setup-ssh.sh after add-key or remove-key; starts
+# homelab-ssh-keys.service, which deletes the file first. Not ops/requests: ops-run.sh may be busy there for an hour.
+# Written by Ansible from ansible/roles/timers/templates: edit there, then --tags timers.
+[Unit]
+Description=Homelab: watch for the SSH keys sheet's requests
+
+[Path]
+PathExists=/home/alex/homelab/ops/keys/refresh
+Unit=homelab-ssh-keys.service
+
+[Install]
+WantedBy=paths.target

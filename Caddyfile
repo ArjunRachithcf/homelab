@@ -154,6 +154,25 @@ http:// {
 			not header_regexp X-Authentik-Groups "(^|\|)authentik Admins(\||$)"
 		}
 		respond @ops_actions_admins "Admins only." 403
+		# The SSH keys sheet (ops/server.py /ops/keys; component ssh-sso): ssh-admins, operators or not. ops is told
+		# whether the viewer is on NetBird (or this PC), where the sheet may change keys (authentik/ssh-sso.yaml).
+		@ops_keys_mesh {
+			path /ops/keys /ops/keys/*
+			header_regexp X-Authentik-Groups "(^|\|)ssh-admins(\||$)"
+			remote_ip 100.64.0.0/10 172.21.0.1/32
+		}
+		reverse_proxy @ops_keys_mesh ops:8080 {
+			header_up X-Homelab-Mesh 1
+		}
+		@ops_keys {
+			path /ops/keys /ops/keys/*
+			header_regexp X-Authentik-Groups "(^|\|)ssh-admins(\||$)"
+		}
+		reverse_proxy @ops_keys ops:8080 {
+			header_up -X-Homelab-Mesh
+		}
+		@ops_keys_other path /ops/keys /ops/keys/*
+		respond @ops_keys_other 403
 		@ops_admin {
 			path /ops/*
 			header_regexp X-Authentik-Groups "(^|\|)(authentik Admins|operators)(\||$)"

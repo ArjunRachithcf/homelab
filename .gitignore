@@ -23,6 +23,7 @@ site/status/
 # Reports and job requests for the detail sheets (RUNBOOK.md 7e)
 ops/data/
 ops/requests/
+ops/keys/
 
 # Rendered from .env by ./homelab configure (sources: */templates-src, site-src, ui-src, BRANDING_DIR)
 authentik/templates/

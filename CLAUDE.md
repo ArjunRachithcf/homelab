@@ -38,8 +38,22 @@ two differ, `INSTANCE.md` wins.
   (`branding/default/` unless `.env` names another) and `site-src/manifest.webmanifest`, written by `./homelab configure`.
 - `authentik/jellyfin-ldap.yaml`: blueprint for Jellyfin's LDAP login (applied by hand).
 - `public-wizard.sh`: the walkthrough for the public-access UI/DNS steps; `--check` re-runs checks.
-- `ssh/`: `10-homelab.conf` (sshd drop-in, `__NETBIRD_IP__` / `__SSH_USER__`), `sssd.conf` template,
-  `setup-host.sh` (sudo; SSSD, PAM for sshd only, sshd), `ldap-ssh.pem` (outpost CA, generated).
+- `ssh/`: `10-homelab.conf` (sshd drop-in, `__NETBIRD_IP__` / `__SSH_USER__`; LogLevel VERBOSE: which key a login
+  used), `sssd.conf` template (keys re-read after 60 s), `setup-host.sh` (sudo; SSSD, PAM for sshd only, sshd),
+  `ldap-ssh.pem` (outpost CA, generated).
+- SSH keys (component ssh-sso): the home page's sheet `#keys` (`site/index.html`, tile in ssh-sso.toml) lists them
+  (GET `/ops/keys`: `ops/server.py`, ssh-admins only in Caddy, X-Homelab-Mesh from Caddy); adding and removing
+  happens in Authentik's flows `ssh-key-add`/`ssh-key-remove` (`authentik/ssh-sso.yaml`: your passkey every time,
+  only from NetBird peers or this PC, also refused per request in `caddy/components/ssh-sso/authentik.caddy`, the form's
+  policy re-checks everything and writes only the one change under a row lock, never showing a paste; the flows end
+  at `?next=/ssh-keys/done` → the sheet). `lib/ssh_keys.py` (the checks, shared with the policy by
+  `tests/unit/test_ssh_keys.py`'s cases; the job `ssh-keys`: `homelab-ssh-keys.{service,timer,path}`, triggered by
+  `ops/keys/refresh`) follows Authentik and `sss_ssh_authorizedkeys`, keeps "last used" from sshd's journal, writes
+  `ops/data/ssh-keys.json`, mails every change and has the outpost reload (saving its provider: seconds).
+  `setup-ssh.sh add-key|remove-key|list-keys` do the same from a terminal. Authentik takes X-Forwarded-For only from
+  Caddy (`AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS`). Tests: `tests/unit/test_ssh_keys.py`, `tests/authentik/run.sh` (a
+  real Authentik set up by `lib/authentik.py all` in project homelab-aktest, never `homelab`; `KEEP=1` leaves it up;
+  CI `.github/workflows/authentik.yml`; run it on every `AUTHENTIK_TAG` bump).
 - `authentik/ssh-ldap.yaml`, `authentik/hardening.yaml`, `authentik/family.yaml` (core; each app's sign-in is in its
   component's own `authentik/<component>.yaml`, `setup-ssh.sh component ID`): blueprints,
   applied by `authentik/setup-ssh.sh` (also `hardening` after every Authentik upgrade, which
@@ -100,7 +114,8 @@ two differ, `INSTANCE.md` wins.
   `site/index.html`: home page (who sees what; layout). Design sheet in `.taste-skill/` (not committed).
 - `ops-report.py`, `storage-report.py` (+ `homelab-storage-report.timer`), `ops/server.py` (container `ops`),
   `ops-run.sh` (+ `homelab-ops.path`): the home page's detail sheets for admins (graphs, Back up now, cleanups);
-  reports in `ops/data/`, job requests in `ops/requests/` (both untracked). RUNBOOK.md 7e "Details".
+  reports in `ops/data/`, job requests in `ops/requests/`, the SSH keys sheet's in `ops/keys/` (all untracked).
+  RUNBOOK.md 7e "Details".
 - Console (`site/console/`, guides in `site/console/guides/`, RUNBOOK.md "Console"): admins + group `operators`;
   `console-report.py` (from `heartbeat.sh`) → `ops/data/console.json`; `ops/access.py` is the one list of what
   may be asked (run-/logs-job-<job>, restart-/logs-app-<service>); restarts and runs only from NetBird IPs.

@@ -13,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\b")
 EMAIL_DOMAINS = ("example.com", "example.org", "example.net", "example.invalid", "localhost")  # and their subdomains
 EMAIL_OK = {"106335968+ArjunRachithcf@users.noreply.github.com",  # the project's commit identity
-            "demo@dawarich.app"}                                   # Dawarich's own first user, which the wizard removes
+            "demo@dawarich.app",                                   # Dawarich's own first user, which the wizard removes
+            # OpenSSH's names of key types (lib/ssh_keys.py, authentik/ssh-sso.yaml)
+            "sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com", "ssh-ed25519-cert-v01@openssh.com"}
 NOT_EMAIL = re.compile(r"\.(png|svg|md|js|json|toml|ya?ml|txt|html|sh|py)$")  # icon@2x.png, @INSTANCE.md
 IPV4 = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.])")
 NETBIRD = ipaddress.ip_network("100.64.0.0/10")

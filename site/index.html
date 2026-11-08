@@ -382,9 +382,13 @@ button.tile:active { transform: scale(.98); transition-duration: .1s; }
 .act.confirm { background: var(--red); color: #fff; }
 .act:active { transform: scale(.95); transition-duration: .1s; }
 .act[disabled] { opacity: .5; cursor: default; }
+/* The SSH keys sheet's actions are links (to Authentik's flows): the same pill */
+a.act { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .progress { display: flex; align-items: center; gap: 10px; font-size: 14px; margin-top: 10px; min-height: 22px; }
 .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--fill); border-top-color: var(--accent); }
 .empty-note { color: var(--muted); font-size: 14px; padding: 8px 0; }
+.fp { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.list .end { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 13px; }
 
 @media (max-width: 600px) {
   /* Phone: a bottom sheet that slides up, with a grab handle (swipe down closes it) */
@@ -888,8 +892,9 @@ button.tile:active { transform: scale(.98); transition-duration: .1s; }
 
   function render() {
     var kind = current;
-    title.textContent = { outside: "Outside check", backups: "Backups", disk: "Disk space" }[kind];
+    title.textContent = { outside: "Outside check", backups: "Backups", disk: "Disk space", keys: "SSH keys" }[kind];
     body.replaceChildren(el("p", "empty-note", "Loading…"));
+    if (kind === "keys") return keys();
     var load = kind === "outside" ? get("outside").then(function (o) { return [o]; })
              : kind === "backups" ? Promise.all([get("backups"), get("jobs")])
              : Promise.all([get("storage"), get("disk-history"), get("jobs")]);
@@ -1118,6 +1123,83 @@ button.tile:active { transform: scale(.98); transition-duration: .1s; }
     names.forEach(function (n, i) { var li = lg.appendChild(el("li")); li.appendChild(el("i")).style.background = "var(--s" + (i + 1) + ")"; li.append(el("span", null, n), el("span", "v", bytes(pts[pts.length - 1][1][i]) + " free")); });
   }
 
+  // ── SSH keys (component ssh-sso): GET /ops/keys (lib/ssh_keys.py's report, yours only); adding and removing
+  // happens in Authentik's flows ssh-key-add / ssh-key-remove (authentik/ssh-sso.yaml: your passkey every time, over
+  // NetBird only), each started afresh (/flows/-/cancel/), ending back here (?next=/ssh-keys/done → #keys) ──
+  function keys() {
+    var opened = Date.now() / 1000, auth = "https://auth." + location.host.replace(/^home\./, "");
+    function flow(slug, query) {
+      var next = "/if/flow/" + slug + "/?" + (query ? query + "&" : "") + "next=" + encodeURIComponent("/ssh-keys/done");
+      return auth + "/flows/-/cancel/?next=" + encodeURIComponent(next);
+    }
+    function load() {
+      return fetch("/ops/keys", { cache: "no-store", credentials: "same-origin" })
+        .then(function (r) { if (r.status === 404) return { off: true }; if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+    }
+    function show(k) {
+      if (current !== "keys") return;
+      body.replaceChildren();
+      if (k.off) { body.appendChild(el("p", "empty-note", "SSH with your sign-in isn't set up on this homelab.")); return; }
+      if (k.other) { body.appendChild(el("p", "empty-note", "SSH into this PC is for its admin's own account only.")); return; }
+      var list = k.keys || [], ok = list.filter(function (x) { return x.accepted; }).length;
+      var hero = body.appendChild(el("div", "hero"));
+      hero.appendChild(el("b", null, k.missing ? "–" : String(list.length)));
+      hero.appendChild(el("span", null, k.missing ? "No report yet: it appears within a minute." :
+        (list.length === 1 ? "key" : "keys") + (list.some(function (x) { return x.accepted === null; }) ? "" : ", SSH takes " + ok + " of them now")));
+      var row = body.appendChild(el("div")); row.style.cssText = "display:flex;align-items:center;gap:12px;flex-wrap:wrap";
+      var add = row.appendChild(el(k.netbird ? "a" : "button", "act primary", "Add a key"));
+      if (k.netbird) add.href = flow("ssh-key-add"); else { add.type = "button"; add.disabled = true; }
+      row.appendChild(el("span", "muted", k.netbird ? "Your passkey confirms every change; you'll get a mail." :
+        "Adding and removing keys works over NetBird (or on this PC)."));
+      if (k.pending) body.appendChild(el("div", "progress")).append(el("span", "spinner"), el("span", null, "Looking again…"));
+      if (!list.length && !k.missing) body.appendChild(el("p", "empty-note", "No keys: SSH takes none until you add one."));
+      var ul = body.appendChild(el("ul", "list"));
+      list.forEach(function (x) {
+        var li = ul.appendChild(el("li")), w = li.appendChild(el("span", "what"));
+        w.appendChild(el("b", null, x.title));
+        w.appendChild(el("small", null, x.type)).appendChild(el("span", "fp", " " + x.fingerprint));
+        w.appendChild(el("small", null, (x.added ? "Added " + time(x.added, true) : "Added earlier") + " · " +
+          (x.last_used ? "last used " + ago(x.last_used) : "no login with it recorded yet")));
+        var end = li.appendChild(el("span", "end"));
+        if (x.accepted === true) end.appendChild(el("span", "ok-word", "SSH takes it"));
+        else if (x.accepted === false) end.appendChild(el("span", "muted", "Works within a minute"));
+        var rm = end.appendChild(el(k.netbird ? "a" : "button", "act", "Remove"));
+        rm.setAttribute("aria-label", "Remove “" + x.title + "”");
+        if (!k.netbird) { rm.type = "button"; rm.disabled = true; return; }
+        rm.href = flow("ssh-key-remove", "fp=" + encodeURIComponent(x.fingerprint));
+        // The last key: say what that means before Authentik's page asks
+        if (list.length === 1) rm.addEventListener("click", function (e) {
+          if (rm.classList.contains("confirm")) return;
+          e.preventDefault(); rm.classList.add("confirm"); rm.textContent = "Remove the last key";
+          end.appendChild(el("small", "muted", "SSH takes no key then, until you add one."));
+        });
+      });
+      (k.still_accepted || []).forEach(function (fp) {
+        body.appendChild(el("p", "muted")).append("Removed, SSH still takes it for up to a minute: ", el("span", "fp", fp));
+      });
+      var foot = body.appendChild(el("p", "muted")); foot.style.marginTop = "18px";
+      foot.textContent = "One key per device, so a lost one is removed alone. SSH also asks for your password and code. " +
+        (k.time ? "Checked " + ago(k.time) + "." : "");
+    }
+    // Ask the host to look again (after a change in Authentik, SSH follows within a minute), then follow it
+    fetch("/ops/keys/refresh", { method: "POST", credentials: "same-origin", headers: { "X-Homelab-Ops": "1" } }).catch(function () {});
+    load().then(function (k) {
+      show(k);
+      if (k.off || k.other) return;
+      clearInterval(poll);
+      var n = 0;
+      poll = setInterval(function () {
+        load().then(function (k2) {
+          show(k2);
+          if (++n > 45 || ((k2.time || 0) >= opened && !k2.pending && !(k2.keys || []).some(function (x) { return x.accepted === false; }) &&
+              !(k2.still_accepted || []).length)) { clearInterval(poll); poll = null; }
+        }).catch(function () {});
+      }, 2000);
+    }).catch(function (e) {
+      if (current === "keys") body.replaceChildren(el("p", "empty-note", "Couldn't load your keys (" + e.message + ")."));
+    });
+  }
+
   // ── Jobs: a button that asks (twice for cleanups), then progress from jobs.json ──
   function jobUi(job, btn, prog, jobs, done, confirmText) {
     var label = btn.textContent, armed = null;
@@ -1160,9 +1242,15 @@ button.tile:active { transform: scale(.98); transition-duration: .1s; }
     });
   }
 
-  // Deep link (#outside, #backups, #disk): reload or share keeps the sheet open
-  var start = (location.hash || "").slice(1) || new URLSearchParams(location.search).get("sheet");
-  if (start && document.querySelector('[data-sheet="' + start.replace(/[^a-z]/g, "") + '"]')) open(start, document.querySelector('[data-sheet="' + start + '"]'));
+  // Deep link (#outside, #backups, #disk, #keys): reload or share keeps the sheet open; the SSH keys tile is a
+  // link to #keys, which changes only the hash while here
+  var SHEETS = ["outside", "backups", "disk", "keys"];
+  function fromHash() {
+    var h = (location.hash || "").slice(1) || new URLSearchParams(location.search).get("sheet");
+    if (SHEETS.indexOf(h) >= 0 && h !== current) open(h, document.querySelector('[data-sheet="' + h + '"]'));
+  }
+  addEventListener("hashchange", fromHash);
+  fromHash();
 })();
 </script>
 {{- end }}

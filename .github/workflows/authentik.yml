@@ -1,0 +1,40 @@
+# The SSH keys flows in a real Authentik (tests/authentik/run.sh): set up by lib/authentik.py from a copy of the tree,
+# then every way to add or remove a key, the refusals (a private key, a public address, a neighbour's forged address,
+# CSRF, Authentik's own 5-minute cache), the command line's add-key/remove-key, and the SSH outpost reloading.
+# Only when their parts change, and on every AUTHENTIK_TAG bump (docker-compose.yml). Nothing here reaches a real
+# machine (compose project homelab-aktest on the runner).
+name: authentik
+
+on:
+  pull_request:
+    paths: &paths
+      - docker-compose.yml
+      - authentik/**
+      - lib/authentik.py
+      - lib/authentik_tasks.py
+      - lib/ssh_keys.py
+      - tests/authentik/**
+      - tests/fixtures/full.env
+      - .github/workflows/authentik.yml
+  push:
+    branches: [main]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  real-authentik:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: tests/authentik/run.sh
+        run: bash tests/authentik/run.sh

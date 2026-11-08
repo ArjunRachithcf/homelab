@@ -215,6 +215,20 @@ notify_on_failure = true
 guide = "downloads-paused"
 macos = false
 
+[jobs.ssh-keys]
+title = "SSH keys"
+description = "Follows the SSH keys in Authentik: the home page's SSH keys sheet, a mail on every change"
+units = ["homelab-ssh-keys.service", "homelab-ssh-keys.timer", "homelab-ssh-keys.path"]
+script = "lib/ssh_keys.py"
+run_as = "user"
+calendar = "*:7/15"
+when = "every 15 minutes, and when the SSH keys sheet asks"
+polkit_start = true
+lock = ""
+notify_on_failure = true
+guide = "ssh-keys"
+macos = false
+
 # What the home page's buttons may ask for (ops/server.py accepts only these names; ops-run.sh maps
 # each to one fixed command). cleanup = shown in the Disk sheet with what it would free.
 [actions.backup]

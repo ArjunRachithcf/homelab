@@ -8,10 +8,14 @@ and the home page's detail sheets use it.
                                storage-report.py, console-report.py, ops-run.sh)
   POST /ops/run/<name>         drops the file /requests/<name> (its content: who asked); on the host
                                homelab-ops.path starts ops-run.sh, which maps the name to a fixed command
+  GET  /ops/keys               the SSH keys sheet: your own entry of /data/ssh-keys.json (lib/ssh_keys.py),
+                               and whether you're on NetBird (X-Homelab-Mesh, set by Caddy); component ssh-sso
+  POST /ops/keys/refresh       drops /keys/refresh: homelab-ssh-keys.path has lib/ssh_keys.py look again
 
 Nothing from a request is used but the name, checked against ops/access.py (the registry's actions,
-run-/logs-job-<job>, restart-/logs-app-<service> of the chosen components), and the signed-in
-username, only for the restart mail. Only Caddy's address (OPS_TRUSTED_PROXY) is answered. A POST must come from the home page itself: Origin is
+run-/logs-job-<job>, restart-/logs-app-<service> of the chosen components), the signed-in
+username (the restart mail; whose SSH keys) and Caddy's X-Homelab-Mesh (only shown: Authentik's flows
+decide). Only Caddy's address (OPS_TRUSTED_PROXY) is answered. A POST must come from the home page itself: Origin is
 home.<domain> and the header X-Homelab-Ops is set (a cross-site form can't set it, a cross-site
 fetch can't without CORS, which this never answers).
 """
@@ -34,6 +38,9 @@ with open(os.environ.get("OPS_REGISTRY", "/app/jobs.toml"), "rb") as _f:
     _ALLOWED = access.allowed(tomllib.load(_f), Path(os.environ.get("OPS_COMPONENTS_DIR", "/app/components")),
                               [c for c in os.environ.get("OPS_COMPONENTS", "").split(",") if c])
 JOBS = frozenset(access.names(_ALLOWED))
+KEYS = "/keys"
+# The SSH keys sheet only with component ssh-sso (an empty choice is all, as in access.py)
+KEYS_ON = not os.environ.get("OPS_COMPONENTS") or "ssh-sso" in os.environ["OPS_COMPONENTS"].split(",")
 REPORTS = frozenset({"outside", "backups", "storage", "disk-history", "jobs", "console"}
                     | {f"logs-job-{j}" for j in _ALLOWED["logs-job"]} | {f"logs-app-{s}" for s in _ALLOWED["logs-app"]})
 USERNAME = re.compile(r"[A-Za-z0-9._@+-]{1,64}")
@@ -64,9 +71,36 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(403, {"error": "only through Caddy"})
         return False
 
+    def who(self):
+        # Set by forward-auth (client-sent copies are stripped in Caddy)
+        who = self.headers.get("X-Authentik-Username", "")
+        return who if USERNAME.fullmatch(who) else ""
+
+    def from_home(self):
+        if self.headers.get("X-Homelab-Ops") != "1" or self.headers.get("Origin") not in ORIGINS \
+                or self.headers.get("Sec-Fetch-Site", "same-origin") != "same-origin":
+            self.reply(403, {"error": "not from the home page"})
+            return False
+        return True
+
+    def keys(self):
+        try:
+            with open(os.path.join(DATA, "ssh-keys.json"), "rb") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            data = None
+        mine = data is not None and str(data.get("user", "")).lower() == self.who().lower() != ""
+        return self.reply(200, {
+            "netbird": self.headers.get("X-Homelab-Mesh") == "1",
+            "pending": os.path.exists(os.path.join(KEYS, "refresh")),
+            **({"time": data.get("time"), "keys": data.get("keys", []), "still_accepted": data.get("still_accepted", [])}
+               if mine else {"missing": True} if data is None else {"other": True})})
+
     def do_GET(self):
         if not self.from_caddy():
             return
+        if self.path.split("?", 1)[0] == "/ops/keys":
+            return self.keys() if KEYS_ON else self.reply(404, {"error": "no SSH keys here"})
         m = re.fullmatch(r"/ops/data/([a-z0-9-]+)\.json", self.path.split("?", 1)[0])
         if not m or m[1] not in REPORTS:
             return self.reply(404, {"error": "unknown report"})
@@ -79,17 +113,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.from_caddy():
             return
+        if self.path == "/ops/keys/refresh" and KEYS_ON:
+            if not self.from_home():
+                return
+            tmp = os.path.join(KEYS, ".refresh")
+            with open(tmp, "w") as f:
+                f.write((self.who() or "?") + "\n")
+            os.replace(tmp, os.path.join(KEYS, "refresh"))
+            return self.reply(202, {"queued": "ssh-keys"})
         m = re.fullmatch(r"/ops/run/([a-z0-9-]+)", self.path)
         if not m or m[1] not in JOBS:
             return self.reply(404, {"error": "unknown job"})
-        if self.headers.get("X-Homelab-Ops") != "1" or self.headers.get("Origin") not in ORIGINS:
-            return self.reply(403, {"error": "not from the home page"})
-        if self.headers.get("Sec-Fetch-Site", "same-origin") != "same-origin":
-            return self.reply(403, {"error": "not from the home page"})
+        if not self.from_home():
+            return
         job = m[1]
-        # Set by forward-auth (client-sent copies are stripped in Caddy); only for the restart mail
-        who = self.headers.get("X-Authentik-Username", "")
-        who = who if USERNAME.fullmatch(who) else "?"
+        # only for the restart mail
+        who = self.who() or "?"
         tmp = os.path.join(REQUESTS, "." + job)  # dot files are invisible to the host's glob
         with open(tmp, "w") as f:
             f.write(who + "\n")

@@ -23,6 +23,12 @@ SPDX-FileCopyrightText = "Dashboard Icons contributors"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
+path = "site/apps/ssh-keys.svg"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Arjun Rachith"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
 path = "site/apps/bindery.svg"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 vavallee (Bindery's logo, github.com/vavallee/bindery)"
