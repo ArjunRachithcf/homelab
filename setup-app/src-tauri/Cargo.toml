@@ -22,6 +22,8 @@ dirs = "7"
 # The assistant (Phase 3c): Anthropic's Messages API or a local Ollama, and the API key in the OS keychain
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+# The sudo password and the answers in memory: wiped when dropped
+zeroize = "1"
 
 [profile.release]
 codegen-units = 1

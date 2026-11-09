@@ -2,8 +2,11 @@
 import io
 import json
 import os
+import socket
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -124,6 +127,69 @@ class Sudo(unittest.TestCase):
         self.assertIn("become len=6", texts)
         self.assertNotIn("hunter2", raw)
         self.assertNotIn("s3cret", raw)
+
+
+# Asks once from inside (as sudo's askpass would), then waits until the test's outsider has tried
+PEER_WIZARD = """#!/usr/bin/env bash
+pw=$("$SUDO_ASKPASS" "inside:") && echo "inside len=${{#pw}}"
+for _ in $(seq 1 200); do [ -e '{go}' ] && break; sleep 0.05; done
+"""
+
+
+class AskpassPeer(unittest.TestCase):
+    """Only the running wizard's own processes get an answer: another program of the same user's that finds the
+    socket gets nothing, and the front end is neither asked nor left unaware"""
+
+    def test_outsider_refused(self):
+        got = {}
+        with tempfile.TemporaryDirectory() as d:
+            go = Path(d) / "go"
+            w = Path(d) / "w.sh"
+            w.write_text(PEER_WIZARD.format(go=go))
+            w.chmod(0o755)
+            out = io.StringIO()
+            pr = run.Protocol(out=out, inp=io.StringIO(json.dumps({"answer": "hunter2"}) + "\n"))
+
+            def outsider():  # this test's own process: not in the wizard's session
+                try:
+                    for _ in range(500):
+                        if pr.wizard_sid:
+                            break
+                        time.sleep(0.01)
+                    data = b""
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                        s.settimeout(10)
+                        s.connect(pr.sock_path)
+                        try:
+                            s.sendall(b"outside:\n")
+                            while chunk := s.recv(4096):
+                                data += chunk
+                        except (ConnectionResetError, BrokenPipeError):
+                            pass  # hung up on before its prompt was read: refused
+                    got["data"] = data
+                except Exception as e:  # noqa: BLE001 (shown in the assertion below)
+                    got["error"] = repr(e)
+                finally:
+                    go.touch()
+
+            orig = run.script
+            run.script = lambda name: w
+            t = threading.Thread(target=outsider)
+            t.start()
+            try:
+                code = pr.run("fake", [])
+            finally:
+                run.script = orig
+                t.join(10)
+                pr.close()
+        raw = out.getvalue()
+        msgs = [json.loads(line) for line in raw.split("\n") if line]
+        self.assertEqual(code, 0, raw)
+        self.assertEqual(got.get("data"), b"", got)
+        self.assertEqual([m["prompt"] for m in msgs if m["t"] == "sudo"], ["inside:"])
+        self.assertIn("inside len=7", [m.get("text") for m in msgs if m["t"] == "output"])
+        self.assertTrue(any(m["t"] == "say" and m.get("style") == "warn" and "refused" in m["text"] for m in msgs), raw)
+        self.assertNotIn("hunter2", raw)
 
 
 class Arguments(unittest.TestCase):

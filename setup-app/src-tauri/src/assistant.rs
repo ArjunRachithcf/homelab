@@ -41,7 +41,7 @@ impl Mcp {
   }
 
   async fn send(&self, msg: Value) -> R<()> {
-    self.input.send(Input::Data((msg.to_string() + "\n").into_bytes())).await.map_err(|_| "the MCP server ended".to_string())
+    self.input.send(Input::Data((msg.to_string() + "\n").into_bytes().into())).await.map_err(|_| "the MCP server ended".to_string())
   }
 
   /// One request at a time: the answer is the next line with its id (a stage can take minutes)

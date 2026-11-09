@@ -174,7 +174,8 @@ two differ, `INSTANCE.md` wins.
   `lib/wizard-checks.sh` (the checks several wizards share: NetBird zones, the public path, `code`, `gen`, …);
   `lib/setup/run.py` is `./homelab setup [WIZARD…] [--check] [--protocol]` (the protocol: JSON lines, secrets only inward).
   Under `--protocol`, `lib/setup/bin/{sudo,ansible-playbook}` (first on PATH) ask for the sudo password through
-  `lib/setup/askpass.py` → run.py's private socket → the front end (`{"t":"sudo"}`).
+  `lib/setup/askpass.py` → run.py's private socket (it answers only the running wizard's own session) → the front
+  end (`{"t":"sudo"}`).
 - `setup-app/` (Tauri 2, `README.md`): the guided setup app, local or over SSH (`russh`), driving the commands above
   (`--json`, `--set-secret`, `--protocol`); embeds `setup/bootstrap.sh` (fresh machine → checkout of a tag at its
   commit). `.github/workflows/setup-app.yml` checks it and builds Linux/macOS/Windows for tags (unsigned).

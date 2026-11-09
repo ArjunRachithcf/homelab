@@ -7,7 +7,8 @@
 //
 // Secrets: answers to `secret` steps go to the wizard's stdin (lib/setup/run.py); the sudo password,
 // once given, stays in this process and answers the protocol's `sudo` messages (askpass) and the
-// bootstrap's `sudo -S`; it is never sent back to the window, logged or written anywhere.
+// bootstrap's `sudo -S`; it is never sent back to the window, logged or written anywhere. Both live only
+// in buffers that are wiped when dropped (zeroize: the saved password, each answer line on its way out).
 //
 // The assistant (assistant.rs, optional): a model with the MCP server's tools (lib/setup/mcp.py, run on
 // the machine like everything else). Tools that change something wait for the person's yes here; the
@@ -27,6 +28,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{mpsc, oneshot};
+use zeroize::Zeroizing;
 use transport::{Conn, Cwd, Input};
 
 /// The repository the bootstrap clones, and the commit its release tag must be (build.rs)
@@ -40,7 +42,7 @@ const WIZARDS: &[&str] = &["wizard", "public", "hardening", "immich", "apps", "m
 struct App {
   conn: Mutex<Option<Arc<Conn>>>,
   running: Mutex<Option<mpsc::Sender<Input>>>,
-  sudo: Arc<Mutex<Option<String>>>,
+  sudo: Arc<Mutex<Option<Zeroizing<String>>>>,
   ai: tokio::sync::Mutex<Ai>,
   pending: Mutex<HashMap<String, oneshot::Sender<bool>>>,
 }
@@ -174,7 +176,7 @@ async fn disconnect(state: State<'_, App>) -> R<()> {
 /// Keep the sudo password for this session (the window forgets it right after)
 #[tauri::command]
 fn set_sudo(state: State<'_, App>, password: String) {
-  *state.sudo.lock().expect("lock") = Some(password).filter(|p| !p.is_empty());
+  *state.sudo.lock().expect("lock") = Some(Zeroizing::new(password)).filter(|p| !p.is_empty());
 }
 
 const PROBE: &str = r#"d=$1; case $d in "~/"*) d="$HOME/${d#\~/}" ;; "~") d=$HOME ;; esac
@@ -277,7 +279,7 @@ struct Line {
 
 /// Forward a stream's lines to the window as events; protocol `sudo` messages are answered here
 /// when the password is known (once: a second ask in a row means it was wrong, so the window asks)
-fn forward(app: AppHandle, kind: &'static str, mut s: transport::Stream, sudo: Arc<Mutex<Option<String>>>) {
+fn forward(app: AppHandle, kind: &'static str, mut s: transport::Stream, sudo: Arc<Mutex<Option<Zeroizing<String>>>>) {
   let input = s.input.clone();
   tauri::async_runtime::spawn(async move {
     let mut answered_last = false;
@@ -289,8 +291,7 @@ fn forward(app: AppHandle, kind: &'static str, mut s: transport::Stream, sudo: A
           match pw {
             Some(pw) if !answered_last => {
               answered_last = true;
-              let msg = json!({ "answer": pw }).to_string() + "\n";
-              let _ = input.send(Input::Data(msg.into_bytes())).await;
+              let _ = input.send(Input::Data(answer_line(&pw))).await;
               let _ = app.emit("stream-line", Line { kind, line: json!({"t": "note", "text": "sudo: answered with the saved password"}).to_string() });
               continue;
             }
@@ -351,7 +352,7 @@ async fn bootstrap(app: AppHandle, state: State<'_, App>) -> R<()> {
   }
   let s = c.stream(Cwd::Home, &argv(&words)).await?;
   if let Some(pw) = pw {
-    let _ = s.input.send(Input::Data(format!("{pw}\n").into_bytes())).await;
+    let _ = s.input.send(Input::Data(secret_line(&pw))).await;
   }
   start(&app, &state, "bootstrap", s)
 }
@@ -386,9 +387,29 @@ async fn start_setup(app: AppHandle, state: State<'_, App>, wizards: Vec<String>
 /// The answer to the protocol's current question (lib/setup/run.py reads {"answer": …} lines)
 #[tauri::command]
 async fn answer(state: State<'_, App>, text: String) -> R<()> {
+  let text = Zeroizing::new(text); // a secret step's value or the sudo password
   let tx = state.running.lock().expect("lock").clone().ok_or("nothing is running")?;
-  let msg = json!({ "answer": text }).to_string() + "\n";
-  tx.send(Input::Data(msg.into_bytes())).await.map_err(|_| "it already ended".to_string())
+  tx.send(Input::Data(answer_line(&text))).await.map_err(|_| "it already ended".to_string())
+}
+
+/// `{"answer": …}` and a newline, as lib/setup/run.py reads them, in a buffer wiped when dropped. It has room for
+/// the worst case (every byte escaped as \u00XX) from the start: a buffer that grew would leave a copy behind.
+fn answer_line(text: &str) -> Zeroizing<Vec<u8>> {
+  let mut buf = Zeroizing::new(Vec::with_capacity(text.len() * 6 + 16));
+  let room = buf.capacity();
+  buf.extend_from_slice(b"{\"answer\":");
+  serde_json::to_writer(&mut *buf, text).expect("a string always serializes");
+  buf.extend_from_slice(b"}\n");
+  debug_assert_eq!(buf.capacity(), room);
+  buf
+}
+
+/// A secret and a newline (the bootstrap's `--sudo-stdin`), in a buffer of exactly its size, wiped when dropped
+fn secret_line(secret: &str) -> Zeroizing<Vec<u8>> {
+  let mut buf = Zeroizing::new(Vec::with_capacity(secret.len() + 1));
+  buf.extend_from_slice(secret.as_bytes());
+  buf.push(b'\n');
+  buf
 }
 
 #[tauri::command]
@@ -567,4 +588,29 @@ fn main() {
     ])
     .run(tauri::generate_context!())
     .expect("the setup app failed to start");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn answer_line_is_one_json_line() {
+    for t in ["", "hunter2", "pässwörd ✓", "q\"uo\\te\n\t\u{1}\u{7f}"] {
+      let l = answer_line(t);
+      assert_eq!(l.iter().filter(|&&b| b == b'\n').count(), 1);
+      assert_eq!(l.last(), Some(&b'\n'));
+      let v: Value = serde_json::from_slice(&l[..l.len() - 1]).unwrap();
+      assert_eq!(v, json!({ "answer": t }));
+    }
+    // The worst case still fits the room it starts with (answer_line's debug_assert)
+    answer_line(&"\u{1}".repeat(100));
+  }
+
+  #[test]
+  fn secret_line_is_the_secret_and_a_newline() {
+    let l = secret_line("pw ✓");
+    assert_eq!(&l[..], "pw ✓\n".as_bytes());
+    assert_eq!(l.capacity(), l.len());
+  }
 }

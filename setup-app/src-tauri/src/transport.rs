@@ -13,6 +13,7 @@ use tokio::{
   process::Command,
   sync::{mpsc, oneshot},
 };
+use zeroize::Zeroizing;
 
 pub struct Output {
   pub code: i32,
@@ -32,9 +33,10 @@ pub enum Conn {
   Ssh { handle: client::Handle<Client>, dir: String, label: String },
 }
 
-/// What a running stream accepts
+/// What a running stream accepts. Data can be an answer with a secret or the sudo password in it: wiped once
+/// written
 pub enum Input {
-  Data(Vec<u8>),
+  Data(Zeroizing<Vec<u8>>),
   Kill,
 }
 
@@ -380,9 +382,9 @@ mod tests {
     assert_eq!((o.code, o.stderr.as_str()), (3, "oops\n"));
 
     let mut s = c.stream(Cwd::Repo, &words(&["sh", "-c", "read a; echo \"got $a\"; read b; echo \"got $b\""])).await.unwrap();
-    s.input.send(Input::Data(b"one\n".to_vec())).await.unwrap();
+    s.input.send(Input::Data(b"one\n".to_vec().into())).await.unwrap();
     assert_eq!(s.lines.recv().await.unwrap(), "got one");
-    s.input.send(Input::Data(b"two\n".to_vec())).await.unwrap();
+    s.input.send(Input::Data(b"two\n".to_vec().into())).await.unwrap();
     assert_eq!(s.lines.recv().await.unwrap(), "got two");
     assert_eq!(s.done.await.unwrap(), 0);
 
@@ -413,7 +415,7 @@ mod tests {
     let o = c.run(Cwd::Repo, &words(&["sh", "-c", "pwd; exit 4"]), None).await.unwrap();
     assert_eq!((o.code, o.stdout.as_str()), (4, "/\n"));
     let mut s = c.stream(Cwd::Home, &words(&["sh", "-c", "read a; echo \"got $a\"; echo err >&2"])).await.unwrap();
-    s.input.send(Input::Data(b"one\n".to_vec())).await.unwrap();
+    s.input.send(Input::Data(b"one\n".to_vec().into())).await.unwrap();
     let mut got = vec![s.lines.recv().await.unwrap(), s.lines.recv().await.unwrap()];
     got.sort();
     assert_eq!(got, ["err", "got one"]);
