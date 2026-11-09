@@ -88,9 +88,10 @@ chmod 600 "$work/test.env"
 mkdir -p "$work/recyclarr"
 python3 - "$work/test.env" "$work/recyclarr/recyclarr.yml" <<'PY'
 import sys
+from pathlib import Path
 sys.path.insert(0, "lib")
 import configure, render
-env = render.read_env(sys.argv[1])
+env = render.read_env(Path(sys.argv[1]))
 src = configure.ROOT / "recyclarr/recyclarr.src.yml"
 open(sys.argv[2], "w").write(render.render(src.read_text(), render.values(env) | configure.recyclarr(env), src.name))
 PY
