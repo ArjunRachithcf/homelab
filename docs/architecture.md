@@ -82,7 +82,8 @@ flowchart TB
 The wizards are bash (`*-wizard.sh`, one library `lib/wizard.sh`) and speak two ways: to a terminal, or as
 JSON lines (`./homelab setup --protocol`) for the setup app (`setup-app/`, Tauri, local or over SSH) and the
 MCP server (`lib/setup/mcp.py`) that assistants use. Secrets only travel inward: a front end may send one, no
-message ever carries one back. Under `--protocol`, `sudo` asks through the front end (`lib/setup/askpass.py`).
+message ever carries one back. Under `--protocol`, `sudo` asks through the front end (`lib/setup/askpass.py`),
+and only the running wizard's own processes get an answer.
 
 ## Proving nothing changed
 

@@ -136,7 +136,7 @@
   }
 
   $("do-bootstrap").addEventListener("click", function () {
-    var pw = $("sudo-pw").value;
+    var pw = $("sudo-pw").value; $("sudo-pw").value = "";  // the app keeps it (set_sudo), the page doesn't
     var b = $("do-bootstrap"); b.disabled = true;
     var log = $("boot-log"); log.hidden = false; log.textContent = "";
     (state.root || !pw ? Promise.resolve() : invoke("set_sudo", { password: pw })).then(function () {
@@ -538,7 +538,7 @@
         a = askBox(m.prompt); i = field("password", "", m.current_set ? "Empty keeps the saved one" : "");
         a.appendChild(i);
         a.appendChild(el("small", "hint", "Goes straight into the settings on that machine; never shown again."));
-        a.appendChild(btn("OK", "primary", function () { reply(i.value, (m.key || "secret") + " = ••••"); }));
+        a.appendChild(btn("OK", "primary", function () { var v = i.value; i.value = ""; reply(v, (m.key || "secret") + " = ••••"); }));
         i.focus(); break;
       case "lines": {
         a = askBox(m.prompt); var ta = el("textarea"); a.appendChild(ta);
@@ -573,7 +573,7 @@
         keep.style.flexDirection = "row"; keep.append(cb, document.createTextNode(" Remember until the app closes"));
         a.appendChild(keep);
         a.appendChild(btn("OK", "primary", function () {
-          var pw = i.value;
+          var pw = i.value; i.value = "";
           (cb.checked ? invoke("set_sudo", { password: pw }) : Promise.resolve()).then(function () { reply(pw, "sudo password given"); });
         }));
         i.focus(); break;

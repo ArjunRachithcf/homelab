@@ -22,8 +22,10 @@ Protocol (one JSON object per line):
 A secret answer goes into the wizard's stdin and nowhere else: no message ever carries it.
 sudo: the wizards' `sudo …` and `ansible-playbook -K` have no terminal here, so lib/setup/bin/ (first on
 PATH) runs them with lib/setup/askpass.py, which asks through a private Unix socket; this sends
-{"t":"sudo","wizard","prompt"} and passes the answer back to sudo alone. A front end may keep the
-password in memory for the session and answer by itself (the setup app does).
+{"t":"sudo","wizard","prompt"} and passes the answer back to sudo alone. Only the running wizard's own
+processes get one: each wizard runs in a session of its own (sudo's askpass and Ansible's become are in it), and
+a request from any other process is refused with a warning. A front end may keep the password in memory for
+the session and answer by itself (the setup app does).
 """
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ import json
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -85,12 +88,25 @@ def tty(names: list[str], extra: list[str], sel=None) -> int:
     return 1 if failed else 0
 
 
+def peer_pid(conn: socket.socket) -> int | None:
+    """The process at the other end of a Unix socket: SO_PEERCRED (Linux), LOCAL_PEERPID (macOS)"""
+    try:
+        if hasattr(socket, "SO_PEERCRED"):
+            return struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))[0]
+        if sys.platform == "darwin":
+            return struct.unpack("i", conn.getsockopt(0, 2, 4))[0]  # SOL_LOCAL, LOCAL_PEERPID
+    except OSError:
+        pass
+    return None
+
+
 class Protocol:
     def __init__(self, out=sys.stdout, inp=sys.stdin):
         self.out, self.inp, self.lock = out, inp, threading.Lock()
         # One question to the front end at a time (a wizard's own, or sudo's through askpass)
         self.ask_lock = threading.Lock()
         self.wizard = ""
+        self.wizard_sid: int | None = None  # the running wizard's session, the only one askpass answers
         self.dir = tempfile.mkdtemp(prefix="homelab-setup-")  # 0700
         self.sock_path = os.path.join(self.dir, "askpass")
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -109,6 +125,10 @@ class Protocol:
             except OSError:
                 return
             with conn:
+                if not self._from_wizard(conn):
+                    self.send({"t": "say", "style": "warn", "wizard": self.wizard,
+                               "text": "sudo: a password request from outside this step was refused"})
+                    continue
                 prompt = conn.recv(256).decode("utf-8", "replace").strip() or "sudo password"
                 with self.ask_lock:
                     self.send({"t": "sudo", "wizard": self.wizard, "prompt": prompt})
@@ -118,6 +138,17 @@ class Protocol:
                         conn.sendall(a.replace("\n", "").encode() + b"\n")
                     except OSError:
                         pass
+
+    def _from_wizard(self, conn: socket.socket) -> bool:
+        """The asking process is in the running wizard's session: anything else of this user's that found the
+        socket (it's theirs to open) gets nothing"""
+        sid, pid = self.wizard_sid, peer_pid(conn)
+        if sid is None or pid is None:
+            return False
+        try:
+            return os.getsid(pid) == sid
+        except OSError:  # gone already
+            return False
 
     def send(self, msg: dict) -> None:
         with self.lock:
@@ -140,8 +171,11 @@ class Protocol:
         env.update(PATH=f"{ROOT / 'lib/setup/bin'}:{env.get('PATH', '')}", HOMELAB_ASKPASS_SOCK=self.sock_path,
                    SUDO_ASKPASS=str(ROOT / "lib/setup/askpass.py"))
         self.wizard = name
+        # A session of its own, so askpass can tell its processes from everything else (and none reaches the
+        # terminal of whoever started this: a protocol wizard talks only through the protocol)
         p = subprocess.Popen([str(script(name)), *extra], cwd=ROOT, env=env, stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+        self.wizard_sid = p.pid
         self.send({"t": "start", "wizard": name})
         assert p.stdout and p.stdin
         for raw in iter(p.stdout.readline, b""):
@@ -177,6 +211,7 @@ class Protocol:
                     p.kill()
                     break
         code = p.wait()
+        self.wizard_sid = None
         for f in (p.stdin, p.stdout):
             try:
                 f.close()

@@ -73,7 +73,10 @@ step that destroys data: those steps stop and name the command you run yourself.
   secret ever shows.
 - sudo without a terminal: under `--protocol`, `lib/setup/bin/sudo` and `lib/setup/bin/ansible-playbook`
   come first on PATH and ask through `lib/setup/askpass.py`, which reaches `run.py` over a private Unix
-  socket; `run.py` sends `{"t":"sudo"}` and passes the answer back to sudo alone.
+  socket; `run.py` sends `{"t":"sudo"}` and passes the answer back to sudo alone, and only to a process in
+  the running wizard's own session (each wizard gets one): any other program that finds the socket is refused,
+  and the window says so. The app keeps a remembered password, and each answer on its way out, in buffers that
+  are wiped when dropped (`zeroize`); the window clears its password fields once read.
 
 ## Building
 

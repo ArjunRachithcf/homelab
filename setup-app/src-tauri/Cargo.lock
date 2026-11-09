@@ -2027,6 +2027,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tokio",
+ "zeroize",
 ]
 
 [[package]]

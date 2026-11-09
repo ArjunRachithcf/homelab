@@ -4,7 +4,8 @@
 Only under `./homelab setup --protocol`: run.py listens on the Unix socket HOMELAB_ASKPASS_SOCK (in a
 private 0700 directory), asks the front end ({"t":"sudo","prompt":…}) and sends back its answer, which
 this prints for sudo (SUDO_ASKPASS) or Ansible (--become-password-file, run as a script). The password
-goes from the front end to run.py to here to sudo; nothing writes or logs it.
+goes from the front end to run.py to here to sudo; nothing writes or logs it. run.py answers only processes in
+the running wizard's session (sudo's askpass and Ansible's become are), never another program of this user's.
 """
 import os
 import socket
