@@ -97,6 +97,14 @@ class Engine(unittest.TestCase):
             self.assertIn("NOPE: not an option", r.stdout)
             self.assertEqual(env.read_text(), "")  # nothing written
 
+    def test_sizes(self):
+        opt = {"type": "sizes"}
+        for good in ("", "10/40/70", "7.5/20/35", "20/20/20"):
+            self.assertIsNone(engine.check_value(opt, good), good)
+        self.assertIn("each at least the one before", engine.check_value(opt, "40/10/70") or "")
+        for bad in ("10/40", "big", "10 /40/70", "-1/2/3"):
+            self.assertEqual(engine.check_value(opt, bad), "not a valid sizes", bad)
+
     def test_plan_changes_nothing(self):
         with tempfile.TemporaryDirectory() as d:
             env = Path(d) / ".env"

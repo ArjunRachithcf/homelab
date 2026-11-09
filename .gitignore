@@ -41,6 +41,7 @@ authentik/mail-logo.png
 /family-app/src-tauri/tauri.conf.json
 /family-app/ui/index.html
 /caddy/enabled/
+/recyclarr/configs/
 
 # Python bytecode (lib/, ansible/lookup_plugins/)
 __pycache__/

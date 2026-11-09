@@ -348,7 +348,10 @@ stage_quality() {
   ((MOVIES_TV)) || return 0
   stage "Qualities and sizes from TRaSH Guides (Recyclarr)" || return 0
   say "Recyclarr gives Radarr the profile ${BOLD}HD Bluray + WEB${RESET} and Sonarr ${BOLD}WEB-1080p${RESET} (1080p, sensible sizes), and"
-  say "syncs them again every week."
+  say "syncs them again every week. Your own sizes and x265: MOVIE_SIZE_MB_PER_MIN, EPISODE_SIZE_MB_PER_MIN and"
+  say "DOWNLOADS_PREFER_X265 in .env, then ./homelab configure and this step again."
+  # Its config folder as configure last wrote it (an older container had the single-file mount)
+  docker compose up -d recyclarr >/dev/null || FAILED+=("start recyclarr")
   docker compose exec -T recyclarr recyclarr sync || FAILED+=("recyclarr sync")
   retry_check "the two profiles are there" profiles_ok || true
   pause

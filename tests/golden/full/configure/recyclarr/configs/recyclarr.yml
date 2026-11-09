@@ -1,20 +1,24 @@
 # yaml-language-server: $schema=https://schemas.recyclarr.dev/v8/config-schema.json
-# recyclarr/recyclarr.yml (component movies-tv): TRaSH Guides' quality sizes, custom formats and one profile each,
+# recyclarr/recyclarr.src.yml (component movies-tv): TRaSH Guides' quality sizes, custom formats and one profile each,
 # synced into Radarr and Sonarr (recyclarr container, weekly; the wizard's quality step once). Recyclarr 8: profiles
 # follow the guide by trash_id. Upgrades within a profile stay on (a requested film may be replaced by a better copy);
-# propers and repacks don't trigger new downloads by themselves.
+# propers and repacks don't trigger new downloads by themselves. ./homelab configure renders it into
+# recyclarr/configs/recyclarr.yml, mounted as a folder (configure replaces the file, a single-file mount would keep
+# the old one): the sizes from MOVIE_SIZE_MB_PER_MIN and EPISODE_SIZE_MB_PER_MIN, x265 from DOWNLOADS_PREFER_X265.
 radarr:
   radarr:
     base_url: http://radarr:7878
     api_key: !env_var RADARR_API_KEY
     quality_definition:
       type: movie
+      # sizes: TRaSH Guides' (MOVIE_SIZE_MB_PER_MIN empty)
     media_management:
       propers_and_repacks: do_not_prefer
     quality_profiles:
       - trash_id: d1d67249d3890e49bc12e275d989a7e9   # HD Bluray + WEB (1080p)
         reset_unmatched_scores:
           enabled: true
+    # x265: as TRaSH Guides score it (DOWNLOADS_PREFER_X265 off)
 
 sonarr:
   sonarr:
@@ -22,9 +26,11 @@ sonarr:
     api_key: !env_var SONARR_API_KEY
     quality_definition:
       type: series
+      # sizes: TRaSH Guides' (EPISODE_SIZE_MB_PER_MIN empty)
     media_management:
       propers_and_repacks: do_not_prefer
     quality_profiles:
       - trash_id: 72dae194fc92bf828f32cde7744e51a1   # WEB-1080p
         reset_unmatched_scores:
           enabled: true
+    # x265: as TRaSH Guides score it (DOWNLOADS_PREFER_X265 off)

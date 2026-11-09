@@ -2489,8 +2489,8 @@
             "selinux": "Z"
           },
           "read_only": true,
-          "source": "$REPO/recyclarr/recyclarr.yml",
-          "target": "/config/recyclarr.yml",
+          "source": "$REPO/recyclarr/configs",
+          "target": "/config/configs",
           "type": "bind"
         }
       ]

@@ -10,7 +10,8 @@
 #     login, a neighbour (forged headers or not), the host and gluetun's loopback get the login or a refusal;
 #   - downloads/run.sh apply against the real APIs, twice; status; Prowlarr's s6 readiness;
 #   - a gluetun restart: qBittorrent, Prowlarr and Byparr in a dead namespace, downloads/guard.sh brings them back;
-#   - Recyclarr's profiles; Lidarr's library scan leaves the files as they were; Bazarr's seeded login;
+#   - Recyclarr's profiles, with the sizes and the x265 bonus from .env (its config as ./homelab configure renders
+#     it); Lidarr's library scan leaves the files as they were; Bazarr's seeded login;
 #   - Bindery's first run shut by its Authentik provider; Seerr's first admin from Jellyfin (set up over its startup
 #     API with an adult and a kid), their permissions, a kid's request waiting and an adult's in Radarr, the claim
 #     refused afterwards; no generated secret in any container's log.
@@ -73,14 +74,32 @@ for k in GLUETUN_CONTROL_KEY QBITTORRENT_PASSWORD PROWLARR_API_KEY PROWLARR_PASS
   printf -v "$k" '%s' "$(rnd)"
 done
 JF_ADMIN_PW=$(rnd)
-mine=(HOST_UID HOST_GID MEDIA_DIR AUDIOBOOKS_DIR ADMIN_USER JELLYFIN_ADMIN_USER DOWNLOADS_NET REQUESTS_NET "${secrets[@]}")
+mine=(HOST_UID HOST_GID MEDIA_DIR AUDIOBOOKS_DIR ADMIN_USER JELLYFIN_ADMIN_USER DOWNLOADS_NET REQUESTS_NET
+      MOVIE_SIZE_MB_PER_MIN EPISODE_SIZE_MB_PER_MIN DOWNLOADS_PREFER_X265 "${secrets[@]}")
 {
   grep -vE "^($(IFS='|'; echo "${mine[*]}"))=" tests/fixtures/full.env
   echo "HOST_UID=$(id -u)"; echo "HOST_GID=$(id -g)"; echo "MEDIA_DIR=$work/media"; echo "AUDIOBOOKS_DIR=$work/media/audiobooks"
   echo "DOWNLOADS_NET=$DN"; echo "REQUESTS_NET=$RN"
+  echo "MOVIE_SIZE_MB_PER_MIN=10/40/70"; echo "EPISODE_SIZE_MB_PER_MIN=7/20/35"; echo "DOWNLOADS_PREFER_X265=true"
   for k in ADMIN_USER JELLYFIN_ADMIN_USER "${secrets[@]}"; do echo "$k=${!k}"; done
 } > "$work/test.env"
 chmod 600 "$work/test.env"
+# Recyclarr's config as ./homelab configure renders it, from this .env: never the checkout's own recyclarr/configs/
+mkdir -p "$work/recyclarr"
+python3 - "$work/test.env" "$work/recyclarr/recyclarr.yml" <<'PY'
+import sys
+sys.path.insert(0, "lib")
+import configure, render
+env = render.read_env(sys.argv[1])
+src = configure.ROOT / "recyclarr/recyclarr.src.yml"
+open(sys.argv[2], "w").write(render.render(src.read_text(), render.values(env) | configure.recyclarr(env), src.name))
+PY
+cat >> "$work/override.yml" <<EOF
+  recyclarr:
+    volumes: !override
+      - {type: volume, source: recyclarr-config, target: /config, volume: {nocopy: true}}
+      - $work/recyclarr:/config/configs:ro,z
+EOF
 APPS=(qbittorrent prowlarr byparr radarr sonarr recyclarr lidarr bazarr)
 [[ $(docker compose config --format json | python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])') == homelab-dltest ]] \
   || { echo "✗ not project homelab-dltest" >&2; exit 1; }
@@ -371,6 +390,19 @@ st=$(bash downloads/run.sh status)
 expect "TRaSH Guides' profiles in Radarr and Sonarr" python3 -c '
 import json, sys; d = json.loads(sys.argv[1])
 sys.exit(not ("HD Bluray + WEB" in d["radarr"]["profiles"] and "WEB-1080p" in d["sonarr"]["profiles"]))' "$st"
+out=$(docker run --rm --network homelab-dltest_requests -e RADARR_API_KEY -e SONARR_API_KEY --cap-drop ALL "$PY_IMAGE" python3 -c '
+import json, os, urllib.request as u
+def get(base, key, path):
+    return json.load(u.urlopen(u.Request(base + "/api/v3" + path, headers={"X-Api-Key": os.environ[key]}), timeout=60))
+for name, base, key, profile in (("radarr", "http://radarr:7878", "RADARR_API_KEY", "HD Bluray + WEB"),
+                                 ("sonarr", "http://sonarr:8989", "SONARR_API_KEY", "WEB-1080p")):
+    q = {d["quality"]["name"]: d for d in get(base, key, "/qualitydefinition")}["WEBDL-1080p"]
+    p = next(x for x in get(base, key, "/qualityprofile") if x["name"] == profile)
+    x265 = [f["score"] for f in p["formatItems"] if f["name"] == "x265 (HD)"]
+    print(name, "/".join(f"{float(q[k]):g}" for k in ("minSize", "preferredSize", "maxSize")), x265)' 2>&1) || true
+expect "Radarr: films 10/40/70 MB a minute, x265 a bonus" grep -qx "radarr 10/40/70 \[2000\]" <<<"$out"
+expect "Sonarr: episodes 7/20/35 MB a minute, x265 a bonus" grep -qx "sonarr 7/20/35 \[2000\]" <<<"$out"
+grep -qx "radarr 10/40/70 \[2000\]" <<<"$out" && grep -qx "sonarr 7/20/35 \[2000\]" <<<"$out" || echo "$out" | sed 's/^/    /'
 
 echo "== secrets in the logs"
 docker compose logs --no-log-prefix > "$work/logs.txt" 2>&1

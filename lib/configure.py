@@ -13,11 +13,13 @@ What it writes (all gitignored, all derived; safe to run any time):
   family-app/src-tauri/tauri.conf.json      from tauri.conf.src.json (product name, bundle id)
   family-app/ui/index.html                  from family-app/ui-src/ (the welcome screen)
   caddy/enabled/{sites,status,authentik}/   the chosen components' caddy/components/<id>/*.caddy (others removed)
+  recyclarr/configs/recyclarr.yml           from recyclarr/recyclarr.src.yml (sizes and x265 from .env)
 Authentik's blueprints are rendered separately, at apply time (authentik/setup-ssh.sh).
 """
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -33,7 +35,20 @@ RENDER = [
     ("site-src", "site"),
     ("family-app/ui-src", "family-app/ui"),
 ]
-RENDER_FILES = [("family-app/src-tauri/tauri.conf.src.json", "family-app/src-tauri/tauri.conf.json")]
+RENDER_FILES = [("family-app/src-tauri/tauri.conf.src.json", "family-app/src-tauri/tauri.conf.json"),
+                ("recyclarr/recyclarr.src.yml", "recyclarr/configs/recyclarr.yml")]
+
+# Recyclarr, per kind: the sizes' .env key, TRaSH Guides' x265 (HD) format and the profile it's scored in
+RECYCLARR = {
+    "MOVIE": ("MOVIE_SIZE_MB_PER_MIN", "dc98083864ea246d05a42df0d05f81cc", "d1d67249d3890e49bc12e275d989a7e9"),
+    "EPISODE": ("EPISODE_SIZE_MB_PER_MIN", "47435ece6b99a0b477caf360e79ba0bb", "72dae194fc92bf828f32cde7744e51a1"),
+}
+# The 720p and 1080p qualities both guides size (their names in Radarr and Sonarr alike); remuxes keep the guide's
+SIZED = ["HDTV-720p", "WEBDL-720p", "WEBRip-720p", "Bluray-720p",
+         "HDTV-1080p", "WEBDL-1080p", "WEBRip-1080p", "Bluray-1080p"]
+# Above a release group's tier in both profiles (TRaSH's tiers score up to about 1800): x265 wins when one fits
+X265_SCORE = 2000
+SIZES = re.compile(r"^(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)$")
 # Folders configure owns entirely: a file in them that it didn't write this time is removed
 OWNED = ["caddy/enabled"]
 # (file or folder inside BRANDING_DIR, destination): copied as they are
@@ -81,9 +96,39 @@ def tiles(chosen: list[str]) -> str:
     return "\n".join(out)
 
 
+def recyclarr(env: dict[str, str]) -> dict[str, str]:
+    """recyclarr.src.yml's blocks: MIN/PREFERRED/MAX in MB per minute of runtime for SIZED, x265 (HD) scored
+    X265_SCORE instead of the guide's block; without them a comment (the guide's sizes and score)."""
+    v = {}
+    x265 = env.get("DOWNLOADS_PREFER_X265") == "true"
+    for kind, (key, x265_cf, profile) in RECYCLARR.items():
+        sizes = env.get(key, "")
+        m = SIZES.match(sizes)
+        if sizes and not (m and float(m[1]) <= float(m[2]) <= float(m[3])):
+            raise SystemExit(f"configure: {key} must be MIN/PREFERRED/MAX in MB per minute of runtime, each at least the "
+                             f"one before (e.g. 10/40/70), not {sizes!r}")
+        if m:
+            v[f"RECYCLARR_{kind}_SIZES"] = "\n".join(
+                [f"      qualities:   # {key}={sizes}"]
+                + [f"        - {{name: {q}, min: {m[1]}, preferred: {m[2]}, max: {m[3]}}}" for q in SIZED])
+        else:
+            v[f"RECYCLARR_{kind}_SIZES"] = f"      # sizes: TRaSH Guides' ({key} empty)"
+        if x265:
+            v[f"RECYCLARR_{kind}_X265"] = "\n".join([
+                "    custom_formats:   # DOWNLOADS_PREFER_X265: the guide refuses x265 at 1080p (often a re-encode)",
+                f"      - trash_ids: [{x265_cf}]   # x265 (HD)",
+                "        assign_scores_to:",
+                f"          - trash_id: {profile}",
+                f"            score: {X265_SCORE}"])
+        else:
+            v[f"RECYCLARR_{kind}_X265"] = "    # x265: as TRaSH Guides score it (DOWNLOADS_PREFER_X265 off)"
+    return v
+
+
 def outputs(env: dict[str, str]) -> dict[Path, bytes]:
     v = render.values(env)
     v["APP_TILES"] = tiles([c for c in env.get("COMPONENTS", "").split(",") if c])
+    v.update(recyclarr(env))
     slug = v.get("BRAND_SLUG") or ""
     if not slug or not slug.replace("-", "").isalnum() or slug != slug.lower():
         raise SystemExit('configure: BRAND_SLUG must be set in .env: lowercase letters, digits, "-" (e.g. "smith")')
