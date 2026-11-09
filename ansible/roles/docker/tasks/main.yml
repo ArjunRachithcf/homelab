@@ -27,7 +27,31 @@
     mode: "0644"
   notify: Docker config changed
 
-# After the two files above: Debian's package starts Docker right away
+# The second disk's mounts are nofail (a missing disk doesn't stop the boot), and systemd doesn't order nofail mounts
+# before local-fs.target: Docker could start first, and a container would write into the empty mount point on the
+# system disk (OpenCloud into files_dir). So Docker waits for them; a missing disk still lets it start. Wants=/After=
+# on the mount units rather than WantsMountsFor=, which systemd 255 (Ubuntu 24.04) doesn't know.
+- name: Start Docker after the second disk's mounts (component second-disk)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/after-second-disk.conf
+    content: |
+      [Unit]
+      Wants={{ docker_disk_mounts }}
+      After={{ docker_disk_mounts }}
+    mode: "0644"
+  vars:
+    docker_disk_mounts: "{{ lookup('ansible.builtin.pipe', 'systemd-escape --path --suffix=mount ' ~ ([nvme1_dir, photos_dir, files_dir] | map('quote') | join(' '))) }}"
+  notify: Docker config changed
+  when: second_disk_enabled
+
+- name: No second disk, nothing to wait for
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d/after-second-disk.conf
+    state: absent
+  notify: Docker config changed
+  when: not second_disk_enabled
+
+# After the files above: Debian's package starts Docker right away
 - name: Docker's repo and packages, Fedora
   ansible.builtin.import_tasks: RedHat.yml
   when: ansible_os_family == "RedHat"
