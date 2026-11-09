@@ -11,6 +11,7 @@ on:
       - downloads/**
       - downloads-wizard.sh
       - recyclarr/**
+      - lib/configure.py
       - tests/downloads/**
       - tests/fixtures/full.env
       - .github/workflows/downloads.yml

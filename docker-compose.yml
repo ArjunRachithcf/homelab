@@ -1356,7 +1356,8 @@ services:
       - ${MEDIA_DIR:-/srv/media}:/data:z
     networks: [arr, requests]
 
-  # TRaSH Guides' qualities and sizes into Radarr and Sonarr (recyclarr/recyclarr.yml), weekly by its own schedule
+  # TRaSH Guides' qualities and sizes into Radarr and Sonarr (recyclarr/recyclarr.src.yml, rendered by ./homelab
+  # configure), weekly by its own schedule
   recyclarr:
     profiles: [movies-tv]
     <<: *hardening
@@ -1374,7 +1375,9 @@ services:
     volumes:
       # its copy of the guides
       - {type: volume, source: recyclarr-config, target: /config, volume: {nocopy: true}}
-      - ./recyclarr/recyclarr.yml:/config/recyclarr.yml:ro,Z
+      # its config, rendered by ./homelab configure: a folder, so the container sees each new copy (Recyclarr reads
+      # every file in configs/)
+      - ./recyclarr/configs:/config/configs:ro,Z
     networks: [arr]
 
   # Byparr (component byparr): search sites behind Cloudflare's checks, for Prowlarr (its FlareSolverr proxy, only

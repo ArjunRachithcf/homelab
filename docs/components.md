@@ -580,6 +580,9 @@ Ask for a film or a series and it arrives in Movies or TV Shows (through Downloa
 |---|---|---|
 | `RADARR_TAG` | default `6.4.4.10685-ls325` | Radarr version (LinuxServer's image) |
 | `SONARR_TAG` | default `4.0.20.3014-ls3` | Sonarr version (LinuxServer's image) |
+| `MOVIE_SIZE_MB_PER_MIN` | default `` | Films' sizes as MIN/PREFERRED/MAX in MB per minute of runtime, for the 720p and 1080p qualities (10/40/70: a 2-hour film 1.2/4.8/8.4 GB); empty: TRaSH Guides' sizes |
+| `EPISODE_SIZE_MB_PER_MIN` | default `` | Episodes' sizes the same way (7/20/35: a 45-minute episode 0.3/0.9/1.6 GB); empty: TRaSH Guides' sizes |
+| `DOWNLOADS_PREFER_X265` | default `false` | Prefer x265 (HEVC) at 1080p: smaller files, but often re-encodes, which TRaSH Guides' profiles refuse otherwise |
 | `RECYCLARR_TAG` | default `8.8.1` | Recyclarr version |
 | `RADARR_API_KEY` | secret, generated | Radarr's API key |
 | `SONARR_API_KEY` | secret, generated | Sonarr's API key |

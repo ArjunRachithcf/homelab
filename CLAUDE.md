@@ -156,7 +156,8 @@ two differ, `INSTANCE.md` wins.
   apps with Caddy (not #8's `downloads`: compose couldn't re-range that one under its apps), `requests` = Seerr, Radarr,
   Sonarr, Caddy; no IPv6. Caddy lets anyone reach Seerr only once `site/status/requests-ready` exists (the wizard's
   requests step, after its admin proved ours), and never passes its API key. `authentik/{downloads,movies-tv,albums,subtitles,
-  book-requests}.yaml`, `recyclarr/recyclarr.yml` (TRaSH Guides' profiles). Tests: `tests/unit/test_downloads.py`,
+  book-requests}.yaml`, `recyclarr/recyclarr.src.yml` (TRaSH Guides' profiles; `./homelab configure` renders it into
+  `recyclarr/configs/` with `.env`'s sizes and x265 choice, a folder mount). Tests: `tests/unit/test_downloads.py`,
   `tests/downloads/run.sh` (the real images in project homelab-dltest, never `homelab`, on other ranges).
 - `memos/`: Memos' settings (JSON, read at start), `sso-admin.patch` + `build.sh` (our image), `README.md`.
 - `ntfy/setup.sh` (`token NAME TOPIC KEY`: an app's write-only token, `n8n-token`, `user NAME [TOPIC]`, `status`): ntfy's

@@ -53,6 +53,9 @@ TYPES = {
     "path": re.compile(r"^[^\s'\"]+$"),
     # the first three numbers of a /24 (DOWNLOADS_NET, REQUESTS_NET); which ranges: check_value
     "net24": re.compile(r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){2}$"),
+    # MIN/PREFERRED/MAX in MB per minute of runtime (Recyclarr's sizes, lib/configure.py), rising: check_value; empty:
+    # TRaSH Guides' sizes
+    "sizes": re.compile(r"^(\d+(\.\d+)?/\d+(\.\d+)?/\d+(\.\d+)?)?$"),
 }
 # Where a net24 may lie: documentation and benchmarking ranges. Never a private one (Radarr, Sonarr, Lidarr and Prowlarr
 # skip their own login for those, docker-compose.yml), never a real one (this PC could no longer reach it).
@@ -222,6 +225,10 @@ def check_value(opt: dict, value: str) -> str | None:
         return f"not a valid {t}"
     if t == "net24" and not any(ipaddress.ip_network(f"{value}.0/24").subnet_of(r) for r in NET24_RANGES):
         return "not in a documentation or benchmarking range (192.0.2, 198.51.100, 203.0.113, 198.18–198.19)"
+    if t == "sizes" and value:
+        low, preferred, high = (float(x) for x in value.split("/"))
+        if not low <= preferred <= high:
+            return "MIN/PREFERRED/MAX, each at least the one before"
     return None
 
 
