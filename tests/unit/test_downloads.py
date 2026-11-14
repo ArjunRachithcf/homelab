@@ -248,7 +248,8 @@ class Apps:
                               "autoUnmonitorPreviouslyDownloadedMovies": False,
                               "autoUnmonitorPreviouslyDownloadedEpisodes": False,
                               "autoUnmonitorPreviouslyDownloadedTracks": False},
-                       "series": [], "movies": [], "collections": [], "artists": [], "tags": [], "proxies": []}
+                       "series": [], "movies": [], "collections": [], "artists": [], "tags": [], "proxies": [],
+                       "queue": [], "removed": []}
         self.arr = {"radarr": arr(), "sonarr": arr(), "prowlarr": arr(), "lidarr": arr()}
         self.arr["prowlarr"]["apps"] = []
         # what Recyclarr made (its profiles, TRaSH Guides')
@@ -357,6 +358,13 @@ class Apps:
                 "/indexer": "indexers", "/qualityprofile": "profiles", "/series": "series", "/movie": "movies",
                 "/collection": "collections", "/artist": "artists", "/tag": "tags", "/indexerproxy": "proxies",
                 "/metadataprofile": "metadataprofiles"}
+        if path == "/queue" and method == "GET":
+            return 200, {"page": 1, "totalRecords": len(a["queue"]), "records": a["queue"]}
+        if path.startswith("/queue/") and method == "DELETE":
+            i = int(path.rsplit("/", 1)[1])
+            a["queue"] = [r for r in a["queue"] if r["id"] != i]
+            a["removed"].append((i, query))
+            return 200, {}
         if method == "GET":
             if path == "/config/host":
                 return 200, dict(a["host"], password="")
@@ -594,6 +602,9 @@ def serve(apps: Apps) -> http.server.ThreadingHTTPServer:
 
         def do_PUT(self):
             self.reply("PUT")
+
+        def do_DELETE(self):
+            self.reply("DELETE")
 
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -907,6 +918,57 @@ class Setup(unittest.TestCase):
         self.assertEqual(q["torrents"][0]["state"], "stoppedDL")
         self.assertEqual(run_setup(["guard", "21"], self.base).returncode, 0)
         self.assertEqual([(t["state"], t["tags"]) for t in q["torrents"]], [("downloading", ""), ("stoppedUP", "")])
+
+    def test_qbittorrent_never_downloads_programs(self):
+        self.everything_set_up()
+        prefs = self.apps.qbt["prefs"]
+        self.assertIs(prefs["excluded_file_names_enabled"], True)
+        names = prefs["excluded_file_names"].split("\n")
+        for p in ("*.exe", "*.scr", "*.lnk", "*.bat", "*.msi", "*.vbs", "*.ps1"):
+            self.assertIn(p, names)
+        for keep in ("*.mkv", "*.mp4", "*.srt", "*.flac", "*.epub", "*.m4b", "*.nfo"):
+            self.assertNotIn(keep, names)
+
+    def test_fakes(self):
+        def item(i, title, download_id, status="completed", said=()):
+            return {"id": i, "title": title, "downloadId": download_id, "status": status, "indexer": "Site (Prowlarr)",
+                    "statusMessages": [{"title": title, "messages": list(said)}] if said else []}
+        q, sonarr, radarr = self.apps.qbt, self.apps.arr["sonarr"], self.apps.arr["radarr"]
+        # nothing fake: nothing removed, exit 0
+        q["torrents"] = [{"hash": "aa11", "size": 1_400_000_000, "total_size": 1_400_000_000, "tags": "", "state": "uploading"}]
+        sonarr["queue"] = [item(1, "Show.S01E01.1080p.WEB-DL-GRP", "AA11")]
+        r = run_setup(["fakes"], self.base)
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+        self.assertEqual(sonarr["removed"], [])
+        q["torrents"] += [
+            # every file excluded (it held only a program): qBittorrent wants 0 of its bytes
+            {"hash": "bb22", "size": 0, "total_size": 1_154_028_818, "tags": "", "state": "stalledUP"},
+            # still downloading, nothing said yet: left alone
+            {"hash": "dd44", "size": 900_000_000, "total_size": 900_000_000, "tags": "", "state": "downloading"}]
+        sonarr["queue"] += [
+            item(2, "Show.S01E05.1080p.WEB-DL-NTb", "BB22"),
+            item(3, "Show.S01E06.1080p.WEB-DL-NTb", "CC33", said=["Caution: Found executable file with extension: '.exe'"]),
+            item(4, "Show.S01E07.1080p.WEB-DL-GRP", "DD44", status="downloading")]
+        radarr["queue"] = [item(9, "Film.2026.1080p.WEB-DL-FAKE", "EE55",
+                                said=["No files found are eligible for import in /data/torrents/movies/Film"])]
+        r = run_setup(["fakes"], self.base)
+        self.assertEqual(r.returncode, 3, r.stderr)   # removed some: the guard's unit mails
+        self.assertEqual(sorted(i for i, _ in sonarr["removed"]), [2, 3])
+        self.assertEqual([i for i, _ in radarr["removed"]], [9])
+        for _, query in sonarr["removed"] + radarr["removed"]:
+            # out of qBittorrent, never offered again, and the app searches for another
+            self.assertEqual(query, {"removeFromClient": "true", "blocklist": "true", "skipRedownload": "false"})
+        self.assertEqual([x["id"] for x in sonarr["queue"]], [1, 4])
+        for t in ("Show.S01E05.1080p.WEB-DL-NTb", "Show.S01E06.1080p.WEB-DL-NTb", "Film.2026.1080p.WEB-DL-FAKE"):
+            self.assertIn(t, r.stdout)
+        self.assertEqual(run_setup(["fakes"], self.base).returncode, 0)   # gone: no second mail
+
+    def test_fakes_only_asks_the_chosen_apps(self):
+        self.apps.arr["sonarr"]["queue"] = [{"id": 3, "title": "x", "downloadId": "CC33", "status": "completed",
+                                             "statusMessages": [{"title": "x", "messages": ["Found executable file"]}]}]
+        r = run_setup(["fakes"], self.base, COMPONENTS="core,downloads,albums")   # no movies-tv: Sonarr isn't asked
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.apps.arr["sonarr"]["removed"], [])
 
     def test_one_app_failing_leaves_the_others(self):
         r = run_setup(["apply"], self.base, SETUP_RADARR="http://127.0.0.1:9")

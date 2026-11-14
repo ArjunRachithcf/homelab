@@ -23,6 +23,8 @@ Runs in a throwaway container (downloads/run.sh: the stack's python image, stdli
     unmonitor-new-seasons   Sonarr: no series monitors seasons that don't exist yet (its Library Import leaves "all")
     guard FREE_PCT          below DOWNLOADS_KEEP_FREE_PCT free: every running torrent stopped and tagged "guard"; 5
                             points above it: those started again. Exit 3 when it stopped some just now
+    fakes                   fake releases (programs named like a film or an episode) out of Radarr's, Sonarr's and
+                            Lidarr's queues: removed, blocklisted, searched again. Exit 3 when it removed some
 
 Settings come from the environment, passed by name by downloads/run.sh: COMPONENTS (the chosen ones), HOST_UID,
 HOST_GID, ADMIN_USER, DOMAIN, NETBIRD_PROXY_PORT, BRAND, DOWNLOADS_NET, MEDIA_DIR, AUDIOBOOKS_DIR, each app's API key
@@ -338,6 +340,13 @@ def categories() -> dict[str, str]:
     return cats
 
 
+# Programs and scripts inside a torrent are never downloaded: a release with one is a fake (malware named like an
+# episode or a film). Its torrent then has nothing to download, and `fakes` removes it from the app that asked for it.
+EXCLUDED_FILES = ("*.exe", "*.scr", "*.com", "*.pif", "*.bat", "*.cmd", "*.msi", "*.msix", "*.lnk", "*.url", "*.vbs",
+                  "*.vbe", "*.js", "*.jse", "*.wsf", "*.wsh", "*.ps1", "*.hta", "*.cpl", "*.jar", "*.dll", "*.reg",
+                  "*.apk", "*.dmg", "*.pkg", "*.sh", "*.desktop")
+
+
 def apply_qbittorrent() -> None:
     q = qbt()
     days, ratio = int(env("DOWNLOADS_SEED_DAYS", "14")), float(env("DOWNLOADS_SEED_RATIO", "2"))
@@ -354,6 +363,7 @@ def apply_qbittorrent() -> None:
         # Caddy's address only (after Authentik), everyone else signs in
         "bypass_auth_subnet_whitelist_enabled": True,
         "bypass_auth_subnet_whitelist": f"{env('DOWNLOADS_NET', '198.51.100')}.11/32",
+        "excluded_file_names_enabled": True, "excluded_file_names": "\n".join(EXCLUDED_FILES),
     }
     have = q.get("/app/preferences")
     diff = {k: v for k, v in want.items() if have.get(k) != v}
@@ -1103,8 +1113,42 @@ def guard(free_pct: float) -> int:
     return 0
 
 
+def fake_reason(record: dict, emptied: set[str]) -> str | None:
+    """Why a download in an app's queue is a fake, or None. Every file in it excluded (EXCLUDED_FILES: it held only
+    programs), the app found a program in it, or it finished with nothing the app can import."""
+    said = " ".join(" ".join([m.get("title") or ""] + list(m.get("messages") or []))
+                    for m in record.get("statusMessages") or [])
+    if str(record.get("downloadId", "")).upper() in emptied:
+        return "it held only programs, so nothing was downloaded"
+    if re.search(r"executable file", said, re.I):
+        return "it holds a program"
+    if record.get("status") == "completed" and re.search(
+            r"no files found are eligible|no (video|audio) files", said, re.I):
+        return "nothing in it can be imported"
+    return None
+
+
+def fakes() -> int:
+    """Fake releases out of Radarr's, Sonarr's and Lidarr's queues: removed from qBittorrent, blocklisted, and the app
+    searches again. Exit 3 when it removed some (the guard's unit mails)."""
+    emptied = {str(t["hash"]).upper() for t in qbt().get("/torrents/info")
+               if t.get("total_size", 0) > 0 and t.get("size", 1) == 0}
+    apps = ([radarr(), sonarr()] if chosen("movies-tv") else []) + ([lidarr()] if chosen("albums") else [])
+    removed = 0
+    for a in apps:
+        for r in a.get("/queue?pageSize=500").get("records", []):
+            why = fake_reason(r, emptied)
+            if not why:
+                continue
+            a.call("DELETE", f"/queue/{r['id']}?removeFromClient=true&blocklist=true&skipRedownload=false")
+            print(f"{a.name}: {r.get('title', '?')} ({r.get('indexer') or 'unknown site'}) removed and blocklisted: "
+                  f"{why}; searching again")
+            removed += 1
+    return 3 if removed else 0
+
+
 COMMANDS = {"init": init, "apply": apply, "status": status, "unmonitor-new-seasons": unmonitor_new_seasons,
-            "bindery-init": bindery_init, "seerr-init": seerr_init, "seerr-users": seerr_users}
+            "bindery-init": bindery_init, "seerr-init": seerr_init, "seerr-users": seerr_users, "fakes": fakes}
 
 
 def main(argv: list[str]) -> int:
