@@ -7,7 +7,8 @@ Runs in a throwaway container (downloads/run.sh: the stack's python image, stdli
                             beside the libraries, qBittorrent's sign-in (password hash, API key, Caddy's address
                             needs none) in its config, Bazarr's (Basic, its API key, no analytics) in a fresh volume
     apply                   every chosen app as far as it is set up: qBittorrent's preferences and categories; the
-                            sign-in, root folder, download client and media management of Radarr, Sonarr and Lidarr;
+                            sign-in, root folder, download client and media management of Radarr, Sonarr and Lidarr, new imports
+                            renamed by Radarr and Sonarr (Lidarr's files stay as downloaded);
                             Prowlarr's sign-in, its apps and Byparr; Bazarr's sign-in, languages, Sonarr and Radarr,
                             providers; Bindery's folders, qBittorrent and Prowlarr, and Seerr's settings once their
                             own steps below ran. A second run changes nothing
@@ -437,14 +438,25 @@ def apply_media_management(a: Api, unmonitor_field: str) -> None:
         say(f"{a.name}: media management (hardlinks, unmonitor deleted, propers)")
 
 
+def apply_naming(a: Api, rename_field: str) -> None:
+    """Radarr and Sonarr rename what they import to their standard format: a release's own name ("Show (2026) S01 EP
+    01 ...") isn't read as an episode number by Jellyfin. Only new imports; the library's files stay as they are."""
+    naming = a.get("/config/naming")
+    if naming.get(rename_field) is not True:
+        naming[rename_field] = True   # the whole object back: a missing format would be saved empty
+        a.call("PUT", f"/config/naming/{naming.get('id', 1)}", body=naming)
+        say(f"{a.name}: imported files renamed")
+
+
 def apply_arr(a: Api, base: str, password_key: str, root: str, category_field: str, category: str,
-              unmonitor_field: str) -> None:
+              unmonitor_field: str, rename_field: str) -> None:
     apply_login(a, base, password_key)
     if not any(r.get("path") == root for r in a.get("/rootfolder")):
         a.call("POST", "/rootfolder", body={"path": root})
         say(f"{a.name}: root folder {root}")
     apply_client(a, category_field, category)
     apply_media_management(a, unmonitor_field)
+    apply_naming(a, rename_field)
 
 
 def radarr() -> Api:
@@ -461,9 +473,9 @@ def lidarr() -> Api:
 
 def arrs() -> list[tuple]:
     return [(radarr(), RADARR, "RADARR_PASSWORD", "/data/Movies", "movieCategory", "movies",
-             "autoUnmonitorPreviouslyDownloadedMovies"),
+             "autoUnmonitorPreviouslyDownloadedMovies", "renameMovies"),
             (sonarr(), SONARR, "SONARR_PASSWORD", "/data/TV Shows", "tvCategory", "tv",
-             "autoUnmonitorPreviouslyDownloadedEpisodes")]
+             "autoUnmonitorPreviouslyDownloadedEpisodes", "renameEpisodes")]
 
 
 def by_name(items: list[dict], name: str) -> dict:

@@ -258,6 +258,8 @@ class Apps:
         self.arr["lidarr"]["profiles"] = [{"id": 1, "name": "Any"}, {"id": 2, "name": "Lossless"}, {"id": 3, "name": "Standard"}]
         self.arr["lidarr"]["metadataprofiles"] = [{"id": 1, "name": "Standard"}]
         self.arr["lidarr"]["metaprovider"] = {"id": 1, "writeAudioTags": "newFiles", "scrubAudioTags": False, "embedCoverArt": True}
+        self.arr["radarr"]["naming"] = {"id": 1, "renameMovies": False, "standardMovieFormat": "{Movie Title}"}
+        self.arr["sonarr"]["naming"] = {"id": 1, "renameEpisodes": False, "standardEpisodeFormat": "{Series Title}"}
         self.arr["lidarr"]["naming"] = {"id": 1, "renameTracks": True, "artistFolderFormat": "{Artist Name}"}
         user, password = base64.b64decode(keys["BAZARR_AUTH"]).decode().split(":", 1)
         self.bazarr = {"auth": {"type": "basic", "username": user, "password": md5(password)},
@@ -691,6 +693,9 @@ class Setup(unittest.TestCase):
                          (2, "none", "none"))
         self.assertEqual((self.apps.arr["lidarr"]["metaprovider"]["writeAudioTags"],
                           self.apps.arr["lidarr"]["naming"]["renameTracks"]), ("no", False))
+        # Radarr and Sonarr rename new imports (Jellyfin reads the standard names); the rest of the object is kept
+        self.assertEqual(self.apps.arr["radarr"]["naming"], {"id": 1, "renameMovies": True, "standardMovieFormat": "{Movie Title}"})
+        self.assertEqual(self.apps.arr["sonarr"]["naming"], {"id": 1, "renameEpisodes": True, "standardEpisodeFormat": "{Series Title}"})
         apps = {x["implementation"]: {f["name"]: f["value"] for f in x["fields"]} for x in self.apps.arr["prowlarr"]["apps"]}
         self.assertEqual(sorted(apps), ["Lidarr", "Radarr", "Sonarr"])
         # what the apps are told, as the downloads network sees them (not where this script reached them)
