@@ -5,6 +5,9 @@
 #  2. The media folder's disk below DOWNLOADS_KEEP_FREE_PCT free: every running torrent stopped, 5 points above it
 #     again: started (downloads/setup.py guard). Fails, so the unit mails, only when it has just stopped them, or
 #     can't while the disk is low: a broken API on a roomy disk is a line in the log, not a mail every 10 minutes.
+#  3. Fake releases (programs named like a film or an episode; qBittorrent never downloads their programs) out of
+#     Radarr's, Sonarr's and Lidarr's queues: removed, blocklisted, searched again (downloads/setup.py fakes). Fails,
+#     so the unit mails which ones, when it removed some.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
 ENV_FILE=${ENV_FILE:-.env}
@@ -54,5 +57,12 @@ case $code in
      else
        echo "· qBittorrent didn't answer the guard ($free % free, no need to stop anything)"
      fi ;;
+esac
+
+code=0; out=$(bash downloads/run.sh fakes 2>&1) || code=$?
+case $code in
+  0) [[ -z $out ]] || echo "$out" ;;
+  3) echo "✗ fake downloads removed:" >&2; echo "$out" >&2; rc=1 ;;   # the mail lists them
+  *) echo "· the apps didn't answer the check for fake downloads${out:+: $out}" ;;
 esac
 exit "$rc"

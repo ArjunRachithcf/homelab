@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# downloads/run.sh CMD [ARG]: downloads/setup.py (init, apply, status, unmonitor-new-seasons, guard FREE_PCT,
+# downloads/run.sh CMD [ARG]: downloads/setup.py (init, apply, status, unmonitor-new-seasons, guard FREE_PCT, fakes,
 # bindery-init, seerr-init, seerr-users) in a throwaway container: the stack's python image, on this compose
 # project's downloads network (and Seerr's, requests, when it's chosen), with its volumes. Not a compose service:
 # heartbeat.sh and the console flag every compose container that isn't running. Secrets go to the container by name
@@ -16,11 +16,11 @@ ENV_FILE=${ENV_FILE:-.env}
 source lib/components.sh   # component_listed
 cmd=${1:-}
 case $cmd in
-  init|apply|status|unmonitor-new-seasons|bindery-init|seerr-init|seerr-users) [[ $# == 1 ]] || cmd="" ;;
+  init|apply|status|unmonitor-new-seasons|bindery-init|seerr-init|seerr-users|fakes) [[ $# == 1 ]] || cmd="" ;;
   guard) [[ $# == 2 ]] || cmd="" ;;
   *) cmd="" ;;
 esac
-usage="init|apply|status|unmonitor-new-seasons|guard FREE_PCT|bindery-init|seerr-init|seerr-users"
+usage="init|apply|status|unmonitor-new-seasons|guard FREE_PCT|fakes|bindery-init|seerr-init|seerr-users"
 [[ -n $cmd ]] || { echo "usage: downloads/run.sh $usage" >&2; exit 2; }
 
 env_get() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n1 | sed -e 's/\r$//' -e "s/^'\(.*\)'$/\1/" -e 's/^"\(.*\)"$/\1/'; }
