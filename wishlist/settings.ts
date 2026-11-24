@@ -5,6 +5,7 @@
 //   (no argument)  by wishlist/start.sh at every start, after the migrations, before Wishlist listens
 //   status         prints the enforced settings (never the client secret) and "ok" when they hold
 //   admin LOGIN    makes the user LOGIN (Authentik's username) an admin; LOGIN must have signed in once
+//   people         everyone who has signed in and their own list, as JSON (for wishlist/draw.py)
 import { prisma } from "./client";
 
 const GLOBAL = "global";
@@ -107,6 +108,24 @@ async function status() {
     if (ok) console.log("ok");
 }
 
+// For wishlist/draw.py: everyone who has signed in, with their own list in the default group (JSON, one line)
+async function people() {
+    const group = await defaultGroup();
+    const users = await prisma.user.findMany({
+        where: { username: { not: PLACEHOLDER.username } },
+        select: { id: true, username: true, name: true, email: true }
+    });
+    const out = [];
+    for (const u of users) {
+        const list = await prisma.list.findFirst({
+            where: { ownerId: u.id, groupId: group, notForMe: false },
+            select: { id: true }
+        });
+        out.push({ username: u.username, name: u.name, email: u.email, list: list?.id ?? null });
+    }
+    console.log(JSON.stringify(out));
+}
+
 async function admin(login: string | undefined) {
     if (!login) throw new Error("usage: admin LOGIN");
     const user = await prisma.user.findUnique({ where: { username: login }, select: { id: true } });
@@ -116,7 +135,8 @@ async function admin(login: string | undefined) {
 }
 
 const [command, arg] = process.argv.slice(2);
-const run = command === "status" ? status() : command === "admin" ? admin(arg) : apply();
+const run =
+    command === "status" ? status() : command === "admin" ? admin(arg) : command === "people" ? people() : apply();
 run.then(
     () => prisma.$disconnect(),
     async (e) => {

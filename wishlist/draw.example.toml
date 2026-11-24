@@ -1,0 +1,10 @@
+# wishlist/draw.example.toml: one gift exchange for wishlist/draw.py (wishlist/README.md "Draw names").
+# Copy it to your instance's own folder (household names never go into the public repo), e.g.
+# instance/gifts/christmas-2026.toml; the file's name names the draw (~/.local/state/homelab/draws/<name>.age).
+name = "Christmas 2026"
+budget = "CHF 50"
+note = "Gifts on the 24th."
+# Authentik usernames; each has signed in to Wishlist once (it makes their list)
+participants = ["alice", "bob", "carol", "dave"]
+# Neither draws the other (couples, or whoever already shops for each other)
+exclude = [["alice", "bob"]]

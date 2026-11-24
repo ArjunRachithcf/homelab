@@ -58,3 +58,21 @@ Wishlist has no admin group: everyone signs in as a member. `./wishlist/setup.sh
 Authentik username that has signed in once) an admin; `family-wizard.sh` does it for you after your first sign-in.
 `./wishlist/setup.sh status` shows the enforced settings as they are (never the client secret), `ok` last when they
 hold.
+
+## Draw names: `draw.py`
+
+Wishlist has no gift exchange ("Secret Santa"; upstream cmintey/wishlist#797), so `draw.py` draws names beside it:
+each giver gets a mail (through `notify.sh`, the box's Proton SMTP) naming the one person they give to, with a
+link to that person's Wishlist list, the budget and a note. Nobody sees the whole draw, the one who runs it
+included: no pair is printed or logged, and the pairs are kept only encrypted to `BACKUP_AGE_RECIPIENT`
+(`~/.local/state/homelab/draws/<event>.age`), readable with the backup's private key, which isn't on this box.
+
+1. An event file per exchange, in your instance's own folder (household names never go into the public repo):
+   copy `draw.example.toml`; participants are Authentik usernames, `exclude` pairs never draw each other.
+2. Everyone taking part signs in to Wishlist once (that makes their list).
+3. `./wishlist/draw.py plan EVENT.toml`: who's missing, whether the exclusions allow a draw.
+4. `./wishlist/draw.py draw EVENT.toml`: draws and mails everyone. `--redraw` starts over (everyone gets a new mail).
+5. Someone lost their mail: `./wishlist/draw.py resend EVENT.toml LOGIN --identity <age key file>`.
+
+What someone claims on their person's list stays hidden from that person (`claims-hidden.patch`); the others in the
+family see the claim, so two people don't buy the same thing.
