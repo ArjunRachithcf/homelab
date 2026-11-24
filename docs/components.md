@@ -4,7 +4,7 @@
 
 Every app or feature is a component (`setup/components/<id>.toml`). Choose them with a preset and `./homelab setup --plan/--apply`, the setup app, or an assistant (docs/getting-started.md). What one needs comes along by itself.
 
-Presets: **everything** (42 components); **family** (35 components); **minimal** (5 components).
+Presets: **everything** (43 components); **family** (36 components); **minimal** (5 components).
 
 ## Always there
 
@@ -263,6 +263,22 @@ Who does which chore and when, with phone apps; kids use it too. Public; only it
 | `DONETICK_TAG` | default `v0.1.83` | Donetick version (Chores) |
 | `DONETICK_OIDC_CLIENT_SECRET` | secret, generated | Donetick's Authentik client secret |
 | `DONETICK_JWT_SECRET` | secret, generated | Signs Donetick's sessions |
+
+### Gifts (Wishlist, our build) (`gifts`)
+
+Wish lists for the family: others claim gifts and the person they're for never sees it; our build hides claims on the server too (wishlist/build.sh). Public; only its own sign-in through Authentik.
+
+- needs `core`
+- goes well with `backups`
+- runs on fedora, debian, ubuntu, arch
+- containers `wishlist`
+- public at `gifts.<domain>`
+
+| Setting | | What it is |
+|---|---|---|
+| `WISHLIST_TAG` | default `0.69.0` | Wishlist version (Gifts): upstream's tag, built with our patch by wishlist/build.sh |
+| `WISHLIST_CURRENCY` | default `USD` | Gifts' default currency (ISO code); each wish can still have its own |
+| `WISHLIST_OIDC_CLIENT_SECRET` | secret, generated | Wishlist's Authentik client secret |
 
 ### Things (Homebox) (`things`)
 

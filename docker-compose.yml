@@ -87,6 +87,8 @@ volumes:
   n8n-data: {}
   sharry-files: {}
   donetick-data: {}
+  wishlist-data: {}
+  wishlist-uploads: {}
   homebox-data: {}
   gramps-users: {}
   gramps-index: {}
@@ -739,6 +741,44 @@ services:
       DT_SINGLE_CIRCLE_INSTANCE: "true"
     volumes:
       - donetick-data:/data
+    networks: [internal]
+
+  # --- Wishlist (gifts.<domain>): the family's wish lists. Our build (wishlist/build.sh: claims never reach the
+  # list's owner). Authentik only: no passwords, no sign-up; authentik Admins = its admins at every sign-in.
+  # Its admin settings (claims hidden from owners, suggestions with approval, no public lists) are set once in
+  # family-wizard.sh. It serves through its own Caddy on 3280 (uploads straight from disk).
+  wishlist:
+    profiles: [gifts]
+    <<: *hardening
+    image: homelab-wishlist:${WISHLIST_TAG:-0.69.0}-claims
+    # Built locally, never pulled
+    pull_policy: never
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      # Its Caddy, pnpm and Prisma write their caches under HOME
+      HOME: /tmp
+      XDG_DATA_HOME: /tmp
+      XDG_CONFIG_HOME: /tmp
+      ORIGIN: https://gifts.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
+      DEFAULT_CURRENCY: ${WISHLIST_CURRENCY:-USD}
+      TOKEN_TIME: 72
+      OIDC_ENABLE: "true"
+      OIDC_DISCOVERY_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/wishlist/
+      OIDC_CLIENT_ID: wishlist
+      OIDC_CLIENT_SECRET: ${WISHLIST_OIDC_CLIENT_SECRET:-}
+      OIDC_PROVIDER_NAME: ${BRAND:-Home}
+      OIDC_AUTO_REDIRECT: "true"
+      OIDC_AUTO_REGISTER: "true"
+      OIDC_ENABLE_SYNC: "true"
+      OIDC_ADMIN_GROUP: authentik Admins
+      SECURITY_DISABLE_PASSWORD_LOGIN: "true"
+      ENABLE_SIGNUP: "false"
+    volumes:
+      - wishlist-data:/usr/src/app/data
+      - wishlist-uploads:/usr/src/app/uploads
     networks: [internal]
 
   # --- Homebox (stuff.<domain>): what the family owns, where it is, receipts and warranties.

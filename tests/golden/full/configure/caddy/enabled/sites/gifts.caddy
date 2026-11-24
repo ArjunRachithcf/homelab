@@ -1,0 +1,28 @@
+# caddy/components/gifts/sites.caddy (component gifts; copied into caddy/enabled/ by ./homelab configure)
+# Gifts (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+(wishlist) {
+	reverse_proxy wishlist:3280 {
+		# Its list pages stream live updates
+		flush_interval -1
+	}
+}
+
+gifts.{$DOMAIN}:{$PUBLIC_PORT} {
+	import headers
+	import wishlist
+}
+
+gifts.{$DOMAIN}, gifts.{$DOMAIN_ALIAS}, gifts.{$DOMAIN_ALIAS}:{$PUBLIC_PORT} {
+	import headers
+	import canonical gifts
+}
+
+gifts.{$DOMAIN}:8444 {
+	import headers
+	import wishlist
+}
+
+gifts.{$DOMAIN_ALIAS}:8444 {
+	import headers
+	redir https://gifts.{$DOMAIN}:{$PUBLIC_PORT}{uri}
+}
