@@ -18,7 +18,15 @@ on their own list sees what they're getting. `claims-hidden.patch` changes that:
 image with upstream's own Dockerfile: `homelab-wishlist:<WISHLIST_TAG>-claims` (compose never pulls it). To upgrade:
 set WISHLIST_TAG in `.env`, `./wishlist/build.sh`, `docker compose up -d wishlist`. If the patch no longer applies,
 the build stops and the running image stays; refresh it in `~/src/wishlist` and save it with
-`git diff > ~/homelab/wishlist/claims-hidden.patch`.
+`git add -N tests/ui/claims-hidden.spec.ts && git diff > ~/homelab/wishlist/claims-hidden.patch`.
+
+## The test: `tests/ui/claims-hidden.spec.ts` (in the patch)
+
+In upstream's Playwright suite: the owner's list data (`/lists/<id>/__data.json`) and live updates carry no claim,
+while another member's do (the control). It fails on upstream's image and passes on ours. Run it against a throwaway
+container on `127.0.0.1:3280` (password login on, never the `homelab` project), with a Playwright config that drops
+upstream's `webServer` (its compose runs on the host network): `pnpm exec playwright test -c <that config>
+tests/ui/claims-hidden.spec.ts`.
 
 ## Settings
 

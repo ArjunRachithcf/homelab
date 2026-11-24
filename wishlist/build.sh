@@ -10,7 +10,8 @@
 # 3. Upstream's own Dockerfile builds the image (its build stage installs, type-builds and prunes).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-TAG=$(sed -n "s/^WISHLIST_TAG=//p" .env | tail -n1 | tr -d "'\""); TAG=${TAG:-0.69.0}
+TAG=""; [[ -f .env ]] && TAG=$(sed -n "s/^WISHLIST_TAG=//p" .env | tail -n1 | tr -d "'\"")
+TAG=${TAG:-0.69.0}
 IMAGE=homelab-wishlist:$TAG-claims
 SRC=$HOME/src/wishlist
 PATCH=$PWD/wishlist/claims-hidden.patch
