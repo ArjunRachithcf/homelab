@@ -78,6 +78,12 @@ CREDENTIALS = [
     ("paperless", "GET", "/api/auth/headless/app/v1/config", {}),
     ("games", "POST", "/api/token", {}),
     ("games", "POST", "/api/token/", {}),
+    # Gifts (Wishlist): its own accounts (sign-up, invites, password reset) shut, also in another case or %-encoded;
+    # its setup wizard (the first account = admin) goes to Authentik
+    *[("gifts", m, path, {}) for m, path in (
+        ("POST", "/signup"), ("POST", "/signup?token=x"), ("GET", "/signup/"), ("POST", "/SignUp"), ("POST", "/%73ignup"),
+        ("POST", "/forgot-password"), ("POST", "/reset-password?token=x"), ("GET", "/setup-wizard"),
+        ("GET", "/setup-wizard/step/1"))],
     # Downloads (qBittorrent, Prowlarr, Radarr, Sonarr, Lidarr, Bazarr, Bindery): Authentik before every path, whatever
     # key comes along; their API keys never leave the downloads network
     *[(h, "GET", path, hdrs) for h in ("qbit", "prowlarr", "radarr", "sonarr", "lidarr", "subs", "bindery")

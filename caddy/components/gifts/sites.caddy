@@ -1,6 +1,13 @@
 # caddy/components/gifts/sites.caddy (component gifts; copied into caddy/enabled/ by ./homelab configure)
 # Gifts (RUNBOOK.md 7f): public, only its own Authentik login, no forward-auth.
+# Wishlist: accounts only through Authentik. While it has no user, /login sends to its setup wizard, whose first
+# account (/signup) becomes admin; its invites (/signup?token=), password reset and recovery make password
+# accounts: all refused here, and the wizard's way in goes to Authentik instead (wishlist/settings.ts also turns
+# sign-up and password login off).
 (wishlist) {
+	@local_accounts path /signup /signup/* /forgot-password /forgot-password/* /reset-password /reset-password/*
+	respond @local_accounts "Sign in with your {$BRAND} account." 403
+	redir /setup-wizard* /login/oidc
 	reverse_proxy wishlist:3280 {
 		# Its list pages stream live updates
 		flush_interval -1

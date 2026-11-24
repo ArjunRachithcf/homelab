@@ -5,8 +5,8 @@
 # WISHLIST_OIDC_CLIENT_SECRET from .env), family and kids.
 #
 # Needs the secret in the worker's environment (setup-ssh.sh passes it from .env) and the
-# mapping "email (verified)" from family.yaml. Wishlist reads its admins from the groups claim
-# (profile scope): authentik Admins = admin, re-checked at every sign-in.
+# mapping "email (verified)" from family.yaml. Wishlist knows no admin group: everyone signs in as a member,
+# and `wishlist/setup.sh admin LOGIN` (family-wizard.sh, after the first sign-in) makes an admin.
 version: 1
 metadata:
   name: homelab - Gifts

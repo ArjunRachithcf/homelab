@@ -37,6 +37,8 @@ PEER=$(_existing NETBIRD_PEER || hostname -s)   # this PC in the NetBird dashboa
 # FreshRSS's admin (compose: FRESHRSS_ADMIN_USER, else ADMIN_LOGIN, else ADMIN_USER)
 FR_ADMIN="admin"
 for k in ADMIN_USER ADMIN_LOGIN FRESHRSS_ADMIN_USER; do v=$(_existing "$k" || true); [[ -n $v ]] && FR_ADMIN=$v; done
+# Wishlist's admin: Authentik's username (ADMIN_LOGIN, else ADMIN_USER)
+WL_ADMIN=$(_existing ADMIN_LOGIN || _existing ADMIN_USER || echo admin)
 GAMES="$(_existing MEDIA_DIR || echo /srv/media)/Games"
 # component → its name (NetBird zone, public service, Caddy site), Authentik slug, health path through Caddy
 declare -A NAME=([chores]=chores [gifts]=gifts [things]=stuff [family-tree]=tree [notes]=notes [wiki]=wiki [news]=news
@@ -107,8 +109,14 @@ memos_pw_shut() {
 freshrss_header_shut() { [[ "$(code news /i/ -H "Remote-User: $FR_ADMIN" -H "X-WebAuth-User: $FR_ADMIN")" == 302 ]]; }
 donetick_pw_shut() { [[ "$(code chores /api/v1/auth/login -X POST -H 'Content-Type: application/json' -d '{"username":"x","password":"y"}')" == 403 ]]; }
 dawarich_no_pw()   { ! body places /users/sign_in | grep -q 'type="password"'; }
-# Password login off: /login sends everyone to Authentik (OIDC_AUTO_REDIRECT) instead of a password form
-wishlist_no_pw()   { ! body gifts /login | grep -q 'type="password"'; }
+# Its settings hold (wishlist/settings.ts: sign-up and password login off, Authentik), its own account routes are
+# refused in Caddy and its setup wizard (the first account = admin) goes to Authentik
+wishlist_settings() { ./wishlist/setup.sh status 2>/dev/null | tail -n1 | grep -qx ok; }
+wishlist_shut() {
+  wishlist_settings && [[ "$(code gifts /signup)" == 403 ]] && [[ "$(code gifts /reset-password)" == 403 ]] \
+    && [[ "$(code gifts /setup-wizard)" == 302 ]]
+}
+wishlist_admin() { [[ "$(./wishlist/setup.sh status 2>/dev/null | sed -n 's/.*admins \([0-9]*\).*/\1/p')" -ge 1 ]]; }
 rails() { docker compose exec -T dawarich bin/rails runner "$1" 2>/dev/null | tail -n1; }
 dawarich_demo_gone() { [[ "$(rails 'puts User.where(email: "demo@dawarich.app").count')" == 0 ]]; }
 dawarich_admin()     { [[ "$(rails 'puts User.where(admin: true).count')" -ge 1 ]]; }
@@ -135,7 +143,8 @@ run_checks() {
   on notes  && { check "Memos: password sign-up refused (patched build)"  memos_pw_shut || true; }
   on chores && { check "Donetick: password login refused"                 donetick_pw_shut || true; }
   on places && { check "Dawarich: no password field"                      dawarich_no_pw || true; }
-  on gifts  && { check "Wishlist: no password field"                      wishlist_no_pw || true; }
+  on gifts  && { check "Wishlist: Authentik only, sign-up and passwords refused" wishlist_shut || true; }
+  on gifts  && { check "Wishlist: an admin exists"                        wishlist_admin || true; }
   on news   && { check "FreshRSS: a forged Remote-User signs no one in"   freshrss_header_shut || true; }
   on places && { check "Dawarich: you're admin, the demo admin is gone"   eval 'dawarich_admin && dawarich_demo_gone' || true; }
   on wiki   && { check "Outline: an admin exists, passkeys off"           eval 'outline_admin && outline_no_passkeys' || true; }
@@ -288,15 +297,19 @@ stage_first() {
   step "Open each once: it signs you straight in."
   on news && step "${BOLD}News${RESET}: you're its admin (FRESHRSS_ADMIN_USER)."
   if on gifts; then
-    step "${BOLD}Gifts${RESET}: you're its admin (authentik Admins). Avatar → Administration → Settings:"
-    step "  Claims: ${BOLD}show to owner off${RESET} · Suggestions ${BOLD}on${RESET}, method ${BOLD}Approval required${RESET} ·"
-    step "  Lists: ${BOLD}public lists off${RESET} (kids' public lists need an adult; Wishlist can't enforce that yet)."
+    step "${BOLD}Gifts${RESET}: its settings are set at every start (wishlist/settings.ts: Authentik only, claims"
+    step "  hidden from owners, suggestions with approval, no public lists); you become its admin below."
   fi
   if on things; then
     step "${BOLD}Things${RESET}: you get a collection \"Home\"; family members get their own until you invite them"
     step "  (Collection → Invite → send them the link)."
   fi
   confirm "Each signed you in?" || FAILED+=("first sign-ins")
+  if on gifts && ! wishlist_admin; then
+    say "Making ${BOLD}$WL_ADMIN${RESET} Wishlist's admin (wishlist/setup.sh admin):"
+    ./wishlist/setup.sh admin "$WL_ADMIN" || FAILED+=("Wishlist admin")
+    retry_check "Wishlist: an admin exists" wishlist_admin || true
+  fi
   pause
 }
 
