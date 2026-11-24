@@ -57,7 +57,7 @@ async function defaultGroup(): Promise<string> {
 // it looks at an OIDC callback, so the first sign-in through Authentik could never finish. An inactive placeholder,
 // like Authentik's akadmin, keeps it out of that state: no password (and password login is off), no Authentik link,
 // no group, no list; a plain member, never admin.
-const PLACEHOLDER = { username: "homelab-placeholder", name: "Placeholder", email: "placeholder@homelab.invalid" };
+const PLACEHOLDER = { username: "homelab-placeholder", name: "Placeholder", email: "placeholder@example.invalid" };
 
 async function placeholder() {
     if (await prisma.user.findUnique({ where: { username: PLACEHOLDER.username }, select: { id: true } })) return;
