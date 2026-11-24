@@ -28,15 +28,30 @@ container on `127.0.0.1:3280` (password login on, never the `homelab` project), 
 upstream's `webServer` (its compose runs on the host network): `pnpm exec playwright test -c <that config>
 tests/ui/claims-hidden.spec.ts`.
 
-## Settings
+## Settings: `start.sh` + `settings.ts`, `setup.sh`
 
-Sign-in is set from compose (Authentik only, no passwords, no sign-up; `authentik Admins` = Wishlist's admins, at
-every sign-in). The rest lives in Wishlist's admin settings (its database), set once by `family-wizard.sh`'s first
-sign-in stage:
+Wishlist reads no setting from its environment: sign-up, password login, OIDC and the rest live in its database
+(table `system_config`, its admin UI), with sign-up on by default and the first account its admin. So compose starts
+it with `start.sh`: its migrations and seed, then `settings.ts` (run with the image's own tsx and Prisma client)
+writes ours, then upstream's entrypoint. A failed step stops the start: Wishlist never listens with its defaults.
 
-- Claims: **show to the owner off** (the default; the patch relies on it);
-- Suggestions: **on, "Approval required"**: others can suggest a wish, the list's owner approves it. Not "Surprise
-  me": that mode hides from the owner every item someone else added, judged at every read, so wishes imported or
-  added for them by someone else would vanish from their own list;
+At every start, whatever the admin UI changed:
+
+- sign-up **off**, password login **off**, Authentik only (OIDC from compose's `OIDC_*`, auto-redirect,
+  auto-register, profile sync);
+- Claims: **show to the owner off** (the patch relies on it);
 - Lists: **public lists off** until the household decides who may make one (kids' lists: only with an adult's
-  approval, which Wishlist can't enforce yet).
+  approval, which Wishlist can't enforce yet);
+- the default group: everyone who signs in joins it and gets a list (without it, only the first one would).
+
+Once, then the admin's: Suggestions **on, "Approval required"**: others can suggest a wish, the list's owner
+approves it. Not "Surprise me": that mode hides from the owner every item someone else added, judged at every read,
+so wishes imported or added for them by someone else would vanish from their own list.
+
+Caddy refuses Wishlist's own account routes (`/signup` with or without an invite, password reset and recovery) and
+sends its setup wizard to Authentik (`caddy/components/gifts/sites.caddy`).
+
+Wishlist has no admin group: everyone signs in as a member. `./wishlist/setup.sh admin LOGIN` makes LOGIN (an
+Authentik username that has signed in once) an admin; `family-wizard.sh` does it for you after your first sign-in.
+`./wishlist/setup.sh status` shows the enforced settings as they are (never the client secret), `ok` last when they
+hold.

@@ -744,9 +744,10 @@ services:
     networks: [internal]
 
   # --- Wishlist (gifts.<domain>): the family's wish lists. Our build (wishlist/build.sh: claims never reach the
-  # list's owner). Authentik only: no passwords, no sign-up; authentik Admins = its admins at every sign-in.
-  # Its admin settings (claims hidden from owners, suggestions with approval, no public lists) are set once in
-  # family-wizard.sh. It serves through its own Caddy on 3280 (uploads straight from disk).
+  # list's owner). Wishlist reads no setting from its environment: wishlist/start.sh writes ours into its database
+  # at every start (wishlist/settings.ts: Authentik only, no passwords, no sign-up, claims hidden from owners, no
+  # public lists), before it listens. Admin: `wishlist/setup.sh admin LOGIN` after the first sign-in
+  # (family-wizard.sh). It serves through its own Caddy on 3280 (uploads straight from disk).
   wishlist:
     profiles: [gifts]
     <<: *hardening
@@ -765,20 +766,17 @@ services:
       ORIGIN: https://gifts.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}
       DEFAULT_CURRENCY: ${WISHLIST_CURRENCY:-USD}
       TOKEN_TIME: 72
-      OIDC_ENABLE: "true"
+      # Read by wishlist/settings.ts (Wishlist itself reads them from its database only)
       OIDC_DISCOVERY_URL: https://auth.${DOMAIN}:${NETBIRD_PROXY_PORT:-9443}/application/o/wishlist/
       OIDC_CLIENT_ID: wishlist
       OIDC_CLIENT_SECRET: ${WISHLIST_OIDC_CLIENT_SECRET:-}
       OIDC_PROVIDER_NAME: ${BRAND:-Home}
-      OIDC_AUTO_REDIRECT: "true"
-      OIDC_AUTO_REGISTER: "true"
-      OIDC_ENABLE_SYNC: "true"
-      OIDC_ADMIN_GROUP: authentik Admins
-      SECURITY_DISABLE_PASSWORD_LOGIN: "true"
-      ENABLE_SIGNUP: "false"
+    entrypoint: ["sh", "/usr/src/app/homelab-start.sh"]
     volumes:
       - wishlist-data:/usr/src/app/data
       - wishlist-uploads:/usr/src/app/uploads
+      - ./wishlist/start.sh:/usr/src/app/homelab-start.sh:ro,z
+      - ./wishlist/settings.ts:/usr/src/app/prisma/homelab-settings.ts:ro,z
     networks: [internal]
 
   # --- Homebox (stuff.<domain>): what the family owns, where it is, receipts and warranties.

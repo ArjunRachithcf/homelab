@@ -2838,21 +2838,18 @@
       ]
     },
     "wishlist": {
+      "entrypoint": [
+        "sh",
+        "/usr/src/app/homelab-start.sh"
+      ],
       "environment": {
         "DEFAULT_CURRENCY": "CHF",
-        "ENABLE_SIGNUP": "false",
         "HOME": "/tmp",
-        "OIDC_ADMIN_GROUP": "authentik Admins",
-        "OIDC_AUTO_REDIRECT": "true",
-        "OIDC_AUTO_REGISTER": "true",
         "OIDC_CLIENT_ID": "wishlist",
         "OIDC_CLIENT_SECRET": "golden-wishlist-oidc-client-secret",
         "OIDC_DISCOVERY_URL": "https://auth.example.com:9443/application/o/wishlist/",
-        "OIDC_ENABLE": "true",
-        "OIDC_ENABLE_SYNC": "true",
         "OIDC_PROVIDER_NAME": "Example",
         "ORIGIN": "https://gifts.example.com:9443",
-        "SECURITY_DISABLE_PASSWORD_LOGIN": "true",
         "TOKEN_TIME": "72",
         "XDG_CONFIG_HOME": "/tmp",
         "XDG_DATA_HOME": "/tmp"
@@ -2884,6 +2881,24 @@
           "target": "/usr/src/app/uploads",
           "type": "volume",
           "volume": {}
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/wishlist/start.sh",
+          "target": "/usr/src/app/homelab-start.sh",
+          "type": "bind"
+        },
+        {
+          "bind": {
+            "selinux": "z"
+          },
+          "read_only": true,
+          "source": "$REPO/wishlist/settings.ts",
+          "target": "/usr/src/app/prisma/homelab-settings.ts",
+          "type": "bind"
         }
       ]
     }

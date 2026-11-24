@@ -13762,6 +13762,9 @@ gifts.example.com:443 GET /s/abc user=anna → 302 https://gifts.example.com:944
 gifts.example.com:443 GET /s/abc user=kim → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.com:443 GET /s/abc user=nog → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.com:443 GET /s/abc user=op → 302 https://gifts.example.com:9443/s/abc -
+gifts.example.com:443 GET /setup-wizard user=- → 302 https://gifts.example.com:9443/setup-wizard -
+gifts.example.com:443 GET /setup-wizard/step/1 user=- → 302 https://gifts.example.com:9443/setup-wizard/step/1 -
+gifts.example.com:443 GET /signup/ user=- → 302 https://gifts.example.com:9443/signup/ -
 gifts.example.com:443 GET /status/heartbeat.json user=- → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.com:443 GET /status/heartbeat.json user=admin → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.com:443 GET /status/heartbeat.json user=anna → 302 https://gifts.example.com:9443/status/heartbeat.json -
@@ -13786,6 +13789,8 @@ gifts.example.com:443 GET /web/ user=anna → 302 https://gifts.example.com:9443
 gifts.example.com:443 GET /web/ user=kim → 302 https://gifts.example.com:9443/web/ -
 gifts.example.com:443 GET /web/ user=nog → 302 https://gifts.example.com:9443/web/ -
 gifts.example.com:443 GET /web/ user=op → 302 https://gifts.example.com:9443/web/ -
+gifts.example.com:443 POST /%73ignup user=- → 302 https://gifts.example.com:9443/%73ignup -
+gifts.example.com:443 POST /SignUp user=- → 302 https://gifts.example.com:9443/SignUp -
 gifts.example.com:443 POST /api/login user=- → 302 https://gifts.example.com:9443/api/login -
 gifts.example.com:443 POST /api/login user=admin → 302 https://gifts.example.com:9443/api/login -
 gifts.example.com:443 POST /api/login user=anna → 302 https://gifts.example.com:9443/api/login -
@@ -13804,6 +13809,7 @@ gifts.example.com:443 POST /api/v2/sec/share/abc/validity user=anna → 302 http
 gifts.example.com:443 POST /api/v2/sec/share/abc/validity user=kim → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.com:443 POST /api/v2/sec/share/abc/validity user=nog → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.com:443 POST /api/v2/sec/share/abc/validity user=op → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
+gifts.example.com:443 POST /forgot-password user=- → 302 https://gifts.example.com:9443/forgot-password -
 gifts.example.com:443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.com:443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.com:443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
@@ -13852,6 +13858,9 @@ gifts.example.com:443 POST /ops/run/run-backup user=anna → 302 https://gifts.e
 gifts.example.com:443 POST /ops/run/run-backup user=kim → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.com:443 POST /ops/run/run-backup user=nog → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.com:443 POST /ops/run/run-backup user=op → 302 https://gifts.example.com:9443/ops/run/run-backup -
+gifts.example.com:443 POST /reset-password?token=x user=- → 302 https://gifts.example.com:9443/reset-password?token=x -
+gifts.example.com:443 POST /signup user=- → 302 https://gifts.example.com:9443/signup -
+gifts.example.com:443 POST /signup?token=x user=- → 302 https://gifts.example.com:9443/signup?token=x -
 gifts.example.com:80 GET / user=- → 308 https://gifts.example.com/ -
 gifts.example.com:80 GET / user=admin → 308 https://gifts.example.com/ -
 gifts.example.com:80 GET / user=anna → 308 https://gifts.example.com/ -
@@ -14182,6 +14191,9 @@ gifts.example.com:8444 GET /s/abc user=anna → 200 - UPSTREAM wishlist:3280 GET
 gifts.example.com:8444 GET /s/abc user=kim → 200 - UPSTREAM wishlist:3280 GET /s/abc xau=forged xag=authentik Admins
 gifts.example.com:8444 GET /s/abc user=nog → 200 - UPSTREAM wishlist:3280 GET /s/abc xau=forged xag=authentik Admins
 gifts.example.com:8444 GET /s/abc user=op → 200 - UPSTREAM wishlist:3280 GET /s/abc xau=forged xag=authentik Admins
+gifts.example.com:8444 GET /setup-wizard user=- → 302 /login/oidc -
+gifts.example.com:8444 GET /setup-wizard/step/1 user=- → 302 /login/oidc -
+gifts.example.com:8444 GET /signup/ user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:8444 GET /status/heartbeat.json user=- → 200 - UPSTREAM wishlist:3280 GET /status/heartbeat.json xau=forged xag=authentik Admins
 gifts.example.com:8444 GET /status/heartbeat.json user=admin → 200 - UPSTREAM wishlist:3280 GET /status/heartbeat.json xau=forged xag=authentik Admins
 gifts.example.com:8444 GET /status/heartbeat.json user=anna → 200 - UPSTREAM wishlist:3280 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -14206,6 +14218,8 @@ gifts.example.com:8444 GET /web/ user=anna → 200 - UPSTREAM wishlist:3280 GET 
 gifts.example.com:8444 GET /web/ user=kim → 200 - UPSTREAM wishlist:3280 GET /web/ xau=forged xag=authentik Admins
 gifts.example.com:8444 GET /web/ user=nog → 200 - UPSTREAM wishlist:3280 GET /web/ xau=forged xag=authentik Admins
 gifts.example.com:8444 GET /web/ user=op → 200 - UPSTREAM wishlist:3280 GET /web/ xau=forged xag=authentik Admins
+gifts.example.com:8444 POST /%73ignup user=- → 403 - text/plain sha=3597a09c9b0d
+gifts.example.com:8444 POST /SignUp user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:8444 POST /api/login user=- → 200 - UPSTREAM wishlist:3280 POST /api/login xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /api/login user=admin → 200 - UPSTREAM wishlist:3280 POST /api/login xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /api/login user=anna → 200 - UPSTREAM wishlist:3280 POST /api/login xau=forged xag=authentik Admins
@@ -14224,6 +14238,7 @@ gifts.example.com:8444 POST /api/v2/sec/share/abc/validity user=anna → 200 - U
 gifts.example.com:8444 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM wishlist:3280 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM wishlist:3280 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM wishlist:3280 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+gifts.example.com:8444 POST /forgot-password user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:8444 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM wishlist:3280 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM wishlist:3280 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM wishlist:3280 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -14272,6 +14287,9 @@ gifts.example.com:8444 POST /ops/run/run-backup user=anna → 200 - UPSTREAM wis
 gifts.example.com:8444 POST /ops/run/run-backup user=kim → 200 - UPSTREAM wishlist:3280 POST /ops/run/run-backup xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /ops/run/run-backup user=nog → 200 - UPSTREAM wishlist:3280 POST /ops/run/run-backup xau=forged xag=authentik Admins
 gifts.example.com:8444 POST /ops/run/run-backup user=op → 200 - UPSTREAM wishlist:3280 POST /ops/run/run-backup xau=forged xag=authentik Admins
+gifts.example.com:8444 POST /reset-password?token=x user=- → 403 - text/plain sha=3597a09c9b0d
+gifts.example.com:8444 POST /signup user=- → 403 - text/plain sha=3597a09c9b0d
+gifts.example.com:8444 POST /signup?token=x user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:8444-noproxy GET / user=- → ERR ConnectionResetError
 gifts.example.com:9443 GET / user=- → 200 - UPSTREAM wishlist:3280 GET / xau=forged xag=authentik Admins
 gifts.example.com:9443 GET / user=admin → 200 - UPSTREAM wishlist:3280 GET / xau=forged xag=authentik Admins
@@ -14393,6 +14411,9 @@ gifts.example.com:9443 GET /s/abc user=anna → 200 - UPSTREAM wishlist:3280 GET
 gifts.example.com:9443 GET /s/abc user=kim → 200 - UPSTREAM wishlist:3280 GET /s/abc xau=forged xag=authentik Admins
 gifts.example.com:9443 GET /s/abc user=nog → 200 - UPSTREAM wishlist:3280 GET /s/abc xau=forged xag=authentik Admins
 gifts.example.com:9443 GET /s/abc user=op → 200 - UPSTREAM wishlist:3280 GET /s/abc xau=forged xag=authentik Admins
+gifts.example.com:9443 GET /setup-wizard user=- → 302 /login/oidc -
+gifts.example.com:9443 GET /setup-wizard/step/1 user=- → 302 /login/oidc -
+gifts.example.com:9443 GET /signup/ user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:9443 GET /status/heartbeat.json user=- → 200 - UPSTREAM wishlist:3280 GET /status/heartbeat.json xau=forged xag=authentik Admins
 gifts.example.com:9443 GET /status/heartbeat.json user=admin → 200 - UPSTREAM wishlist:3280 GET /status/heartbeat.json xau=forged xag=authentik Admins
 gifts.example.com:9443 GET /status/heartbeat.json user=anna → 200 - UPSTREAM wishlist:3280 GET /status/heartbeat.json xau=forged xag=authentik Admins
@@ -14417,6 +14438,8 @@ gifts.example.com:9443 GET /web/ user=anna → 200 - UPSTREAM wishlist:3280 GET 
 gifts.example.com:9443 GET /web/ user=kim → 200 - UPSTREAM wishlist:3280 GET /web/ xau=forged xag=authentik Admins
 gifts.example.com:9443 GET /web/ user=nog → 200 - UPSTREAM wishlist:3280 GET /web/ xau=forged xag=authentik Admins
 gifts.example.com:9443 GET /web/ user=op → 200 - UPSTREAM wishlist:3280 GET /web/ xau=forged xag=authentik Admins
+gifts.example.com:9443 POST /%73ignup user=- → 403 - text/plain sha=3597a09c9b0d
+gifts.example.com:9443 POST /SignUp user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:9443 POST /api/login user=- → 200 - UPSTREAM wishlist:3280 POST /api/login xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /api/login user=admin → 200 - UPSTREAM wishlist:3280 POST /api/login xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /api/login user=anna → 200 - UPSTREAM wishlist:3280 POST /api/login xau=forged xag=authentik Admins
@@ -14435,6 +14458,7 @@ gifts.example.com:9443 POST /api/v2/sec/share/abc/validity user=anna → 200 - U
 gifts.example.com:9443 POST /api/v2/sec/share/abc/validity user=kim → 200 - UPSTREAM wishlist:3280 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /api/v2/sec/share/abc/validity user=nog → 200 - UPSTREAM wishlist:3280 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /api/v2/sec/share/abc/validity user=op → 200 - UPSTREAM wishlist:3280 POST /api/v2/sec/share/abc/validity xau=forged xag=authentik Admins
+gifts.example.com:9443 POST /forgot-password user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.com:9443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 200 - UPSTREAM wishlist:3280 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 200 - UPSTREAM wishlist:3280 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 200 - UPSTREAM wishlist:3280 POST /graph/v1.0/drives/d/items/i/createLink xau=forged xag=authentik Admins
@@ -14483,6 +14507,9 @@ gifts.example.com:9443 POST /ops/run/run-backup user=anna → 200 - UPSTREAM wis
 gifts.example.com:9443 POST /ops/run/run-backup user=kim → 200 - UPSTREAM wishlist:3280 POST /ops/run/run-backup xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /ops/run/run-backup user=nog → 200 - UPSTREAM wishlist:3280 POST /ops/run/run-backup xau=forged xag=authentik Admins
 gifts.example.com:9443 POST /ops/run/run-backup user=op → 200 - UPSTREAM wishlist:3280 POST /ops/run/run-backup xau=forged xag=authentik Admins
+gifts.example.com:9443 POST /reset-password?token=x user=- → 403 - text/plain sha=3597a09c9b0d
+gifts.example.com:9443 POST /signup user=- → 403 - text/plain sha=3597a09c9b0d
+gifts.example.com:9443 POST /signup?token=x user=- → 403 - text/plain sha=3597a09c9b0d
 gifts.example.org:443 GET / user=- → 302 https://gifts.example.com:9443/ -
 gifts.example.org:443 GET / user=admin → 302 https://gifts.example.com:9443/ -
 gifts.example.org:443 GET / user=anna → 302 https://gifts.example.com:9443/ -
@@ -14603,6 +14630,9 @@ gifts.example.org:443 GET /s/abc user=anna → 302 https://gifts.example.com:944
 gifts.example.org:443 GET /s/abc user=kim → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.org:443 GET /s/abc user=nog → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.org:443 GET /s/abc user=op → 302 https://gifts.example.com:9443/s/abc -
+gifts.example.org:443 GET /setup-wizard user=- → 302 https://gifts.example.com:9443/setup-wizard -
+gifts.example.org:443 GET /setup-wizard/step/1 user=- → 302 https://gifts.example.com:9443/setup-wizard/step/1 -
+gifts.example.org:443 GET /signup/ user=- → 302 https://gifts.example.com:9443/signup/ -
 gifts.example.org:443 GET /status/heartbeat.json user=- → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.org:443 GET /status/heartbeat.json user=admin → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.org:443 GET /status/heartbeat.json user=anna → 302 https://gifts.example.com:9443/status/heartbeat.json -
@@ -14627,6 +14657,8 @@ gifts.example.org:443 GET /web/ user=anna → 302 https://gifts.example.com:9443
 gifts.example.org:443 GET /web/ user=kim → 302 https://gifts.example.com:9443/web/ -
 gifts.example.org:443 GET /web/ user=nog → 302 https://gifts.example.com:9443/web/ -
 gifts.example.org:443 GET /web/ user=op → 302 https://gifts.example.com:9443/web/ -
+gifts.example.org:443 POST /%73ignup user=- → 302 https://gifts.example.com:9443/%73ignup -
+gifts.example.org:443 POST /SignUp user=- → 302 https://gifts.example.com:9443/SignUp -
 gifts.example.org:443 POST /api/login user=- → 302 https://gifts.example.com:9443/api/login -
 gifts.example.org:443 POST /api/login user=admin → 302 https://gifts.example.com:9443/api/login -
 gifts.example.org:443 POST /api/login user=anna → 302 https://gifts.example.com:9443/api/login -
@@ -14645,6 +14677,7 @@ gifts.example.org:443 POST /api/v2/sec/share/abc/validity user=anna → 302 http
 gifts.example.org:443 POST /api/v2/sec/share/abc/validity user=kim → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.org:443 POST /api/v2/sec/share/abc/validity user=nog → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.org:443 POST /api/v2/sec/share/abc/validity user=op → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
+gifts.example.org:443 POST /forgot-password user=- → 302 https://gifts.example.com:9443/forgot-password -
 gifts.example.org:443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.org:443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.org:443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
@@ -14693,6 +14726,9 @@ gifts.example.org:443 POST /ops/run/run-backup user=anna → 302 https://gifts.e
 gifts.example.org:443 POST /ops/run/run-backup user=kim → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.org:443 POST /ops/run/run-backup user=nog → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.org:443 POST /ops/run/run-backup user=op → 302 https://gifts.example.com:9443/ops/run/run-backup -
+gifts.example.org:443 POST /reset-password?token=x user=- → 302 https://gifts.example.com:9443/reset-password?token=x -
+gifts.example.org:443 POST /signup user=- → 302 https://gifts.example.com:9443/signup -
+gifts.example.org:443 POST /signup?token=x user=- → 302 https://gifts.example.com:9443/signup?token=x -
 gifts.example.org:80 GET / user=- → 308 https://gifts.example.org/ -
 gifts.example.org:80 GET / user=admin → 308 https://gifts.example.org/ -
 gifts.example.org:80 GET / user=anna → 308 https://gifts.example.org/ -
@@ -15023,6 +15059,9 @@ gifts.example.org:8444 GET /s/abc user=anna → 302 https://gifts.example.com:94
 gifts.example.org:8444 GET /s/abc user=kim → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.org:8444 GET /s/abc user=nog → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.org:8444 GET /s/abc user=op → 302 https://gifts.example.com:9443/s/abc -
+gifts.example.org:8444 GET /setup-wizard user=- → 302 https://gifts.example.com:9443/setup-wizard -
+gifts.example.org:8444 GET /setup-wizard/step/1 user=- → 302 https://gifts.example.com:9443/setup-wizard/step/1 -
+gifts.example.org:8444 GET /signup/ user=- → 302 https://gifts.example.com:9443/signup/ -
 gifts.example.org:8444 GET /status/heartbeat.json user=- → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.org:8444 GET /status/heartbeat.json user=admin → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.org:8444 GET /status/heartbeat.json user=anna → 302 https://gifts.example.com:9443/status/heartbeat.json -
@@ -15047,6 +15086,8 @@ gifts.example.org:8444 GET /web/ user=anna → 302 https://gifts.example.com:944
 gifts.example.org:8444 GET /web/ user=kim → 302 https://gifts.example.com:9443/web/ -
 gifts.example.org:8444 GET /web/ user=nog → 302 https://gifts.example.com:9443/web/ -
 gifts.example.org:8444 GET /web/ user=op → 302 https://gifts.example.com:9443/web/ -
+gifts.example.org:8444 POST /%73ignup user=- → 302 https://gifts.example.com:9443/%73ignup -
+gifts.example.org:8444 POST /SignUp user=- → 302 https://gifts.example.com:9443/SignUp -
 gifts.example.org:8444 POST /api/login user=- → 302 https://gifts.example.com:9443/api/login -
 gifts.example.org:8444 POST /api/login user=admin → 302 https://gifts.example.com:9443/api/login -
 gifts.example.org:8444 POST /api/login user=anna → 302 https://gifts.example.com:9443/api/login -
@@ -15065,6 +15106,7 @@ gifts.example.org:8444 POST /api/v2/sec/share/abc/validity user=anna → 302 htt
 gifts.example.org:8444 POST /api/v2/sec/share/abc/validity user=kim → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.org:8444 POST /api/v2/sec/share/abc/validity user=nog → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.org:8444 POST /api/v2/sec/share/abc/validity user=op → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
+gifts.example.org:8444 POST /forgot-password user=- → 302 https://gifts.example.com:9443/forgot-password -
 gifts.example.org:8444 POST /graph/v1.0/drives/d/items/i/createLink user=- → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.org:8444 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.org:8444 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
@@ -15113,6 +15155,9 @@ gifts.example.org:8444 POST /ops/run/run-backup user=anna → 302 https://gifts.
 gifts.example.org:8444 POST /ops/run/run-backup user=kim → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.org:8444 POST /ops/run/run-backup user=nog → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.org:8444 POST /ops/run/run-backup user=op → 302 https://gifts.example.com:9443/ops/run/run-backup -
+gifts.example.org:8444 POST /reset-password?token=x user=- → 302 https://gifts.example.com:9443/reset-password?token=x -
+gifts.example.org:8444 POST /signup user=- → 302 https://gifts.example.com:9443/signup -
+gifts.example.org:8444 POST /signup?token=x user=- → 302 https://gifts.example.com:9443/signup?token=x -
 gifts.example.org:9443 GET / user=- → 302 https://gifts.example.com:9443/ -
 gifts.example.org:9443 GET / user=admin → 302 https://gifts.example.com:9443/ -
 gifts.example.org:9443 GET / user=anna → 302 https://gifts.example.com:9443/ -
@@ -15233,6 +15278,9 @@ gifts.example.org:9443 GET /s/abc user=anna → 302 https://gifts.example.com:94
 gifts.example.org:9443 GET /s/abc user=kim → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.org:9443 GET /s/abc user=nog → 302 https://gifts.example.com:9443/s/abc -
 gifts.example.org:9443 GET /s/abc user=op → 302 https://gifts.example.com:9443/s/abc -
+gifts.example.org:9443 GET /setup-wizard user=- → 302 https://gifts.example.com:9443/setup-wizard -
+gifts.example.org:9443 GET /setup-wizard/step/1 user=- → 302 https://gifts.example.com:9443/setup-wizard/step/1 -
+gifts.example.org:9443 GET /signup/ user=- → 302 https://gifts.example.com:9443/signup/ -
 gifts.example.org:9443 GET /status/heartbeat.json user=- → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.org:9443 GET /status/heartbeat.json user=admin → 302 https://gifts.example.com:9443/status/heartbeat.json -
 gifts.example.org:9443 GET /status/heartbeat.json user=anna → 302 https://gifts.example.com:9443/status/heartbeat.json -
@@ -15257,6 +15305,8 @@ gifts.example.org:9443 GET /web/ user=anna → 302 https://gifts.example.com:944
 gifts.example.org:9443 GET /web/ user=kim → 302 https://gifts.example.com:9443/web/ -
 gifts.example.org:9443 GET /web/ user=nog → 302 https://gifts.example.com:9443/web/ -
 gifts.example.org:9443 GET /web/ user=op → 302 https://gifts.example.com:9443/web/ -
+gifts.example.org:9443 POST /%73ignup user=- → 302 https://gifts.example.com:9443/%73ignup -
+gifts.example.org:9443 POST /SignUp user=- → 302 https://gifts.example.com:9443/SignUp -
 gifts.example.org:9443 POST /api/login user=- → 302 https://gifts.example.com:9443/api/login -
 gifts.example.org:9443 POST /api/login user=admin → 302 https://gifts.example.com:9443/api/login -
 gifts.example.org:9443 POST /api/login user=anna → 302 https://gifts.example.com:9443/api/login -
@@ -15275,6 +15325,7 @@ gifts.example.org:9443 POST /api/v2/sec/share/abc/validity user=anna → 302 htt
 gifts.example.org:9443 POST /api/v2/sec/share/abc/validity user=kim → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.org:9443 POST /api/v2/sec/share/abc/validity user=nog → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
 gifts.example.org:9443 POST /api/v2/sec/share/abc/validity user=op → 302 https://gifts.example.com:9443/api/v2/sec/share/abc/validity -
+gifts.example.org:9443 POST /forgot-password user=- → 302 https://gifts.example.com:9443/forgot-password -
 gifts.example.org:9443 POST /graph/v1.0/drives/d/items/i/createLink user=- → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.org:9443 POST /graph/v1.0/drives/d/items/i/createLink user=admin → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
 gifts.example.org:9443 POST /graph/v1.0/drives/d/items/i/createLink user=anna → 302 https://gifts.example.com:9443/graph/v1.0/drives/d/items/i/createLink -
@@ -15323,6 +15374,9 @@ gifts.example.org:9443 POST /ops/run/run-backup user=anna → 302 https://gifts.
 gifts.example.org:9443 POST /ops/run/run-backup user=kim → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.org:9443 POST /ops/run/run-backup user=nog → 302 https://gifts.example.com:9443/ops/run/run-backup -
 gifts.example.org:9443 POST /ops/run/run-backup user=op → 302 https://gifts.example.com:9443/ops/run/run-backup -
+gifts.example.org:9443 POST /reset-password?token=x user=- → 302 https://gifts.example.com:9443/reset-password?token=x -
+gifts.example.org:9443 POST /signup user=- → 302 https://gifts.example.com:9443/signup -
+gifts.example.org:9443 POST /signup?token=x user=- → 302 https://gifts.example.com:9443/signup?token=x -
 ha.example.com:443 GET / user=- → 200 - UPSTREAM 172.21.0.1:8123 GET / xau=forged xag=authentik Admins
 ha.example.com:443 GET / user=admin → 200 - UPSTREAM 172.21.0.1:8123 GET / xau=forged xag=authentik Admins
 ha.example.com:443 GET / user=anna → 200 - UPSTREAM 172.21.0.1:8123 GET / xau=forged xag=authentik Admins
