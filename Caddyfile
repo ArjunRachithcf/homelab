@@ -40,6 +40,16 @@
 		}
 		protocols h1 h2
 	}
+	servers :{$PUBLIC_PORT} {
+		# A browser given "name.domain:9443" without https:// speaks plain HTTP to this TLS port: redirect it to
+		# https on the same host and port instead of Go's "Client sent an HTTP request to an HTTPS server".
+		# Peers only: the NetBird proxy's :9443 needs TLS (SNI) to route at all.
+		listener_wrappers {
+			http_redirect
+			tls
+		}
+		protocols h1 h2
+	}
 	servers {
 		# Only TCP is published, so don't advertise HTTP/3.
 		protocols h1 h2
