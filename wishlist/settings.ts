@@ -53,12 +53,25 @@ async function defaultGroup(): Promise<string> {
     return group.id;
 }
 
+// While Wishlist has no user at all, its /login sends everyone to the setup wizard (the first account = admin) before
+// it looks at an OIDC callback, so the first sign-in through Authentik could never finish. An inactive placeholder,
+// like Authentik's akadmin, keeps it out of that state: no password (and password login is off), no Authentik link,
+// no group, no list; a plain member, never admin.
+const PLACEHOLDER = { username: "homelab-placeholder", name: "Placeholder", email: "placeholder@example.invalid" };
+
+async function placeholder() {
+    if (await prisma.user.findUnique({ where: { username: PLACEHOLDER.username }, select: { id: true } })) return;
+    await prisma.user.create({ data: { ...PLACEHOLDER, hashedPassword: "!" } });
+    console.log("homelab placeholder user created");
+}
+
 async function current(): Promise<Record<string, string | null>> {
     const rows = await prisma.systemConfig.findMany({ where: { groupId: GLOBAL } });
     return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
 async function apply() {
+    await placeholder();
     const wanted = enforced(await defaultGroup());
     const have = await current();
     for (const [key, value] of Object.entries(initial)) {
@@ -85,8 +98,11 @@ async function status() {
         console.log(`${holds ? "ok  " : "DIFF"} ${key} = ${shown}`);
     }
     for (const key of Object.keys(initial)) console.log(`     ${key} = ${have[key]}`);
-    const users = await prisma.user.count();
+    const users = await prisma.user.count({ where: { username: { not: PLACEHOLDER.username } } });
     const admins = await prisma.user.count({ where: { roleId: ADMIN_ROLE } });
+    const held = (await prisma.user.count({ where: { username: PLACEHOLDER.username } })) === 1;
+    ok &&= held;
+    console.log(`${held ? "ok  " : "DIFF"} placeholder user ${PLACEHOLDER.username}`);
     console.log(`     users ${users}, admins ${admins}`);
     if (ok) console.log("ok");
 }
