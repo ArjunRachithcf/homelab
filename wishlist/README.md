@@ -42,7 +42,10 @@ At every start, whatever the admin UI changed:
 - Claims: **show to the owner off** (the patch relies on it);
 - Lists: **public lists off** until the household decides who may make one (kids' lists: only with an adult's
   approval, which Wishlist can't enforce yet);
-- the default group: everyone who signs in joins it and gets a list (without it, only the first one would).
+- the default group: everyone who signs in joins it and gets a list (without it, only the first one would);
+- an inactive placeholder user (`homelab-placeholder`, like Authentik's `akadmin`): while Wishlist has no user, its
+  `/login` sends everyone to the setup wizard before it reads Authentik's answer, so the first sign-in could never
+  finish. The placeholder has no password, no Authentik link, no group and no list.
 
 Once, then the admin's: Suggestions **on, "Approval required"**: others can suggest a wish, the list's owner
 approves it. Not "Surprise me": that mode hides from the owner every item someone else added, judged at every read,
