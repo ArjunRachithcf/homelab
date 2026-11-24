@@ -149,9 +149,13 @@ pg_app() {
 # Sharry's shares and accounts; the uploaded files (volume sharry-files) are left out: ≤ 30 days, the sender has them
 pg_app sharry sharry-db
 # The family apps (RUNBOOK.md 7f), each only when its component is chosen
-family=(chores things family-tree notes wiki news games places)
+family=(chores gifts things family-tree notes wiki news games places)
 for c in "${family[@]}"; do component_on "$c" && { echo "Apps (RUNBOOK.md 7f)…"; break; }; done
 component_on chores && vol_tar donetick-data "$NONE" donetick.db
+if component_on gifts; then
+  vol_tar wishlist-data "$NONE" prod.db
+  vol_tar wishlist-uploads "$NONE"            # the wishes' pictures
+fi
 component_on things && vol_tar homebox-data "$NONE" homebox.db      # also the attachments (receipts, manuals, photos)
 if component_on family-tree; then
   vol_tar gramps-users "$NONE" users.sqlite

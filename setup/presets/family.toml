@@ -4,5 +4,5 @@ description = "Every app, public access through NetBird's proxy, SSH with your s
 components = ["core", "mesh", "public-access", "paperless", "local-ai", "media-library", "jellyfin", "plex", "music",
               "photos", "second-disk", "backups", "offsite", "heartbeat", "audiobooks", "budget", "bookmarks", "pdf",
               "reading", "files", "share", "ssh-sso", "terminal", "home-assistant", "adblock",
-              "chores", "things", "family-tree", "notes", "wiki", "news", "games", "places",
+              "chores", "gifts", "things", "family-tree", "notes", "wiki", "news", "games", "places",
               "ntfy", "n8n"]

@@ -17,7 +17,7 @@ source "$(dirname "$(readlink -f "$0")")/lib/wizard.sh"
 
 
 # Homelab step 7f (2026-10-27): the family apps, one component each (the ones chosen in COMPONENTS):
-# chores (Donetick, chores.*), things (Homebox, stuff.*), family-tree (Gramps Web, tree.*), notes (Memos,
+# chores (Donetick, chores.*), gifts (Wishlist, gifts.*, our patched build), things (Homebox, stuff.*), family-tree (Gramps Web, tree.*), notes (Memos,
 # notes.*, our patched build), wiki (Outline, wiki.*), news (FreshRSS, news.*), games (RomM, games.*),
 # places (Dawarich, places.*). RUNBOOK.md step 7f.
 #   ./family-wizard.sh           walk through every stage (re-runnable; finished stages can be skipped)
@@ -39,23 +39,24 @@ FR_ADMIN="admin"
 for k in ADMIN_USER ADMIN_LOGIN FRESHRSS_ADMIN_USER; do v=$(_existing "$k" || true); [[ -n $v ]] && FR_ADMIN=$v; done
 GAMES="$(_existing MEDIA_DIR || echo /srv/media)/Games"
 # component → its name (NetBird zone, public service, Caddy site), Authentik slug, health path through Caddy
-declare -A NAME=([chores]=chores [things]=stuff [family-tree]=tree [notes]=notes [wiki]=wiki [news]=news
+declare -A NAME=([chores]=chores [gifts]=gifts [things]=stuff [family-tree]=tree [notes]=notes [wiki]=wiki [news]=news
                  [games]=games [places]=places)
-declare -A SLUG=([chores]=donetick [things]=homebox [family-tree]=gramps [notes]=memos [wiki]=outline
+declare -A SLUG=([chores]=donetick [gifts]=wishlist [things]=homebox [family-tree]=gramps [notes]=memos [wiki]=outline
                  [news]=freshrss [games]=romm [places]=dawarich)
-declare -A HEALTH=([chores]=/api/v1/health [things]=/api/v1/status [family-tree]=/ready [notes]=/healthz
+declare -A HEALTH=([chores]=/api/v1/health [gifts]=/favicon.ico [things]=/api/v1/status [family-tree]=/ready [notes]=/healthz
                    [wiki]=/_health [news]=/api/ [games]=/api/heartbeat [places]=/api/v1/health)
 # its app containers, their databases and caches
-declare -A APP=([chores]=donetick [things]=homebox [family-tree]="gramps gramps-celery" [notes]=memos
+declare -A APP=([chores]=donetick [gifts]=wishlist [things]=homebox [family-tree]="gramps gramps-celery" [notes]=memos
                 [wiki]=outline [news]=freshrss [games]=romm [places]=dawarich)
 declare -A HELPERS=([family-tree]=gramps-redis [wiki]="outline-db outline-redis" [games]=romm-db
                     [places]="dawarich-db dawarich-redis")
 # Run as HOST_UID: their new named volumes come up root's and must be handed over once
-declare -A UID_VOLS=([chores]=donetick-data [things]=homebox-data
+declare -A UID_VOLS=([chores]=donetick-data [gifts]="wishlist-data wishlist-uploads" [things]=homebox-data
                      [games]="romm-resources romm-assets romm-config romm-redis"
                      [places]="dawarich-public dawarich-storage dawarich-watched")
 declare -A SECRETS_OF=(
   [chores]="DONETICK_OIDC_CLIENT_SECRET DONETICK_JWT_SECRET"
+  [gifts]="WISHLIST_OIDC_CLIENT_SECRET"
   [things]="HOMEBOX_OIDC_CLIENT_SECRET HOMEBOX_API_KEY_PEPPER"
   [family-tree]="GRAMPS_OIDC_CLIENT_SECRET GRAMPS_SECRET_KEY GRAMPS_TREE"
   [notes]="MEMOS_OIDC_CLIENT_SECRET"
@@ -66,7 +67,7 @@ declare -A SECRETS_OF=(
 # The chosen ones, in this order
 ON=() NAMES=() SLUGS=() APPS=() NEW_SERVICES=() UID_VOLUMES=() SECRETS=()
 # shellcheck disable=SC2206  # the tables hold space-separated word lists
-for c in chores things family-tree notes wiki news games places; do
+for c in chores gifts things family-tree notes wiki news games places; do
   component_on "$c" || continue
   ON+=("$c"); NAMES+=("${NAME[$c]}"); SLUGS+=("${SLUG[$c]}")
   APPS+=(${APP[$c]}); NEW_SERVICES+=(${HELPERS[$c]:-} ${APP[$c]}); UID_VOLUMES+=(${UID_VOLS[$c]:-}); SECRETS+=(${SECRETS_OF[$c]})
@@ -79,6 +80,7 @@ FAILED=()
 
 secrets_ok() { local k; for k in "${SECRETS[@]}"; do [[ -n "$(_existing "$k" || true)" ]] || return 1; done; }
 memos_image() { docker image inspect "homelab-memos:$(_existing MEMOS_TAG || echo 0.31.0)-sso"; }
+wishlist_image() { docker image inspect "homelab-wishlist:$(_existing WISHLIST_TAG || echo 0.69.0)-claims"; }
 all_running() { local s; for s in "${NEW_SERVICES[@]}"; do running "$s" || return 1; done; }
 all_oidc()    { local s; for s in "${SLUGS[@]}"; do oidc_app "$s" || return 1; done; }
 # Each app's own health path through Caddy (the same as the home page's status lines)
@@ -105,6 +107,8 @@ memos_pw_shut() {
 freshrss_header_shut() { [[ "$(code news /i/ -H "Remote-User: $FR_ADMIN" -H "X-WebAuth-User: $FR_ADMIN")" == 302 ]]; }
 donetick_pw_shut() { [[ "$(code chores /api/v1/auth/login -X POST -H 'Content-Type: application/json' -d '{"username":"x","password":"y"}')" == 403 ]]; }
 dawarich_no_pw()   { ! body places /users/sign_in | grep -q 'type="password"'; }
+# Password login off: /login sends everyone to Authentik (OIDC_AUTO_REDIRECT) instead of a password form
+wishlist_no_pw()   { ! body gifts /login | grep -q 'type="password"'; }
 rails() { docker compose exec -T dawarich bin/rails runner "$1" 2>/dev/null | tail -n1; }
 dawarich_demo_gone() { [[ "$(rails 'puts User.where(email: "demo@dawarich.app").count')" == 0 ]]; }
 dawarich_admin()     { [[ "$(rails 'puts User.where(admin: true).count')" -ge 1 ]]; }
@@ -118,6 +122,7 @@ run_checks() {
   say "${BOLD}This box${RESET} ($APP_LIST)"
   check "their secrets in .env"                                secrets_ok || true
   on notes && { check "our Memos build (memos/build.sh)"       memos_image || true; }
+  on gifts && { check "our Wishlist build (wishlist/build.sh)" wishlist_image || true; }
   on games && { check "RomM's folder $GAMES"                   test -d "$GAMES/roms" || true; }
   check "the apps and their databases running"                 all_running || true
   check "no new host listener"                                 no_new_ports || true
@@ -130,6 +135,7 @@ run_checks() {
   on notes  && { check "Memos: password sign-up refused (patched build)"  memos_pw_shut || true; }
   on chores && { check "Donetick: password login refused"                 donetick_pw_shut || true; }
   on places && { check "Dawarich: no password field"                      dawarich_no_pw || true; }
+  on gifts  && { check "Wishlist: no password field"                      wishlist_no_pw || true; }
   on news   && { check "FreshRSS: a forged Remote-User signs no one in"   freshrss_header_shut || true; }
   on places && { check "Dawarich: you're admin, the demo admin is gone"   eval 'dawarich_admin && dawarich_demo_gone' || true; }
   on wiki   && { check "Outline: an admin exists, passkeys off"           eval 'outline_admin && outline_no_passkeys' || true; }
@@ -193,10 +199,22 @@ stage_memos() {
   pause
 }
 
+stage_wishlist() {
+  on gifts || return 0
+  stage "Our Wishlist build (a few minutes)" || return 0
+  if wishlist_image >/dev/null 2>&1; then say "Built."; skip_offer && return; fi
+  say "Wishlist hides claims from a list's owner only on screen: the page still sends them."
+  say "wishlist/claims-hidden.patch keeps them on the server; wishlist/build.sh builds upstream's"
+  say "tagged source with it, with upstream's own Dockerfile (wishlist/README.md)."
+  ./wishlist/build.sh || FAILED+=("wishlist/build.sh")
+  retry_check "homelab-wishlist image" wishlist_image || true
+  pause
+}
+
 stage_authentik() {
   stage "Authentik: the apps, Caddy's new sites" || return 0
   if all_oidc; then say "Apps exist."; skip_offer && return; fi
-  say "Applies authentik/<component>.yaml for each: one OIDC client per app, family only; Chores and Games also kids."
+  say "Applies authentik/<component>.yaml for each: one OIDC client per app, family only; Chores, Gifts and Games also kids."
   ./authentik/setup-ssh.sh family-apps || FAILED+=("authentik/setup-ssh.sh family-apps")
   docker compose up -d --force-recreate --no-deps caddy || FAILED+=("recreate caddy")
   # Caddy takes a few seconds to listen again after the recreate
@@ -209,7 +227,7 @@ stage_start() {
   stage "Start $APP_LIST" || return 0
   if all_running && all_answer; then say "All running."; skip_offer && return; fi
   on games && mkdir -p "$GAMES/roms" "$GAMES/bios"
-  local s pulls=(); for s in "${NEW_SERVICES[@]}"; do [[ $s == memos ]] || pulls+=("$s"); done   # memos: built here
+  local s pulls=(); for s in "${NEW_SERVICES[@]}"; do [[ $s == memos || $s == wishlist ]] || pulls+=("$s"); done   # memos, wishlist: built here
   docker compose pull "${pulls[@]}" >/dev/null || FAILED+=("docker compose pull")
   # Containers first: that fills the new volumes from the image (as root), then they're handed over
   docker compose create "${NEW_SERVICES[@]}" >/dev/null || FAILED+=("docker compose create")
@@ -269,6 +287,11 @@ stage_first() {
   for n in "${rest[@]}"; do step "  https://$n.$DOMAIN:$(pub_port)/"; done
   step "Open each once: it signs you straight in."
   on news && step "${BOLD}News${RESET}: you're its admin (FRESHRSS_ADMIN_USER)."
+  if on gifts; then
+    step "${BOLD}Gifts${RESET}: you're its admin (authentik Admins). Avatar → Administration → Settings:"
+    step "  Claims: ${BOLD}show to owner off${RESET} · Suggestions ${BOLD}on${RESET}, method ${BOLD}Approval required${RESET} ·"
+    step "  Lists: ${BOLD}public lists off${RESET} (kids' public lists need an adult; Wishlist can't enforce that yet)."
+  fi
   if on things; then
     step "${BOLD}Things${RESET}: you get a collection \"Home\"; family members get their own until you invite them"
     step "  (Collection → Invite → send them the link)."
@@ -295,8 +318,9 @@ stage_proxy() {
 stage_phones() {
   stage "Phones and the home page" || return 0
   open_url "https://home.$DOMAIN:$(pub_port)/"
-  step "Home page: a new panel ${BOLD}Family life${RESET} with $APP_LIST; a kid's account shows Chores and Games."
+  step "Home page: a new panel ${BOLD}Family life${RESET} with $APP_LIST; a kid's account shows Chores, Gifts and Games."
   on chores && step "${BOLD}Chores${RESET}: the Donetick app (App Store / Play) → server https://chores.$DOMAIN:$(pub_port) → $BRAND."
+  on gifts && step "${BOLD}Gifts${RESET}: no store app; open https://gifts.$DOMAIN:$(pub_port)/ on the phone → Add to Home Screen."
   on places && step "${BOLD}Places${RESET}: Dawarich app, or OwnTracks / Overland → your API key from Places → Settings."
   if on news; then
     step "${BOLD}News${RESET}: any Google Reader app (Reeder, NetNewsWire, FeedMe) → server https://news.$DOMAIN:$(pub_port)/api/greader.php,"
@@ -319,7 +343,7 @@ stage_backup() {
 
 run_wizard() {
 
-TOTAL_STAGES=$(( 8 + $(on notes && echo 1 || echo 0) ))
+TOTAL_STAGES=$(( 8 + $(on notes && echo 1 || echo 0) + $(on gifts && echo 1 || echo 0) ))
 (( ${#ON[@]} )) || { echo "None of the family apps is chosen (COMPONENTS in .env): nothing to do."; exit 0; }
 
 if [[ ${1:-} == --check ]]; then
@@ -331,6 +355,7 @@ fi
 banner "Homelab 7f: the family apps ($APP_LIST)"
 stage_secrets
 stage_memos
+stage_wishlist
 stage_authentik
 stage_start
 stage_zones

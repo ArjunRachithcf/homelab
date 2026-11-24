@@ -29,6 +29,18 @@ SPDX-FileCopyrightText = "2026 Arjun Rachith"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
+path = "site/apps/wishlist.png"
+precedence = "override"
+SPDX-FileCopyrightText = "2023 Carter Mintey (Wishlist's icon, github.com/cmintey/wishlist)"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["wishlist/claims-hidden.patch"]
+precedence = "override"
+SPDX-FileCopyrightText = "2023 Carter Mintey; 2026 Arjun Rachith"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = "site/apps/bindery.svg"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 vavallee (Bindery's logo, github.com/vavallee/bindery)"

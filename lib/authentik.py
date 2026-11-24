@@ -8,7 +8,7 @@ sign-in (run through ./authentik/setup-ssh.sh, as yourself, docker group). Idemp
   setup-ssh.sh family        family sign-up, the brand's wording (family.yaml) + jellyfin, photos, music
   setup-ssh.sh apps          the chosen ones of audiobooks, bookmarks, budget, pdf, adblock (7d)
   setup-ssh.sh files         the chosen ones of reading, files, share (RUNBOOK.md 7e)
-  setup-ssh.sh family-apps   the chosen ones of Chores, Things, Family tree, Notes, Wiki, News, Games, Places (7f)
+  setup-ssh.sh family-apps   the chosen ones of Chores, Gifts, Things, Family tree, Notes, Wiki, News, Games, Places (7f)
   setup-ssh.sh kid USER      USER into group kids, out of paperless-users (RUNBOOK.md 7e)
   setup-ssh.sh members GROUP the active users of GROUP, one username a line (Seerr's permissions, downloads-wizard.sh)
   setup-ssh.sh app           the family app's browser sign-in (family-app.yaml, RUNBOOK.md "Family app")
@@ -52,7 +52,7 @@ GROUPS = {
     "family": ["jellyfin", "photos", "music"],
     "apps": ["audiobooks", "bookmarks", "budget", "pdf", "adblock"],
     "files": ["reading", "files", "share"],
-    "family-apps": ["chores", "things", "family-tree", "notes", "wiki", "news", "games", "places"],
+    "family-apps": ["chores", "gifts", "things", "family-tree", "notes", "wiki", "news", "games", "places"],
 }
 SECRET_LINE = re.compile(r"password|token", re.I)
 

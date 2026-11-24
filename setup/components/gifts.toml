@@ -1,0 +1,45 @@
+title = "Gifts (Wishlist, our build)"
+description = "Wish lists for the family: others claim gifts and the person they're for never sees it; our build hides claims on the server too (wishlist/build.sh). Public; only its own sign-in through Authentik."
+category = "apps"
+core = false
+requires = ["core"]
+suggests = ["backups"]
+conflicts = []
+gpu = "none"
+platforms = ["fedora", "debian", "ubuntu", "arch"]
+services = ["wishlist"]
+public_names = ["gifts"]
+peer_names = ["gifts"]
+blueprints = ["gifts.yaml"]
+jobs = []
+ansible = ""
+stages = ["family:secrets", "family:wishlist", "family:authentik", "family:start", "family:zones", "family:first",
+          "family:proxy", "family:phones", "family:backup"]
+
+
+[[tiles]]
+order = 139
+id = "gifts"
+name = "Gifts"
+kids = "Gifts"
+desc = "Wish lists, without spoiling the surprise"
+url = "https://gifts.%s/"
+icon = "/apps/wishlist.png"
+status = "gifts"
+group = "life"
+audience = "family-and-kids"
+
+[options.WISHLIST_TAG]
+help = "Wishlist version (Gifts): upstream's tag, built with our patch by wishlist/build.sh"
+type = "tag"
+default = "0.69.0"
+advanced = true
+[options.WISHLIST_CURRENCY]
+help = "Gifts' default currency (ISO code); each wish can still have its own"
+type = "text"
+default = "USD"
+[options.WISHLIST_OIDC_CLIENT_SECRET]
+help = "Wishlist's Authentik client secret"
+type = "secret"
+required = true
+generate = "openssl rand -base64 48 | tr -d '\\n/+='"
