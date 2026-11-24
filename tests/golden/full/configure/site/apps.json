@@ -99,6 +99,9 @@
 {{- if or $family $kids }}
   {{- $apps = append $apps (dict "id" "games" "name" "Games" "kids" "Games" "desc" "Old console games" "url" (printf "https://games.%s/" $u) "icon" "/apps/romm.svg" "status" "games" "group" "life") -}}
 {{- end }}
+{{- if or $family $kids }}
+  {{- $apps = append $apps (dict "id" "gifts" "name" "Gifts" "kids" "Gifts" "desc" "Wish lists, without spoiling the surprise" "url" (printf "https://gifts.%s/" $u) "icon" "/apps/wishlist.png" "status" "gifts" "group" "life") -}}
+{{- end }}
 {{- if not $kids }}
   {{- $apps = append $apps (dict "id" "account" "name" "My account" "desc" "Password and authenticator" "url" (printf "https://auth.%s/if/user/" $u) "icon" "/mark.png" "status" "auth" "group" "account") -}}
 {{- end }}

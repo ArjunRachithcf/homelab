@@ -1939,7 +1939,7 @@
         "/app/server.py"
       ],
       "environment": {
-        "OPS_COMPONENTS": "core,mesh,public-access,paperless,local-ai,media-library,jellyfin,plex,music,photos,second-disk,backups,offsite,heartbeat,audiobooks,budget,bookmarks,pdf,reading,files,share,ssh-sso,terminal,home-assistant,adblock,chores,things,family-tree,notes,wiki,news,games,places,ntfy,n8n,albums,book-requests,byparr,downloads,movies-tv,requests,subtitles",
+        "OPS_COMPONENTS": "core,mesh,public-access,paperless,local-ai,media-library,jellyfin,plex,music,photos,second-disk,backups,offsite,heartbeat,audiobooks,budget,bookmarks,pdf,reading,files,share,ssh-sso,terminal,home-assistant,adblock,chores,gifts,things,family-tree,notes,wiki,news,games,places,ntfy,n8n,albums,book-requests,byparr,downloads,movies-tv,requests,subtitles",
         "OPS_ORIGINS": "https://home.example.com:9443 https://home.example.com",
         "OPS_TRUSTED_PROXY": "172.21.1.11"
       },
@@ -2836,6 +2836,56 @@
           "volume": {}
         }
       ]
+    },
+    "wishlist": {
+      "environment": {
+        "DEFAULT_CURRENCY": "CHF",
+        "ENABLE_SIGNUP": "false",
+        "HOME": "/tmp",
+        "OIDC_ADMIN_GROUP": "authentik Admins",
+        "OIDC_AUTO_REDIRECT": "true",
+        "OIDC_AUTO_REGISTER": "true",
+        "OIDC_CLIENT_ID": "wishlist",
+        "OIDC_CLIENT_SECRET": "golden-wishlist-oidc-client-secret",
+        "OIDC_DISCOVERY_URL": "https://auth.example.com:9443/application/o/wishlist/",
+        "OIDC_ENABLE": "true",
+        "OIDC_ENABLE_SYNC": "true",
+        "OIDC_PROVIDER_NAME": "Example",
+        "ORIGIN": "https://gifts.example.com:9443",
+        "SECURITY_DISABLE_PASSWORD_LOGIN": "true",
+        "TOKEN_TIME": "72",
+        "XDG_CONFIG_HOME": "/tmp",
+        "XDG_DATA_HOME": "/tmp"
+      },
+      "image": "homelab-wishlist:0.69.0-claims",
+      "networks": {},
+      "profiles": [
+        "gifts"
+      ],
+      "pull_policy": "never",
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "user": "1000:1000",
+      "volumes": [
+        {
+          "source": "wishlist-data",
+          "target": "/usr/src/app/data",
+          "type": "volume",
+          "volume": {}
+        },
+        {
+          "source": "wishlist-uploads",
+          "target": "/usr/src/app/uploads",
+          "type": "volume",
+          "volume": {}
+        }
+      ]
     }
   },
   "volumes": {
@@ -3021,6 +3071,12 @@
     },
     "termix-data": {
       "name": "homelab_termix-data"
+    },
+    "wishlist-data": {
+      "name": "homelab_wishlist-data"
+    },
+    "wishlist-uploads": {
+      "name": "homelab_wishlist-uploads"
     }
   },
   "x-authentik-env": {

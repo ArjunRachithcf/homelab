@@ -745,7 +745,7 @@ services:
 
   # --- Wishlist (gifts.<domain>): the family's wish lists. Our build (wishlist/build.sh: claims never reach the
   # list's owner). Authentik only: no passwords, no sign-up; authentik Admins = its admins at every sign-in.
-  # Its admin settings (claims hidden from owners, "Surprise me" suggestions, no public lists) are set once in
+  # Its admin settings (claims hidden from owners, suggestions with approval, no public lists) are set once in
   # family-wizard.sh. It serves through its own Caddy on 3280 (uploads straight from disk).
   wishlist:
     profiles: [gifts]
